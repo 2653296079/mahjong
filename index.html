@@ -60,17 +60,25 @@ main{flex:1;display:flex;min-height:0}
 
 /* 麻将牌 */
 /* 实体麻将牌质感：象牙面 + 内斜面 + 砖块厚度 + 落地阴影 */
-.tile{background:linear-gradient(176deg,#fffef9 0%,#fbf7ea 48%,#efe7d0 100%);
-  color:var(--ink);border:1px solid #d5cdb4;border-radius:6px;
+.tile{position:relative;
+  background:linear-gradient(178deg,#ffffff 0%,#fdfbf4 30%,#f7f1de 68%,#eae1c6 100%);
+  color:var(--ink);border:1px solid #c9c0a2;border-radius:7px;
   display:flex;align-items:center;justify-content:center;padding:2px 3px;overflow:hidden;user-select:none;
-  box-shadow:inset 0 1px 0 #fff, inset 0 -2px 2px rgba(120,105,70,.16),
-    0 2px 0 #cbbfa0, 0 3px 0 #ab9d7c, 0 4px 7px rgba(0,0,0,.38)}
+  box-shadow:
+    inset 0 2px 0 rgba(255,255,255,.98),
+    inset 2px 0 1px rgba(255,255,255,.72),
+    inset -2px 0 2px rgba(148,133,98,.22),
+    inset 0 -3px 5px rgba(140,124,88,.28),
+    0 3px 0 #cec3a4,
+    0 4px 0 #b5a884,
+    0 5px 0 #94875e,
+    0 8px 12px rgba(0,0,0,.5)}
 .tile svg{width:100%;height:100%;display:block}
 .tile.small{width:28px;height:38px;border-radius:4px;padding:1px 2px;
-  box-shadow:inset 0 1px 0 #fff, inset 0 -1px 1px rgba(120,105,70,.16),
-    0 1px 0 #cbbfa0, 0 2px 0 #ab9d7c, 0 2px 4px rgba(0,0,0,.35)}
+  box-shadow:inset 0 1px 0 #fff, inset 0 -2px 3px rgba(140,124,88,.26),
+    0 1px 0 #cec3a4, 0 2px 0 #b5a884, 0 4px 5px rgba(0,0,0,.42)}
 .tile.meldTile{width:24px;height:33px;border-radius:3px;padding:1px 2px;
-  box-shadow:inset 0 1px 0 #fff, 0 1px 0 #cbbfa0, 0 2px 3px rgba(0,0,0,.32)}
+  box-shadow:inset 0 1px 0 #fff, 0 1px 0 #cec3a4, 0 3px 4px rgba(0,0,0,.4)}
 .tile.mid{width:34px;height:46px}
 .tile.big{width:48px;height:64px}
 .tile.back{background:linear-gradient(170deg,#2a8a5f 0%,#1c6b4a 45%,#0d4630 100%);
@@ -266,6 +274,26 @@ main{flex:1;display:flex;min-height:0}
 #situation .advice b{color:var(--gold)}
 #situation .kill{color:#ff9a8b;font-size:11px}
 @media (max-width:680px){ #situation{font-size:12px} #situation .opp .nm{width:44px} #situation .waits{margin-left:50px} }
+/* ---------- 计时器 ---------- */
+#turnTimer{display:flex;align-items:center;gap:8px;font-size:13px;color:#cfd8d3}
+#turnTimer .tbar{width:130px;height:8px;border-radius:5px;background:rgba(255,255,255,.12);overflow:hidden}
+#turnTimer .tbar i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,#7ee2a8,#f2c14e);transition:width .2s linear}
+#turnTimer.warn .tbar i{background:linear-gradient(90deg,#f2c14e,#ff9a8b)}
+#turnTimer .sec{font-weight:700;font-variant-numeric:tabular-nums;min-width:34px;text-align:right}
+#turnTimer.warn .sec{color:#ff9a8b}
+#turnTimer.ai{color:#9fb3a8}
+
+/* ---------- 中央出牌展示 ---------- */
+#centerTile{display:flex;flex-direction:column;align-items:center;gap:3px;min-height:70px;justify-content:center}
+#centerTile .who{font-size:11px;color:#9fb3a8}
+#centerTile .tile.pop{animation:pop .28s cubic-bezier(.2,1.4,.5,1)}
+@keyframes pop{0%{transform:scale(.55) translateY(12px);opacity:0}70%{transform:scale(1.08)}100%{transform:scale(1)}}
+#centerTile .tile.danger{box-shadow:0 0 0 3px #ff9a8b, 0 3px 0 #cec3a4, 0 8px 14px rgba(255,110,90,.55)}
+
+/* ---------- 摸到的牌放最右 ---------- */
+.handRow .gap{width:14px;flex:0 0 auto}
+.tile.drawn{box-shadow:0 0 0 2px rgba(242,193,78,.85), 0 3px 0 #cec3a4, 0 4px 0 #b5a884, 0 5px 0 #94875e, 0 8px 12px rgba(0,0,0,.5)}
+@media (max-width:680px){ .handRow .gap{width:9px} #turnTimer .tbar{width:80px} #centerTile{min-height:54px} }
 </style>
 </head>
 <body>
@@ -274,6 +302,34 @@ main{flex:1;display:flex;min-height:0}
 · 安卓：文件管理器里选「用浏览器打开」，或直接在 Chrome 地址栏输入文件路径<br>
 · iPhone：存到「文件」App 后用 Safari 打开<br><br>
 不要用文件管理器的「预览」或聊天软件的内置查看器。</div></noscript>
+<svg width="0" height="0" style="position:absolute;pointer-events:none" aria-hidden="true"><defs>
+  <radialGradient id="tgDot" cx="34%" cy="27%" r="80%">
+    <stop offset="0%" stop-color="#9ad8f8"/><stop offset="40%" stop-color="#2f8fd0"/><stop offset="100%" stop-color="#0b3a60"/>
+  </radialGradient>
+  <radialGradient id="tgCore" cx="35%" cy="29%" r="78%">
+    <stop offset="0%" stop-color="#ec8073"/><stop offset="52%" stop-color="#c0392b"/><stop offset="100%" stop-color="#75190f"/>
+  </radialGradient>
+  <linearGradient id="tgBamboo" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0%" stop-color="#07401f"/><stop offset="20%" stop-color="#1e8449"/>
+    <stop offset="44%" stop-color="#9ae8ba"/><stop offset="60%" stop-color="#3fae6d"/><stop offset="100%" stop-color="#07401f"/>
+  </linearGradient>
+  <linearGradient id="tgBambooRed" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0%" stop-color="#7a1c12"/><stop offset="20%" stop-color="#c0392b"/>
+    <stop offset="44%" stop-color="#ffc2b6"/><stop offset="60%" stop-color="#e05a49"/><stop offset="100%" stop-color="#7a1c12"/>
+  </linearGradient>
+  <linearGradient id="tgWan" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#e4604f"/><stop offset="52%" stop-color="#c0392b"/><stop offset="100%" stop-color="#8f2318"/>
+  </linearGradient>
+  <radialGradient id="tgBird" cx="34%" cy="26%" r="82%">
+    <stop offset="0%" stop-color="#7ddba6"/><stop offset="52%" stop-color="#2f9e5e"/><stop offset="100%" stop-color="#0f5c33"/>
+  </radialGradient>
+  <radialGradient id="tgBirdHead" cx="34%" cy="26%" r="82%">
+    <stop offset="0%" stop-color="#8ee3b2"/><stop offset="55%" stop-color="#35a866"/><stop offset="100%" stop-color="#12653a"/>
+  </radialGradient>
+  <linearGradient id="tgBack" x1="0" y1="0" x2="0.3" y2="1">
+    <stop offset="0%" stop-color="#3aa877"/><stop offset="45%" stop-color="#1c6b4a"/><stop offset="100%" stop-color="#083a25"/>
+  </linearGradient>
+</defs></svg>
 <div id="app">
   <header id="topbar">
     <div class="brand">🀄<span class="brandText"> 转转麻将 · 练牌室</span></div>
@@ -303,6 +359,7 @@ main{flex:1;display:flex;min-height:0}
           <div class="birdTitle">鸟牌</div>
           <div id="birdTiles" class="tiles"></div>
         </div>
+        <div id="centerTile"></div>
         <div id="centerMsg"></div>
         <div id="boot">正在加载牌局…<span class="bootHint">如果这行字一直不消失，说明当前打开方式没有运行 JavaScript —— 请改用 Chrome / Safari 打开本文件。</span></div>
       </div>
@@ -335,6 +392,7 @@ main{flex:1;display:flex;min-height:0}
 
   <footer id="actionbar">
     <div id="waitingBanner" class="hidden"></div>
+    <div id="turnTimer" class="hidden"></div>
     <div id="actionBtns"></div>
   </footer>
 </div>
@@ -1043,7 +1101,10 @@ main{flex:1;display:flex;min-height:0}
         G.awaiting = { type: 'claim', seat: hs, options: humanOptions };
         return;
       }
-      resolveClaims(decisions);
+      // 有人能碰/杠/胡 → 交给 UI 延迟结算（AI 思考）；没人才可动就直接过
+      var anyClaim = claims.hu.length + claims.gang.length + claims.peng.length > 0;
+      if (!anyClaim) { resolveClaims(decisions); return; }
+      H.pendingResolve = true;
     }
 
     function resolveClaims(decisions) {
@@ -1290,6 +1351,8 @@ main{flex:1;display:flex;min-height:0}
       var H = G.hand;
       if (!H || H.over) return false;
       if (G.awaiting) return false;
+      if (H.pendingResolve) return false;      // 等 UI 结算碰/杠/胡
+      if (H.pendingClaims && !H.pendingResolve) { /* 已结算完 */ }
       var turnSeat = H.turn;
       // 若该座位是真人且不是快进模式，等待其操作
       if (G.seats[turnSeat].isHuman && !G.fastForward) return false;
@@ -1326,6 +1389,14 @@ main{flex:1;display:flex;min-height:0}
       return true;
     }
 
+    G.hasPendingResolve = function () { return !!(G.hand && G.hand.pendingResolve); };
+    G.resolvePending = function () {
+      var H = G.hand;
+      if (!H || !H.pendingResolve) return false;
+      H.pendingResolve = false;
+      resolveClaims(H.claimDecisions || {});
+      return true;
+    };
     G.startHand = startHand;
     G.nextHand = nextHand;
     G.aiStep = aiStep;
@@ -1416,7 +1487,9 @@ window.onerror = function (msg, src, line, col) {
   var POS_NAME = ['你', '下家', '对家', '上家'];
 
   var game = null, timer = null;
-  var cfg = { rotate: true, aiStyle: 'ev', speed: 420, hint: true, seed: null, analyze: true, worlds: 150 };
+  var cfg = { rotate: true, aiStyle: 'ev', speed: 420, hint: true, seed: null, analyze: true, worlds: 150,
+              turnTime: 30, aiThink: 3 };   // 人类每步 30 秒；电脑思考 3 秒
+  var turnDeadline = 0, lastPopKind = -1;
   var sitCache = { key: '', data: null, cands: null };
   var $ = function (id) { return document.getElementById(id); };
   // 触屏 & 窄屏适配
@@ -1467,83 +1540,89 @@ window.onerror = function (msg, src, line, col) {
   }
 
   // ---------- 小工具 ----------
-  // ---------- 麻将牌图案（内联 SVG，仿真实体牌） ----------
+  // ---------- 麻将牌图案（内联 SVG，仿实体牌） ----------
   var CN_NUM = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
-  var RED = '#c0392b', RED_D = '#8e2b20', BLUE = '#1a6fb5', BLUE_D = '#124e80', GREEN = '#1e8449';
-  // 筒子圆点阵
+  var WAN_FONT = "'KaiTi','STKaiti','Kaiti SC','Songti SC','SimSun','Noto Serif CJK SC','Source Han Serif SC',serif";
   var DOT_LAYOUT = {
-    1: { r: 13, pts: [[24, 32]] },
-    2: { r: 9.8, pts: [[24, 17], [24, 47]] },
-    3: { r: 8, pts: [[12, 13], [24, 32], [36, 51]] },
-    4: { r: 8.8, pts: [[14, 17], [34, 17], [14, 47], [34, 47]] },
-    5: { r: 7.5, pts: [[13, 15], [35, 15], [24, 32], [13, 49], [35, 49]] },
-    6: { r: 7.3, pts: [[14, 13], [34, 13], [14, 32], [34, 32], [14, 51], [34, 51]] },
+    1: { r: 13.4, pts: [[24, 32]] },
+    2: { r: 10, pts: [[24, 17], [24, 47]] },
+    3: { r: 8.1, pts: [[12, 13], [24, 32], [36, 51]] },
+    4: { r: 8.9, pts: [[14, 17], [34, 17], [14, 47], [34, 47]] },
+    5: { r: 7.6, pts: [[13, 15], [35, 15], [24, 32], [13, 49], [35, 49]] },
+    6: { r: 7.4, pts: [[14, 13], [34, 13], [14, 32], [34, 32], [14, 51], [34, 51]] },
     7: { r: 6.4, pts: [[10, 12], [24, 20], [38, 28], [14, 42], [34, 42], [14, 56], [34, 56]] },
     8: { r: 6, pts: [[15, 11], [33, 11], [15, 25], [33, 25], [15, 39], [33, 39], [15, 53], [33, 53]] },
     9: { r: 5.7, pts: [[12, 13], [24, 13], [36, 13], [12, 32], [24, 32], [36, 32], [12, 51], [24, 51], [36, 51]] }
   };
-  // 条子竹节阵（accent=1 表示红节，仿真牌里 5 条中心 / 7 条顶端 / 9 条中列是红的）
   var STICK_LAYOUT = {
-    2: { L: 38, W: 8.6, pts: [[16, 32], [32, 32]], accent: [] },
-    3: { L: 26, W: 8, pts: [[24, 15], [16, 47], [32, 47]], accent: [] },
-    4: { L: 26, W: 8, pts: [[16, 17], [32, 17], [16, 47], [32, 47]], accent: [] },
-    5: { L: 24, W: 7.4, pts: [[15, 15], [33, 15], [24, 32], [15, 49], [33, 49]], accent: [2] },
-    6: { L: 16, W: 7.4, pts: [[16, 12], [32, 12], [16, 32], [32, 32], [16, 52], [32, 52]], accent: [] },
-    7: { L: 14, W: 6.8, pts: [[24, 9], [16, 26], [32, 26], [16, 41], [32, 41], [16, 56], [32, 56]], accent: [0] },
-    8: { L: 13, W: 6.6, pts: [[16, 10], [32, 10], [16, 25], [32, 25], [16, 40], [32, 40], [16, 55], [32, 55]], accent: [] },
-    9: { L: 15, W: 6.4, pts: [[12, 12], [24, 12], [36, 12], [12, 32], [24, 32], [36, 32], [12, 52], [24, 52], [36, 52]], accent: [1, 4, 7] }
+    2: { L: 38, W: 9, pts: [[16, 32], [32, 32]], accent: [] },
+    3: { L: 26, W: 8.4, pts: [[24, 15], [16, 47], [32, 47]], accent: [] },
+    4: { L: 26, W: 8.4, pts: [[16, 17], [32, 17], [16, 47], [32, 47]], accent: [] },
+    5: { L: 24, W: 7.8, pts: [[15, 15], [33, 15], [24, 32], [15, 49], [33, 49]], accent: [2] },
+    6: { L: 16, W: 7.8, pts: [[16, 12], [32, 12], [16, 32], [32, 32], [16, 52], [32, 52]], accent: [] },
+    7: { L: 14, W: 7.2, pts: [[24, 9], [16, 26], [32, 26], [16, 41], [32, 41], [16, 56], [32, 56]], accent: [0] },
+    8: { L: 13, W: 7, pts: [[16, 10], [32, 10], [16, 25], [32, 25], [16, 40], [32, 40], [16, 55], [32, 55]], accent: [] },
+    9: { L: 15, W: 6.8, pts: [[12, 12], [24, 12], [36, 12], [12, 32], [24, 32], [36, 32], [12, 52], [24, 52], [36, 52]], accent: [1, 4, 7] }
   };
-
   function svgWrap(inner) {
     return '<svg viewBox="0 0 48 64" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">' + inner + '</svg>';
   }
-  // 立体圆点（外圈 + 内芯 + 高光）
-  function dotSvg(cx, cy, r, ring, core) {
-    var sw = r * 0.34;
-    return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="#fdfaf0" stroke="' + ring + '" stroke-width="' + sw.toFixed(2) + '"/>' +
-      '<circle cx="' + cx + '" cy="' + cy + '" r="' + (r * 0.5).toFixed(2) + '" fill="' + core + '"/>' +
-      '<circle cx="' + (cx - r * 0.22).toFixed(2) + '" cy="' + (cy - r * 0.26).toFixed(2) + '" r="' + (r * 0.16).toFixed(2) + '" fill="#ffffff" opacity="0.75"/>';
+  // 立体圆顶圆点：投影 → 蓝顶 → 白环 → 红芯 → 高光
+  function dotSvg(cx, cy, r) {
+    var rx = r.toFixed(2), ry = (r * 0.97).toFixed(2);
+    return '<ellipse cx="' + (cx + r * 0.08).toFixed(2) + '" cy="' + (cy + r * 0.16).toFixed(2) + '" rx="' + rx + '" ry="' + ry + '" fill="rgba(74,52,18,.30)"/>' +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="' + rx + '" fill="url(#tgDot)"/>' +
+      '<circle cx="' + cx + '" cy="' + (cy - r * 0.03).toFixed(2) + '" r="' + (r * 0.73).toFixed(2) + '" fill="#fdfaf0"/>' +
+      '<circle cx="' + cx + '" cy="' + (cy - r * 0.05).toFixed(2) + '" r="' + (r * 0.5).toFixed(2) + '" fill="url(#tgCore)"/>' +
+      '<ellipse cx="' + (cx - r * 0.3).toFixed(2) + '" cy="' + (cy - r * 0.36).toFixed(2) + '" rx="' + (r * 0.22).toFixed(2) + '" ry="' + (r * 0.12).toFixed(2) + '" fill="#ffffff" opacity="0.8" transform="rotate(-38 ' + (cx - r * 0.3).toFixed(2) + ' ' + (cy - r * 0.36).toFixed(2) + ')"/>';
   }
-  // 立体竹节
+  // 立体竹节：投影 → 圆柱渐变 → 竹节环 → 环上高光
   function stickSvg(cx, cy, L, W, accent) {
-    var x = cx - W / 2, y = cy - L / 2;
-    var body = accent ? RED : GREEN;
-    var mid = accent ? '#e05a49' : '#3fae6d';
-    var hi = accent ? '#ffb3a6' : '#8fe0b0';
-    var dk = accent ? RED_D : '#0f5c33';
+    var x = cx - W / 2, y = cy - L / 2, rad = (W * 0.42).toFixed(2);
+    var fill = accent ? 'url(#tgBambooRed)' : 'url(#tgBamboo)';
+    var ny = cy - L * 0.075;
     return '<g>' +
-      '<rect x="' + x.toFixed(2) + '" y="' + y.toFixed(2) + '" width="' + W + '" height="' + L + '" rx="' + (W * 0.36).toFixed(2) + '" fill="' + dk + '"/>' +
-      '<rect x="' + (x + W * 0.16).toFixed(2) + '" y="' + (y + W * 0.14).toFixed(2) + '" width="' + (W * 0.68).toFixed(2) + '" height="' + (L - W * 0.28).toFixed(2) + '" rx="' + (W * 0.3).toFixed(2) + '" fill="' + body + '"/>' +
-      '<rect x="' + (x + W * 0.5).toFixed(2) + '" y="' + (y + W * 0.24).toFixed(2) + '" width="' + (W * 0.2).toFixed(2) + '" height="' + (L - W * 0.48).toFixed(2) + '" rx="' + (W * 0.1).toFixed(2) + '" fill="' + hi + '" opacity="0.85"/>' +
-      '<rect x="' + x.toFixed(2) + '" y="' + (y + L * 0.42).toFixed(2) + '" width="' + W.toFixed(2) + '" height="' + (L * 0.16).toFixed(2) + '" fill="' + mid + '"/>' +
+      '<rect x="' + (x + W * 0.12).toFixed(2) + '" y="' + (y + W * 0.14).toFixed(2) + '" width="' + W.toFixed(2) + '" height="' + L.toFixed(2) + '" rx="' + rad + '" fill="rgba(58,42,16,.28)"/>' +
+      '<rect x="' + x.toFixed(2) + '" y="' + y.toFixed(2) + '" width="' + W.toFixed(2) + '" height="' + L.toFixed(2) + '" rx="' + rad + '" fill="' + fill + '"/>' +
+      '<rect x="' + x.toFixed(2) + '" y="' + ny.toFixed(2) + '" width="' + W.toFixed(2) + '" height="' + (L * 0.15).toFixed(2) + '" fill="rgba(0,0,0,.24)"/>' +
+      '<rect x="' + x.toFixed(2) + '" y="' + ny.toFixed(2) + '" width="' + W.toFixed(2) + '" height="' + (L * 0.05).toFixed(2) + '" fill="rgba(255,255,255,.34)"/>' +
       '</g>';
   }
   // 一条 = 幺鸡
   function birdSvg() {
     return '<g>' +
-      '<path d="M24 46 L14 61 L24 55 L34 61 Z" fill="#1e7a45"/>' +
-      '<ellipse cx="24" cy="37" rx="11.6" ry="14" fill="#2f9e5e"/>' +
-      '<ellipse cx="25.5" cy="39" rx="8" ry="10.4" fill="#e8f6ec"/>' +
-      '<path d="M13 32 Q24 24 35 32 Q24 30 13 32 Z" fill="#1a7a45"/>' +
-      '<circle cx="24" cy="16.5" r="8.6" fill="#2f9e5e"/>' +
-      '<path d="M19 9.5 L24 2 L29 9.5 Z" fill="' + RED + '"/>' +
-      '<path d="M31.5 17 L42.5 20.6 L31.5 24.2 Z" fill="#e8a33d"/>' +
-      '<path d="M31.5 20.6 L42.5 20.6 L31.5 24.2 Z" fill="#c07d1e"/>' +
-      '<circle cx="27.4" cy="14.6" r="1.9" fill="#12210f"/>' +
-      '<circle cx="27.9" cy="14" r="0.6" fill="#ffffff"/>' +
-      '<path d="M19.6 49 L19.6 58 M28.4 49 L28.4 58" stroke="#e8a33d" stroke-width="2.2" stroke-linecap="round"/>' +
-      '<rect x="11" y="58" width="26" height="3.6" rx="1.8" fill="#1a7a45"/>' +
-      '<rect x="11" y="58" width="26" height="1.4" rx="0.7" fill="#3fae6d"/>' +
+      '<path d="M24 45 L12.5 62 L24 55.5 L35.5 62 Z" fill="#0f5c33"/>' +
+      '<path d="M24 47 L17 60 L24 55.5 L31 60 Z" fill="#2f9e5e"/>' +
+      '<ellipse cx="24" cy="37" rx="11.8" ry="14.2" fill="url(#tgBird)"/>' +
+      '<ellipse cx="25.6" cy="39.5" rx="8.2" ry="10.6" fill="#eefaf1"/>' +
+      '<path d="M12.6 31 Q24 22 35.4 31 Q24 28.5 12.6 31 Z" fill="#146b3a"/>' +
+      '<path d="M14.5 33.5 Q20 31 25 33" stroke="#0f5c33" stroke-width="0.9" fill="none" opacity="0.7"/>' +
+      '<circle cx="24" cy="16.4" r="8.8" fill="url(#tgBirdHead)"/>' +
+      '<path d="M18.8 9.6 L24 1.6 L29.2 9.6 Z" fill="url(#tgCore)"/>' +
+      '<path d="M31.6 16.8 L43 20.6 L31.6 24.4 Z" fill="#efab3f"/>' +
+      '<path d="M31.6 20.6 L43 20.6 L31.6 24.4 Z" fill="#bd7a17"/>' +
+      '<circle cx="27.6" cy="14.4" r="2" fill="#12210f"/>' +
+      '<circle cx="28.2" cy="13.7" r="0.65" fill="#ffffff"/>' +
+      '<path d="M19.4 48.5 L19.4 57.6 M28.6 48.5 L28.6 57.6" stroke="#efab3f" stroke-width="2.3" stroke-linecap="round"/>' +
+      '<rect x="10.5" y="57.4" width="27" height="4" rx="2" fill="#0f5c33"/>' +
+      '<rect x="10.5" y="57.4" width="27" height="1.6" rx="0.8" fill="#3fae6d"/>' +
       '</g>';
   }
-  // 万字：红色汉字数字 + 萬，带淡淡投影做出"刻印"感
+  // 万字：红字 + 深色描边 + 投影 + 高光
   function wanSvg(n) {
-    var num = CN_NUM[n - 1], f = 'KaiTi,STKaiti,SimSun,serif';
+    var num = CN_NUM[n - 1];
+    function t(x, y, size, ch, fill, extra) {
+      return '<text x="' + x + '" y="' + y + '" text-anchor="middle" font-size="' + size + '" font-weight="700" ' +
+        'font-family="' + WAN_FONT + '" fill="' + fill + '"' + (extra || '') + '>' + ch + '</text>';
+    }
+    var stroke = ' stroke="#7d1f16" stroke-width="0.7" stroke-linejoin="round"';
     return '<g>' +
-      '<text x="24.9" y="29.9" text-anchor="middle" font-size="27" font-weight="700" font-family="' + f + '" fill="rgba(0,0,0,.16)">' + num + '</text>' +
-      '<text x="24" y="29" text-anchor="middle" font-size="27" font-weight="700" font-family="' + f + '" fill="' + RED + '" stroke="' + RED_D + '" stroke-width="0.5">' + num + '</text>' +
-      '<text x="24.9" y="59.9" text-anchor="middle" font-size="26" font-weight="700" font-family="' + f + '" fill="rgba(0,0,0,.16)">萬</text>' +
-      '<text x="24" y="59" text-anchor="middle" font-size="26" font-weight="700" font-family="' + f + '" fill="' + RED + '" stroke="' + RED_D + '" stroke-width="0.5">萬</text>' +
+      t(25.2, 31.2, 30, num, 'rgba(64,20,10,.30)') +
+      t(23.4, 29.4, 30, num, 'rgba(255,255,255,.55)') +
+      t(24, 30, 30, num, 'url(#tgWan)', stroke) +
+      t(25.2, 61.2, 27, '萬', 'rgba(64,20,10,.30)') +
+      t(23.4, 59.4, 27, '萬', 'rgba(255,255,255,.55)') +
+      t(24, 60, 27, '萬', 'url(#tgWan)', stroke) +
       '</g>';
   }
   var FACE_CACHE = [];
@@ -1555,23 +1634,21 @@ window.onerror = function (msg, src, line, col) {
       if (n === 1) return (FACE_CACHE[kind] = svgWrap(birdSvg()));
       var lay = STICK_LAYOUT[n];
       s2 = '';
-      for (i = 0; i < lay.pts.length; i++) {
-        s2 += stickSvg(lay.pts[i][0], lay.pts[i][1], lay.L, lay.W, lay.accent.indexOf(i) >= 0);
-      }
+      for (i = 0; i < lay.pts.length; i++) s2 += stickSvg(lay.pts[i][0], lay.pts[i][1], lay.L, lay.W, lay.accent.indexOf(i) >= 0);
       return (FACE_CACHE[kind] = svgWrap(s2));
     }
     var L2 = DOT_LAYOUT[n];
     s2 = '';
-    for (i = 0; i < L2.pts.length; i++) {
-      var cx = L2.pts[i][0], cy = L2.pts[i][1];
-      if (n === 1) {
-        s2 += '<circle cx="24" cy="32" r="13" fill="#fdfaf0" stroke="' + BLUE + '" stroke-width="4.4"/>' +
-          '<circle cx="24" cy="32" r="8" fill="none" stroke="' + RED + '" stroke-width="2.8"/>' +
-          '<circle cx="24" cy="32" r="3.4" fill="' + RED + '"/>' +
-          '<circle cx="20" cy="28" r="1.8" fill="#ffffff" opacity="0.8"/>';
-      } else {
-        s2 += dotSvg(cx, cy, L2.r, BLUE, RED);
-      }
+    if (n === 1) {
+      s2 += '<ellipse cx="25" cy="34.5" rx="13.4" ry="13" fill="rgba(74,52,18,.30)"/>' +
+        '<circle cx="24" cy="32" r="13.4" fill="url(#tgDot)"/>' +
+        '<circle cx="24" cy="32" r="9" fill="#fdfaf0"/>' +
+        '<circle cx="24" cy="32" r="6.4" fill="url(#tgCore)"/>' +
+        '<circle cx="24" cy="32" r="3.2" fill="#fdfaf0"/>' +
+        '<circle cx="24" cy="32" r="1.7" fill="#8f2318"/>' +
+        '<ellipse cx="19.6" cy="27.4" rx="2.8" ry="1.5" fill="#ffffff" opacity="0.8" transform="rotate(-38 19.6 27.4)"/>';
+    } else {
+      for (i = 0; i < L2.pts.length; i++) s2 += dotSvg(L2.pts[i][0], L2.pts[i][1], L2.r);
     }
     return (FACE_CACHE[kind] = svgWrap(s2));
   }
@@ -1620,16 +1697,17 @@ window.onerror = function (msg, src, line, col) {
     var H = game.hand;
     if (H.over) {
       if (game.humanSeat() < 0) { game.nextHand(); timer = setTimeout(tick, 80); return; }
-      render(); showSettlement(); return;
+      turnDeadline = 0; render(); showSettlement(); return;
     }
-    // 人不在桌上：快进
-    if (game.humanSeat() < 0 || (game.awaiting && game.awaiting.seat !== game.humanSeat())) {
+    // 人不在桌上：快进（忽略所有计时）
+    if (game.humanSeat() < 0) {
       game.fastForward = true;
       render();
       var guard = 0;
       while (guard++ < 8000) {
-        if (game.humanSeat() >= 0) break;   // 已重新上桌，交回控制权
+        if (game.humanSeat() >= 0) break;
         if (game.hand.over) break;
+        if (game.hasPendingResolve && game.hasPendingResolve()) { game.resolvePending(); continue; }
         if (!game.aiStep()) break;
       }
       game.fastForward = false;
@@ -1637,10 +1715,47 @@ window.onerror = function (msg, src, line, col) {
       timer = setTimeout(tick, 60);
       return;
     }
-    if (game.awaiting) { render(); return; }
-    var acted = game.aiStep();
+    // AI 的碰/杠/胡抉择：等 aiThink 秒
+    if (game.hasPendingResolve && game.hasPendingResolve()) {
+      turnDeadline = 0;
+      render();
+      timer = setTimeout(function () { game.resolvePending(); tick(); }, Math.max(0.2, cfg.aiThink) * 1000);
+      return;
+    }
+    // 等人类操作：30 秒倒计时，超时自动出牌
+    if (game.awaiting) {
+      if (!turnDeadline) turnDeadline = Date.now() + Math.max(3, cfg.turnTime) * 1000;
+      var left = turnDeadline - Date.now();
+      if (left <= 0) { turnDeadline = 0; autoAct(); return; }
+      render();
+      timer = setTimeout(tick, Math.min(250, left + 20));
+      return;
+    }
+    // 电脑行动：等 aiThink 秒
+    turnDeadline = 0;
     render();
-    timer = setTimeout(tick, acted ? cfg.speed : 260);
+    timer = setTimeout(function () {
+      if (!game || game.hand.over) { tick(); return; }
+      game.aiStep();
+      tick();
+    }, Math.max(0.2, cfg.aiThink) * 1000);
+  }
+
+  // 超时自动操作
+  function autoAct() {
+    var a = game.awaiting;
+    if (!a) { tick(); return; }
+    if (a.type === 'turn') {
+      if (a.options.canZimo) { act(function () { return game.humanZimo(); }); return; }
+      if (a.options.anGang.length) { act(function () { return game.humanGang(a.options.anGang[0], 'an'); }); return; }
+      if (a.options.buGang.length) { act(function () { return game.humanGang(a.options.buGang[0], 'bu'); }); return; }
+      var opts = game.evaluateDiscards(a.seat);
+      if (opts.length) act(function () { return game.humanDiscard(opts[0].kind); });
+      return;
+    }
+    if (a.type === 'claim') {
+      act(function () { return game.humanClaim(a.options.hu ? 'hu' : 'pass'); });
+    }
   }
 
   // ---------- 渲染 ----------
@@ -1651,6 +1766,7 @@ window.onerror = function (msg, src, line, col) {
     for (var p = 0; p < 4; p++) renderSeat(p);
     renderCenter();
     renderActions();
+    renderTimer();
     renderSituation();
     renderHint();
     renderMiniHint();
@@ -1831,13 +1947,22 @@ window.onerror = function (msg, src, line, col) {
       var canDiscard = game.awaiting && game.awaiting.type === 'turn' && game.awaiting.seat === seat;
       var opt = game.turnOptionsFor(seat);
       if (opt && opt.canZimo && !canDiscard) row.classList.add('tenpai');
+      // 刚摸到的牌单独放到最右边（其余按顺序排列）
+      var drawnKind = (canDiscard && H.lastDraw != null) ? H.lastDraw : -1;
+      function addTile(kk) {
+        var chosen = canDiscard && selectedKind === kk;
+        var t = tileEl(kk, 'big', (canDiscard ? 'clickable' : '') + (chosen ? ' chosen' : '') + (kk === drawnKind ? ' drawn' : ''));
+        if (canDiscard) t.onclick = function () { onDiscardClick(kk); };
+        row.appendChild(t);
+      }
       for (var k = 0; k < ZMJ.KINDS; k++) {
-        for (var c = 0; c < hp.concealed[k]; c++) {
-          var chosen = canDiscard && selectedKind === k;
-          var t = tileEl(k, 'big', (canDiscard ? 'clickable' : '') + (chosen ? ' chosen' : ''));
-          if (canDiscard) (function (kk) { t.onclick = function () { onDiscardClick(kk); }; })(k);
-          row.appendChild(t);
-        }
+        var cnt = hp.concealed[k] - (k === drawnKind ? 1 : 0);
+        for (var c = 0; c < cnt; c++) addTile(k);
+      }
+      if (drawnKind >= 0) {
+        var gap = document.createElement('div'); gap.className = 'gap';
+        row.appendChild(gap);
+        addTile(drawnKind);
       }
       el.appendChild(row);
       var dc = document.createElement('div'); dc.className = 'discards';
@@ -1910,7 +2035,70 @@ window.onerror = function (msg, src, line, col) {
     el.innerHTML = rows.map(function (r) { return '<div class="row"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>'; }).join('');
   }
 
+  // 中央放大展示最新打出的一张牌
+  var lastCenterSig = '';
+  function renderCenterTile() {
+    var el = $('centerTile');
+    if (!el) return;
+    var H = game.hand, ld = H.lastDiscard;
+    if (!ld || H.over) { el.innerHTML = ''; lastCenterSig = ''; return; }
+    var sig = ld.seat + ':' + ld.kind + ':' + H.players[ld.seat].discards.length;
+    if (sig === lastCenterSig && el.children.length) return;
+    var isNew = lastCenterSig !== '' && sig !== lastCenterSig;
+    lastCenterSig = sig;
+    el.innerHTML = '';
+    var who = document.createElement('div');
+    who.className = 'who';
+    who.textContent = game.nameOf(ld.seat) + ' 打出';
+    var t = tileEl(ld.kind, 'big', isNew ? 'pop' : '');
+    el.appendChild(who);
+    el.appendChild(t);
+    var info = document.createElement('div');
+    info.className = 'who';
+    var danger = '';
+    try {
+      var hs = game.humanSeat();
+      if (hs >= 0 && cfg.analyze) {
+        var sit = getSituation();
+        var r = sit && (sit.res || sit.data);
+        if (r && r.dealIn) {
+          var p = r.dealIn(ld.kind).prob;
+          if (p > 0.01) danger = '当时估计放铳风险 ' + (p * 100).toFixed(0) + '%';
+          if (p >= 0.15) t.classList.add('danger');
+        }
+      }
+    } catch (e) {}
+    info.textContent = danger;
+    if (danger) el.appendChild(info);
+  }
+
+  // 30 秒倒计时
+  function renderTimer() {
+    var el = $('turnTimer');
+    if (!el) return;
+    var H = game.hand, a = game.awaiting;
+    if (H.over) { el.className = 'hidden'; return; }
+    if (a && a.seat === game.humanSeat()) {
+      var total = Math.max(3, cfg.turnTime) * 1000;
+      var left = turnDeadline ? Math.max(0, turnDeadline - Date.now()) : total;
+      var sec = Math.ceil(left / 1000);
+      var pct = Math.round(left / total * 100);
+      el.className = sec <= 8 ? 'warn' : '';
+      el.innerHTML = '<span>' + (a.type === 'claim' ? '要不要碰 / 杠 / 胡？' : '请出牌') + '</span>' +
+        '<span class="tbar"><i style="width:' + pct + '%"></i></span>' +
+        '<span class="sec">' + sec + 's</span>';
+      return;
+    }
+    if (game.humanSeat() >= 0) {
+      el.className = 'ai';
+      el.innerHTML = '<span>' + game.nameOf(H.turn) + (game.hasPendingResolve && game.hasPendingResolve() ? ' 考虑要不要碰…' : ' 思考中…') + '</span>';
+      return;
+    }
+    el.className = 'hidden';
+  }
+
   function renderCenter() {
+    renderCenterTile();
     var H = game.hand;
     $('wallInfo').textContent = '牌墙 ' + H.wall.length + ' 张（约 ' + game.drawsLeft() + ' 巡）';
     $('dealerInfo').textContent = '庄 ' + game.nameOf(game.dealer);
@@ -2146,7 +2334,8 @@ window.onerror = function (msg, src, line, col) {
       '<div class="setRow"><span>局势分析（对手采样 + 放铳概率）</span><select id="setAnalyze"><option value="1">开启</option><option value="0">关闭</option></select></div>' +
       '<div class="setRow"><span>采样组数（越大越准越慢）</span><select id="setWorlds"><option value="80">80（快）</option><option value="150">150（推荐）</option><option value="300">300（准）</option></select></div>' +
       '<div class="setRow"><span>手机竖屏时的横屏引导</span><select id="setRotateHint"><option value="1">开启</option><option value="0">关闭</option></select></div>' +
-      '<div class="setRow"><span>出牌速度</span><select id="setSpeed"><option value="200">快</option><option value="420">正常</option><option value="800">慢</option></select></div>' +
+      '<div class="setRow"><span>我的每步时限</span><select id="setTurnTime"><option value="15">15 秒</option><option value="30">30 秒</option><option value="60">60 秒</option><option value="999">不限时</option></select></div>' +
+      '<div class="setRow"><span>电脑思考时间</span><select id="setAiThink"><option value="1">1 秒（快）</option><option value="3">3 秒</option><option value="5">5 秒</option></select></div>' +
       '<div class="setRow"><span>随机种子（留空则随机）</span><input id="setSeed" type="text" placeholder="例如 12345" style="width:120px"></div>' +
       '<div class="center"><button class="act" id="btnApply">应用并重开</button> <button class="act pass" id="btnCancel">取消</button></div>';
     $('setRotate').value = cfg.rotate ? '1' : '0';
@@ -2155,7 +2344,8 @@ window.onerror = function (msg, src, line, col) {
     $('setRotateHint').value = rotateDismissed ? '0' : '1';
     $('setAnalyze').value = cfg.analyze ? '1' : '0';
     $('setWorlds').value = String(cfg.worlds);
-    $('setSpeed').value = String(cfg.speed);
+    $('setTurnTime').value = String(cfg.turnTime);
+    $('setAiThink').value = String(cfg.aiThink);
     $('setSeed').value = cfg.seed == null ? '' : String(cfg.seed);
     $('btnCancel').onclick = function () { $('modal').classList.add('hidden'); };
     $('btnApply').onclick = function () {
@@ -2172,7 +2362,9 @@ window.onerror = function (msg, src, line, col) {
         rotateDismissed = true;
         try { localStorage.setItem('zmj_noRotate', '1'); } catch (e) {}
       }
-      cfg.speed = parseInt($('setSpeed').value, 10);
+      cfg.turnTime = parseInt($('setTurnTime').value, 10) || 30;
+      cfg.aiThink = parseFloat($('setAiThink').value) || 3;
+      turnDeadline = 0;
       var sd = $('setSeed').value.trim();
       cfg.seed = sd === '' ? null : (parseInt(sd, 10) >>> 0);
       $('modal').classList.add('hidden');
