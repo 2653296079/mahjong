@@ -162,7 +162,7 @@ main{flex:1;display:flex;min-height:0}
 #miniHint{display:none}
 .tile.xs{width:20px;height:27px;border-radius:3px;padding:0 1px}
 #seat0{overflow:visible}
-.tile.chosen{transform:translateY(-7px);box-shadow:0 0 0 2px var(--gold),0 5px 0 rgba(0,0,0,.35)}
+.tile.chosen{transform:translateY(-12px) !important;box-shadow:0 0 0 2px var(--gold),0 6px 0 rgba(0,0,0,.35)}
 .tile,.act,.mini{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 #log{-webkit-overflow-scrolling:touch}
 
@@ -294,6 +294,32 @@ main{flex:1;display:flex;min-height:0}
 .handRow .gap{width:14px;flex:0 0 auto}
 .tile.drawn{box-shadow:0 0 0 2px rgba(242,193,78,.85), 0 3px 0 #cec3a4, 0 4px 0 #b5a884, 0 5px 0 #94875e, 0 8px 12px rgba(0,0,0,.5)}
 @media (max-width:680px){ .handRow .gap{width:9px} #turnTimer .tbar{width:80px} #centerTile{min-height:54px} }
+/* ---------- 牌面材质：内凹牌面 + 象牙颗粒 ---------- */
+.tile::before{content:"";position:absolute;inset:1px;border-radius:inherit;pointer-events:none;
+  box-shadow:inset 0 1px 2px rgba(118,102,66,.24), inset 0 -1px 1px rgba(255,255,255,.75)}
+.tile::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:.5;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='64' height='64' filter='url(%23n)' opacity='.06'/%3E%3C/svg%3E")}
+
+/* ---------- 动效（参数来自调研：重复交互 ≤500ms，入场减速、退场加速） ---------- */
+@keyframes drawIn{from{transform:translateX(30px) scale(.86);opacity:0}to{transform:none;opacity:1}}
+@keyframes discardFly{0%{transform:translateY(-30px) scale(1.18);opacity:.55}
+  62%{transform:translateY(3px) scale(1.01)}80%{transform:translateY(-1px) scale(.995)}100%{transform:none;opacity:1}}
+@keyframes meldSnap{0%{transform:scale(1.3)}58%{transform:scale(.95)}100%{transform:scale(1)}}
+@keyframes winPulse{0%{box-shadow:0 0 0 0 rgba(242,193,78,.85)}100%{box-shadow:0 0 0 26px rgba(242,193,78,0)}}
+@keyframes seatFlash{0%,100%{background:transparent}50%{background:rgba(242,193,78,.16)}}
+@keyframes pop{0%{transform:scale(.55) translateY(14px);opacity:0}68%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+.tile.drawn{animation:drawIn .14s cubic-bezier(0,0,.2,1) both}
+.tile.pop{animation:discardFly .2s cubic-bezier(0,0,.2,1) both}
+.meld.fresh{animation:meldSnap .15s cubic-bezier(.2,0,.8,1) both}
+.seat.win .seatName{animation:seatFlash .6s ease-in-out 2}
+#centerTile .tile{animation:discardFly .2s cubic-bezier(0,0,.2,1) both}
+#centerTile .tile.danger{animation:discardFly .2s cubic-bezier(0,0,.2,1) both, winPulse .55s ease-out .2s}
+#modal:not(.hidden) .modalBox{animation:pop .22s cubic-bezier(.2,1.2,.4,1) both}
+.tile.clickable{transition:transform .12s cubic-bezier(0,0,.2,1),box-shadow .12s}
+.tile.clickable:active{transform:translateY(-2px) scale(.97)}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001s !important;animation-iteration-count:1 !important;transition-duration:.001s !important}
+}
 </style>
 </head>
 <body>
@@ -337,6 +363,7 @@ main{flex:1;display:flex;min-height:0}
     <div class="tools">
       <button id="btnPanel" class="mini">牌况 / 提示</button>
       <button id="btnExport" class="mini">牌谱</button>
+      <button id="btnStats" class="mini">统计</button>
       <button id="btnRules" class="mini">规则</button>
       <button id="btnSettings" class="mini">设置</button>
       <button id="btnNew" class="mini">重开</button>
@@ -848,6 +875,75 @@ main{flex:1;display:flex;min-height:0}
       return { prob: hit, killers: killers };
     }
     return { worlds: N, opponents: opponents, dealIn: dealIn, visiblePool: pool0, bucket: bi, fallback: fallback, realized: realized };
+  }
+
+  // ================= 个人训练统计（纯函数，便于单测） =================
+  function newStats() {
+    return {
+      v: 1, hands: 0,
+      win: 0, zimo: 0, paoWin: 0, pao: 0, othersZimo: 0, draw: 0,
+      gangAn: 0, gangMing: 0, gangBu: 0, gangLost: 0,
+      net: 0, best: 0, worst: 0,
+      tenpaiTurnSum: 0, tenpaiN: 0,
+      outsSum: 0, outsN: 0,
+      recFollow: 0, recTotal: 0,
+      birdHist: [0, 0, 0, 0, 0, 0, 0],
+      recent: []
+    };
+  }
+  function accumulateStats(stats, result, humanSeat, extra) {
+    var s = stats || newStats();
+    extra = extra || {};
+    if (humanSeat == null || humanSeat < 0) return s;
+    var delta = (result.deltas && result.deltas[humanSeat]) || 0;
+    s.hands++;
+    s.net += delta;
+    if (delta > s.best) s.best = delta;
+    if (delta < s.worst) s.worst = delta;
+    s.recent.push(delta);
+    while (s.recent.length > 30) s.recent.shift();
+    if (result.type === 'zimo') {
+      if (result.winners && result.winners.indexOf(humanSeat) >= 0) { s.win++; s.zimo++; }
+      else s.othersZimo++;
+    } else if (result.type === 'discard') {
+      if (result.winners && result.winners.indexOf(humanSeat) >= 0) { s.win++; s.paoWin++; }
+      if (result.loser === humanSeat) s.pao++;
+    } else s.draw++;
+    var bn = result.birdN;
+    if (bn != null && bn >= 0 && bn <= 6) s.birdHist[bn]++;
+    (result.payments || []).forEach(function (p) {
+      var isGang = p.reason === '暗杠' || p.reason === '大明杠' || p.reason === '补杠';
+      if (!isGang) return;
+      if (p.to === humanSeat) {
+        if (p.reason === '暗杠') s.gangAn++;
+        else if (p.reason === '大明杠') s.gangMing++;
+        else s.gangBu++;
+      }
+      if (p.from === humanSeat) s.gangLost++;
+    });
+    if (extra.tenpaiTurn != null) { s.tenpaiTurnSum += extra.tenpaiTurn; s.tenpaiN++; }
+    if (extra.tenpaiOuts != null) { s.outsSum += extra.tenpaiOuts; s.outsN++; }
+    if (extra.recTotal) { s.recTotal += extra.recTotal; s.recFollow += (extra.recFollow || 0); }
+    return s;
+  }
+  function statsSummary(s) {
+    if (!s || !s.hands) return null;
+    return {
+      hands: s.hands,
+      winRate: s.win / s.hands,
+      zimoShare: (s.zimo + s.paoWin) ? s.zimo / (s.zimo + s.paoWin) : 0,
+      zimoPerHand: s.zimo / s.hands,
+      paoRate: s.pao / s.hands,
+      othersZimoRate: s.othersZimo / s.hands,
+      drawRate: s.draw / s.hands,
+      avgTenpaiTurn: s.tenpaiN ? s.tenpaiTurnSum / s.tenpaiN : null,
+      avgOuts: s.outsN ? s.outsSum / s.outsN : null,
+      recRate: s.recTotal ? s.recFollow / s.recTotal : null,
+      net: s.net, perHand: s.net / s.hands,
+      gangPerHand: (s.gangAn + s.gangMing + s.gangBu) / s.hands,
+      birdHist: s.birdHist.slice(),
+      recent: s.recent.slice()
+    };
   }
 
   // ---------- 麻将一局的状态机 ----------
@@ -1462,6 +1558,7 @@ main{flex:1;display:flex;min-height:0}
     ukeire: ukeire, evaluateDiscards: evaluateDiscards,
     birdFan: birdFan, birdMoney: birdMoney, countBirds: countBirds,
     analyzeSituation: analyzeSituation, visiblePool: visiblePool, waitTiles: waitTiles,
+    newStats: newStats, accumulateStats: accumulateStats, statsSummary: statsSummary,
     priorTenpaiRate: priorTenpaiRate, SHANTEN_PRIOR: SHANTEN_PRIOR,
     createGame: createGame, buildWall: buildWall, mulberry32: mulberry32
   };
@@ -1488,8 +1585,27 @@ window.onerror = function (msg, src, line, col) {
 
   var game = null, timer = null;
   var cfg = { rotate: true, aiStyle: 'ev', speed: 420, hint: true, seed: null, analyze: true, worlds: 150,
-              turnTime: 30, aiThink: 3 };   // 人类每步 30 秒；电脑思考 3 秒
+              turnTime: 30, aiThink: 3, sound: true };   // 人类每步 30 秒；电脑思考 3 秒
   var turnDeadline = 0, lastPopKind = -1;
+  // ---------- 训练统计（跨会话持久化） ----------
+  var STAT_KEY = 'zmj_stats_v1';
+  var STATS = null, handExtra = null, settledHandNo = 0;
+  function loadStats() {
+    try { var raw = localStorage.getItem(STAT_KEY); if (raw) STATS = JSON.parse(raw); } catch (e) { STATS = null; }
+    if (!STATS || STATS.v !== 1) STATS = ZMJ.newStats();
+    return STATS;
+  }
+  function saveStats() { try { localStorage.setItem(STAT_KEY, JSON.stringify(STATS)); } catch (e) {} }
+  function resetHandExtra() { handExtra = { tenpaiTurn: null, tenpaiOuts: null, recFollow: 0, recTotal: 0 }; }
+  // 每局结算时并入统计（幂等：同一局只记一次）
+  function recordHandStats() {
+    var r = game.lastResult;
+    var hs = game.humanSeat();
+    if (!r || hs < 0 || game.handNo === settledHandNo) return;
+    settledHandNo = game.handNo;
+    ZMJ.accumulateStats(STATS, r, hs, handExtra || {});
+    saveStats();
+  }
   var sitCache = { key: '', data: null, cands: null };
   var $ = function (id) { return document.getElementById(id); };
   // 触屏 & 窄屏适配
@@ -1682,9 +1798,11 @@ window.onerror = function (msg, src, line, col) {
   // ---------- 开局 ----------
   function newGame() {
     clearTimeout(timer);
+    loadStats();
     game = ZMJ.createGame({ seed: cfg.seed == null ? undefined : cfg.seed, rotate: cfg.rotate, aiStyle: cfg.aiStyle });
     window.__zmjGame = game;   // 调试用：控制台里可直接查看牌局状态
     game.startHand();
+    resetHandExtra();
     render();
     timer = setTimeout(tick, 300);
   }
@@ -1697,7 +1815,7 @@ window.onerror = function (msg, src, line, col) {
     var H = game.hand;
     if (H.over) {
       if (game.humanSeat() < 0) { game.nextHand(); timer = setTimeout(tick, 80); return; }
-      turnDeadline = 0; render(); showSettlement(); return;
+      turnDeadline = 0; recordHandStats(); render(); showSettlement(); return;
     }
     // 人不在桌上：快进（忽略所有计时）
     if (game.humanSeat() < 0) {
@@ -1765,6 +1883,7 @@ window.onerror = function (msg, src, line, col) {
     renderMyStat();
     for (var p = 0; p < 4; p++) renderSeat(p);
     renderCenter();
+    sfxCheck();
     renderActions();
     renderTimer();
     renderSituation();
@@ -1773,6 +1892,84 @@ window.onerror = function (msg, src, line, col) {
     renderLog();
   }
 
+  // ---------- 音效：WebAudio 程序合成（零外部文件、零授权风险） ----------
+  var AC = null, NOISE = null;
+  function audio() {
+    if (AC === false) return null;
+    if (!AC) {
+      try {
+        var Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) { AC = false; return null; }
+        AC = new Ctx();
+      } catch (e) { AC = false; return null; }
+    }
+    return AC;
+  }
+  function unlockAudio() {
+    var a = audio(); if (!a) return;
+    try { if (a.state === 'suspended') a.resume(); } catch (e) {}
+  }
+  function noiseBuffer(a) {
+    if (NOISE) return NOISE;
+    var n = Math.floor(a.sampleRate * 0.25);
+    NOISE = a.createBuffer(1, n, a.sampleRate);
+    var d = NOISE.getChannelData(0);
+    for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    return NOISE;
+  }
+  // 一次麻将牌撞击：噪声冲击 + 带通 + 指数衰减
+  function hit(a, when, freq, q, dur, vol, type) {
+    var src = a.createBufferSource(); src.buffer = noiseBuffer(a);
+    var flt = a.createBiquadFilter(); flt.type = type || 'bandpass'; flt.frequency.value = freq; flt.Q.value = q;
+    var g = a.createGain();
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(vol, when + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0008, when + dur);
+    src.connect(flt); flt.connect(g); g.connect(a.destination);
+    src.start(when); src.stop(when + dur + 0.02);
+  }
+  function tone(a, when, freq, dur, vol, type) {
+    var o = a.createOscillator(); o.type = type || 'sine'; o.frequency.value = freq;
+    var g = a.createGain();
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(vol, when + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0008, when + dur);
+    o.connect(g); g.connect(a.destination); o.start(when); o.stop(when + dur + 0.02);
+  }
+  function sfx(kind) {
+    if (!cfg.sound) return;
+    var a = audio(); if (!a) return;
+    try { if (a.state === 'suspended') a.resume(); } catch (e) {}
+    var t = a.currentTime + 0.001;
+    var j = 1 + (Math.random() - 0.5) * 0.2;   // ±10% 随机音高，避免机械感
+    if (kind === 'discard') { hit(a, t, 2100 * j, 1.1, 0.09, 0.34); tone(a, t, 620 * j, 0.05, 0.10, 'triangle'); }
+    else if (kind === 'draw') { hit(a, t, 3200 * j, 2.2, 0.05, 0.12, 'highpass'); }
+    else if (kind === 'meld') { hit(a, t, 1500 * j, 0.9, 0.11, 0.34); hit(a, t + 0.055, 1150 * j, 0.9, 0.13, 0.30); }
+    else if (kind === 'win') { tone(a, t, 880, 0.5, 0.16); tone(a, t + 0.09, 1320, 0.55, 0.13); tone(a, t + 0.18, 1760, 0.6, 0.10); }
+    else if (kind === 'lose') { tone(a, t, 300, 0.3, 0.12, 'sawtooth'); tone(a, t + 0.1, 220, 0.4, 0.10, 'sawtooth'); }
+  }
+  // 用状态签名变化来触发音效（不改引擎）
+  var sfxSig = { disc: '', meld: '', drawn: -1, over: '' };
+  function sfxCheck() {
+    if (!game) return;
+    var H = game.hand;
+    var ld = H.lastDiscard;
+    var dsig = ld ? (ld.seat + ':' + ld.kind + ':' + H.players[ld.seat].discards.length) : '';
+    if (dsig && dsig !== sfxSig.disc) { sfxSig.disc = dsig; sfx('discard'); }
+    var melds = 0; H.players.forEach(function (p) { melds += p.melds.length; });
+    var msig = String(melds);
+    if (melds !== Number(sfxSig.meld || 0) && sfxSig.meld !== '') sfx('meld');
+    sfxSig.meld = msig;
+    if (H.over && H.result) {
+      var rsig = String(game.handNo) + H.result.type;
+      if (rsig !== sfxSig.over) {
+        sfxSig.over = rsig;
+        var hs2 = game.humanSeat();
+        var won = hs2 >= 0 && H.result.winners && H.result.winners.indexOf(hs2) >= 0;
+        sfx(won ? 'win' : 'lose');
+      }
+    }
+  }
   // ---------- 局势分析（对手手牌采样 + 放铳概率） ----------
   function situationKey() {
     var H = game.hand, a = game.awaiting;
@@ -1795,6 +1992,12 @@ window.onerror = function (msg, src, line, col) {
       return { kind: c.kind, shanten: c.shanten, ukeire: c.ukeire, danger: c.danger, prob: d.prob, killers: d.killers };
     });
     sitCache = { key: key, data: { res: res, cands: cands, ms: Date.now() - t0, seat: hs }, cands: cands };
+    // 采集训练数据：首次听牌的巡目与张数
+    if (handExtra && cands.length && cands[0].shanten === 0 && handExtra.tenpaiTurn == null) {
+      var u = game.ukeireFor(hs);
+      handExtra.tenpaiTurn = H.turnCount;
+      handExtra.tenpaiOuts = u.total;
+    }
     return sitCache.data;
   }
   function riskCls(p) { return p >= 0.10 ? 'risk-hi' : (p >= 0.04 ? 'risk-mid' : 'risk-lo'); }
@@ -2172,6 +2375,13 @@ window.onerror = function (msg, src, line, col) {
   function act(fn) { if (fn()) { render(); timer = setTimeout(tick, 120); } }
   function onDiscardClick(kind) {
     if (!game.awaiting || game.awaiting.type !== 'turn') return;
+    // 采集：是否与推荐一致
+    if (handExtra) {
+      try {
+        var rec = game.evaluateDiscards(game.awaiting.seat)[0];
+        if (rec) { handExtra.recTotal++; if (rec.kind === kind) handExtra.recFollow++; }
+      } catch (e) {}
+    }
     // 触屏：第一次点选、再点同一张才打出，避免误触
     if (isTouch && selectedKind !== kind) { selectedKind = kind; render(); return; }
     selectedKind = null;
@@ -2331,6 +2541,7 @@ window.onerror = function (msg, src, line, col) {
       '<div class="setRow"><span>转转模式（胡牌者下桌）</span><select id="setRotate"><option value="1">开启</option><option value="0">关闭（固定四人）</option></select></div>' +
       '<div class="setRow"><span>对手风格</span><select id="setStyle"><option value="ev">按 EV 打（会放过炮等自摸）</option><option value="greedy">见炮就胡（像牌桌真人）</option></select></div>' +
       '<div class="setRow"><span>决策提示</span><select id="setHint"><option value="1">开启</option><option value="0">关闭</option></select></div>' +
+      '<div class="setRow"><span>音效（程序合成，无外部文件）</span><select id="setSound"><option value="1">开启</option><option value="0">关闭</option></select></div>' +
       '<div class="setRow"><span>局势分析（对手采样 + 放铳概率）</span><select id="setAnalyze"><option value="1">开启</option><option value="0">关闭</option></select></div>' +
       '<div class="setRow"><span>采样组数（越大越准越慢）</span><select id="setWorlds"><option value="80">80（快）</option><option value="150">150（推荐）</option><option value="300">300（准）</option></select></div>' +
       '<div class="setRow"><span>手机竖屏时的横屏引导</span><select id="setRotateHint"><option value="1">开启</option><option value="0">关闭</option></select></div>' +
@@ -2342,6 +2553,7 @@ window.onerror = function (msg, src, line, col) {
     $('setStyle').value = cfg.aiStyle;
     $('setHint').value = cfg.hint ? '1' : '0';
     $('setRotateHint').value = rotateDismissed ? '0' : '1';
+    $('setSound').value = cfg.sound ? '1' : '0';
     $('setAnalyze').value = cfg.analyze ? '1' : '0';
     $('setWorlds').value = String(cfg.worlds);
     $('setTurnTime').value = String(cfg.turnTime);
@@ -2352,6 +2564,7 @@ window.onerror = function (msg, src, line, col) {
       cfg.rotate = $('setRotate').value === '1';
       cfg.aiStyle = $('setStyle').value;
       cfg.hint = $('setHint').value === '1';
+      cfg.sound = $('setSound').value === '1';
       cfg.analyze = $('setAnalyze').value === '1';
       cfg.worlds = parseInt($('setWorlds').value, 10) || 150;
       sitCache = { key: '', data: null, cands: null };
@@ -2375,7 +2588,9 @@ window.onerror = function (msg, src, line, col) {
   }
 
   // ---------- 快捷键 ----------
+  document.addEventListener('pointerdown', unlockAudio, { once: true });
   document.addEventListener('keydown', function (e) {
+    unlockAudio();
     var a = game && game.awaiting;
     if (!a) return;
     if (a.type === 'claim') {
@@ -2389,6 +2604,62 @@ window.onerror = function (msg, src, line, col) {
     }
   });
 
+  // ---------- 训练统计看板（放铳率为核心指标：调研显示水平提升几乎全部来自少放铳） ----------
+  function sparkline(vals) {
+    if (!vals.length) return '';
+    var w = 260, h = 46, mx = Math.max(20, Math.max.apply(null, vals.map(Math.abs)));
+    var bw = Math.max(2, w / vals.length - 1.5);
+    var out = '<svg viewBox="0 0 ' + w + ' ' + h + '" style="width:100%;height:46px" preserveAspectRatio="none">';
+    out += '<line x1="0" y1="' + (h / 2) + '" x2="' + w + '" y2="' + (h / 2) + '" stroke="rgba(255,255,255,.18)" stroke-width="1"/>';
+    vals.forEach(function (v, i) {
+      var bh = Math.abs(v) / mx * (h / 2 - 2);
+      var x = i * (w / vals.length);
+      var y = v >= 0 ? (h / 2 - bh) : (h / 2);
+      out += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + bh.toFixed(1) + '" fill="' + (v >= 0 ? '#4cc47c' : '#ff9a8b') + '"/>';
+    });
+    return out + '</svg>';
+  }
+  function pct(x) { return x == null ? '—' : (x * 100).toFixed(1) + '%'; }
+  function showStats() {
+    var box = $('modalBox');
+    var sum = ZMJ.statsSummary(STATS);
+    if (!sum) {
+      box.innerHTML = '<h2>训练统计</h2><div style="font-size:13px;color:#cfd8d3;line-height:1.9">还没有对局数据。打几局之后这里会显示你的放铳率、自摸占比、听牌速度等指标。</div>' +
+        '<div class="center"><button class="act" id="btnStatsClose">关闭</button></div>';
+      $('btnStatsClose').onclick = function () { $('modal').classList.add('hidden'); };
+      $('modal').classList.remove('hidden'); return;
+    }
+    var need = sum.hands < 500;
+    var rows = [
+      ['放铳率', pct(sum.paoRate), '每局被点炮的概率，**最该盯的指标**'],
+      ['自摸占比', pct(sum.zimoShare), '胡牌里自摸的比例（自摸 ≈ 3.85 倍收炮）'],
+      ['和了率', pct(sum.winRate), '每局自己胡牌的概率'],
+      ['平均听牌巡目', sum.avgTenpaiTurn == null ? '—' : sum.avgTenpaiTurn.toFixed(1), '越小越快'],
+      ['平均听牌张数', sum.avgOuts == null ? '—' : sum.avgOuts.toFixed(1), '越大听形越好'],
+      ['推荐一致率', pct(sum.recRate), '你的出牌与推荐一致的比例'],
+      ['每局收支', (sum.perHand >= 0 ? '+' : '') + sum.perHand.toFixed(1) + ' 元', '累计 ' + (sum.net >= 0 ? '+' : '') + sum.net + ' 元'],
+      ['每局开杠', sum.gangPerHand.toFixed(2) + ' 次', '暗杠 ' + STATS.gangAn + ' / 大明杠 ' + STATS.gangMing + ' / 补杠 ' + STATS.gangBu],
+    ];
+    var html = '<h2>训练统计 · ' + sum.hands + ' 局</h2>';
+    if (need) html += '<div style="font-size:12.5px;color:#ffcf7a;line-height:1.7;background:rgba(242,193,78,.1);padding:8px 10px;border-radius:8px;margin-bottom:10px">' +
+      '⚠️ 样本只有 <b>' + sum.hands + '</b> 局。100 局时误差约 ±8 个百分点，1000 局约 ±2.6，3000 局约 ±1.5 —— <b>不足 500 局不要据此下结论</b>，先专心把放铳率压下去。</div>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:13.5px">';
+    rows.forEach(function (r, i) {
+      html += '<tr style="border-bottom:1px solid rgba(255,255,255,.1)"><td style="padding:5px 4px;color:#cfd8d3">' + r[0] + '</td>' +
+        '<td style="padding:5px 4px;text-align:right;font-weight:700;' + (i === 0 ? 'color:#f2c14e;font-size:16px' : '') + '">' + r[1] + '</td>' +
+        '<td style="padding:5px 4px;color:#9fb3a8;font-size:11.5px">' + r[2].replace(/\*\*/g, '') + '</td></tr>';
+    });
+    html += '</table>';
+    html += '<div style="margin-top:12px;color:#9fb3a8;font-size:12px">最近 ' + sum.recent.length + ' 局收支</div>' + sparkline(sum.recent);
+    html += '<div style="margin-top:10px;color:#9fb3a8;font-size:12px">鸟数分布（0~6 只）</div><div style="font-size:12.5px;color:#cfd8d3">' + sum.birdHist.join(' / ') + '</div>';
+    html += '<div class="center"><button class="act pass" id="btnStatsReset">清空统计</button> <button class="act" id="btnStatsClose">关闭</button></div>';
+    box.innerHTML = html;
+    $('btnStatsClose').onclick = function () { $('modal').classList.add('hidden'); };
+    $('btnStatsReset').onclick = function () {
+      STATS = ZMJ.newStats(); settledHandNo = 0; saveStats(); showStats();
+    };
+    $('modal').classList.remove('hidden');
+  }
   // ---------- 牌谱导出 ----------
   function download(name, content, mime) {
     try {
@@ -2438,6 +2709,7 @@ window.onerror = function (msg, src, line, col) {
     $('modal').classList.remove('hidden');
   }
   $('btnExport').onclick = showExport;
+  $('btnStats').onclick = showStats;
 
   $('btnLandscape').onclick = requestLandscape;
   $('btnRotateIgnore').onclick = function () {
