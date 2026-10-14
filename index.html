@@ -59,16 +59,26 @@ main{flex:1;display:flex;min-height:0}
 .seat{overflow:hidden}
 
 /* 麻将牌 */
-.tile{background:linear-gradient(#fff,#f4eedd);color:var(--ink);border:1px solid var(--tileEdge);border-radius:5px;
-  display:flex;align-items:center;justify-content:center;padding:2px 3px;overflow:hidden;
-  box-shadow:0 2px 0 rgba(0,0,0,.25), inset 0 -2px 0 rgba(0,0,0,.06);user-select:none}
+/* 实体麻将牌质感：象牙面 + 内斜面 + 砖块厚度 + 落地阴影 */
+.tile{background:linear-gradient(176deg,#fffef9 0%,#fbf7ea 48%,#efe7d0 100%);
+  color:var(--ink);border:1px solid #d5cdb4;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;padding:2px 3px;overflow:hidden;user-select:none;
+  box-shadow:inset 0 1px 0 #fff, inset 0 -2px 2px rgba(120,105,70,.16),
+    0 2px 0 #cbbfa0, 0 3px 0 #ab9d7c, 0 4px 7px rgba(0,0,0,.38)}
 .tile svg{width:100%;height:100%;display:block}
-.tile.small{width:28px;height:38px;border-radius:4px;padding:1px 2px}
-.tile.meldTile{width:24px;height:33px;border-radius:3px;padding:1px 2px}
+.tile.small{width:28px;height:38px;border-radius:4px;padding:1px 2px;
+  box-shadow:inset 0 1px 0 #fff, inset 0 -1px 1px rgba(120,105,70,.16),
+    0 1px 0 #cbbfa0, 0 2px 0 #ab9d7c, 0 2px 4px rgba(0,0,0,.35)}
+.tile.meldTile{width:24px;height:33px;border-radius:3px;padding:1px 2px;
+  box-shadow:inset 0 1px 0 #fff, 0 1px 0 #cbbfa0, 0 2px 3px rgba(0,0,0,.32)}
 .tile.mid{width:34px;height:46px}
 .tile.big{width:48px;height:64px}
-.tile.back{background:linear-gradient(#1c6b4a,#0e4a32);border-color:#0a3a26;padding:0}
-.tile.back svg{opacity:.9}
+.tile.back{background:linear-gradient(170deg,#2a8a5f 0%,#1c6b4a 45%,#0d4630 100%);
+  border-color:#0a3a26;padding:0;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.25), 0 2px 0 #0a3a26, 0 4px 7px rgba(0,0,0,.4)}
+.tile.back svg{opacity:.85}
+.tile.bird-hit{box-shadow:0 0 0 2px var(--gold), 0 2px 0 #cbbfa0, 0 4px 10px rgba(242,193,78,.5)}
+.handRow{box-shadow:inset 0 2px 8px rgba(0,0,0,.35)}
 .tile.bird{outline:2px solid var(--gold);box-shadow:0 0 10px rgba(242,193,78,.7)}
 .tile.hit{background:linear-gradient(#ffe9a8,#f2c14e);border-color:#c79a25}
 .tile.clickable{cursor:pointer;transition:transform .08s}
@@ -1457,90 +1467,115 @@ window.onerror = function (msg, src, line, col) {
   }
 
   // ---------- 小工具 ----------
-  // ---------- 麻将牌图案（内联 SVG） ----------
+  // ---------- 麻将牌图案（内联 SVG，仿真实体牌） ----------
   var CN_NUM = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
-  var DOT_COLORS = ['#1c6fb5', '#1e8449', '#c0392b'];
-  // 筒子：圆点阵（r = 半径，pts = 圆心）
+  var RED = '#c0392b', RED_D = '#8e2b20', BLUE = '#1a6fb5', BLUE_D = '#124e80', GREEN = '#1e8449';
+  // 筒子圆点阵
   var DOT_LAYOUT = {
-    1: { r: 12.5, pts: [[24, 32]] },
-    2: { r: 9.5, pts: [[24, 17], [24, 47]] },
-    3: { r: 7.8, pts: [[12, 13], [24, 32], [36, 51]] },
-    4: { r: 8.6, pts: [[14, 17], [34, 17], [14, 47], [34, 47]] },
-    5: { r: 7.3, pts: [[13, 15], [35, 15], [24, 32], [13, 49], [35, 49]] },
-    6: { r: 7.1, pts: [[14, 13], [34, 13], [14, 32], [34, 32], [14, 51], [34, 51]] },
-    7: { r: 6.3, pts: [[10, 12], [24, 20], [38, 28], [14, 42], [34, 42], [14, 56], [34, 56]] },
-    8: { r: 5.9, pts: [[15, 11], [33, 11], [15, 25], [33, 25], [15, 39], [33, 39], [15, 53], [33, 53]] },
-    9: { r: 5.6, pts: [[12, 13], [24, 13], [36, 13], [12, 32], [24, 32], [36, 32], [12, 51], [24, 51], [36, 51]] }
+    1: { r: 13, pts: [[24, 32]] },
+    2: { r: 9.8, pts: [[24, 17], [24, 47]] },
+    3: { r: 8, pts: [[12, 13], [24, 32], [36, 51]] },
+    4: { r: 8.8, pts: [[14, 17], [34, 17], [14, 47], [34, 47]] },
+    5: { r: 7.5, pts: [[13, 15], [35, 15], [24, 32], [13, 49], [35, 49]] },
+    6: { r: 7.3, pts: [[14, 13], [34, 13], [14, 32], [34, 32], [14, 51], [34, 51]] },
+    7: { r: 6.4, pts: [[10, 12], [24, 20], [38, 28], [14, 42], [34, 42], [14, 56], [34, 56]] },
+    8: { r: 6, pts: [[15, 11], [33, 11], [15, 25], [33, 25], [15, 39], [33, 39], [15, 53], [33, 53]] },
+    9: { r: 5.7, pts: [[12, 13], [24, 13], [36, 13], [12, 32], [24, 32], [36, 32], [12, 51], [24, 51], [36, 51]] }
   };
-  // 条子：竹节阵（L = 长度，W = 宽度）
+  // 条子竹节阵（accent=1 表示红节，仿真牌里 5 条中心 / 7 条顶端 / 9 条中列是红的）
   var STICK_LAYOUT = {
-    2: { L: 38, W: 8.4, pts: [[16, 32], [32, 32]] },
-    3: { L: 26, W: 7.8, pts: [[24, 15], [16, 47], [32, 47]] },
-    4: { L: 26, W: 7.8, pts: [[16, 17], [32, 17], [16, 47], [32, 47]] },
-    5: { L: 24, W: 7.2, pts: [[15, 15], [33, 15], [24, 32], [15, 49], [33, 49]] },
-    6: { L: 16, W: 7.2, pts: [[16, 12], [32, 12], [16, 32], [32, 32], [16, 52], [32, 52]] },
-    7: { L: 14, W: 6.6, pts: [[24, 9], [16, 26], [32, 26], [16, 41], [32, 41], [16, 56], [32, 56]] },
-    8: { L: 13, W: 6.4, pts: [[16, 10], [32, 10], [16, 25], [32, 25], [16, 40], [32, 40], [16, 55], [32, 55]] },
-    9: { L: 15, W: 6.2, pts: [[12, 12], [24, 12], [36, 12], [12, 32], [24, 32], [36, 32], [12, 52], [24, 52], [36, 52]] }
+    2: { L: 38, W: 8.6, pts: [[16, 32], [32, 32]], accent: [] },
+    3: { L: 26, W: 8, pts: [[24, 15], [16, 47], [32, 47]], accent: [] },
+    4: { L: 26, W: 8, pts: [[16, 17], [32, 17], [16, 47], [32, 47]], accent: [] },
+    5: { L: 24, W: 7.4, pts: [[15, 15], [33, 15], [24, 32], [15, 49], [33, 49]], accent: [2] },
+    6: { L: 16, W: 7.4, pts: [[16, 12], [32, 12], [16, 32], [32, 32], [16, 52], [32, 52]], accent: [] },
+    7: { L: 14, W: 6.8, pts: [[24, 9], [16, 26], [32, 26], [16, 41], [32, 41], [16, 56], [32, 56]], accent: [0] },
+    8: { L: 13, W: 6.6, pts: [[16, 10], [32, 10], [16, 25], [32, 25], [16, 40], [32, 40], [16, 55], [32, 55]], accent: [] },
+    9: { L: 15, W: 6.4, pts: [[12, 12], [24, 12], [36, 12], [12, 32], [24, 32], [36, 32], [12, 52], [24, 52], [36, 52]], accent: [1, 4, 7] }
   };
 
-  function svgWrap(inner, extra) {
-    return '<svg viewBox="0 0 48 64" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">' +
-      (extra || '') + inner + '</svg>';
+  function svgWrap(inner) {
+    return '<svg viewBox="0 0 48 64" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">' + inner + '</svg>';
   }
-  function dotSvg(cx, cy, r, c1, c2) {
-    return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="#ffffff" stroke="' + c1 + '" stroke-width="' + (r * 0.36).toFixed(2) + '"/>' +
-      '<circle cx="' + cx + '" cy="' + cy + '" r="' + (r * 0.4).toFixed(2) + '" fill="' + c2 + '"/>';
+  // 立体圆点（外圈 + 内芯 + 高光）
+  function dotSvg(cx, cy, r, ring, core) {
+    var sw = r * 0.34;
+    return '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="#fdfaf0" stroke="' + ring + '" stroke-width="' + sw.toFixed(2) + '"/>' +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="' + (r * 0.5).toFixed(2) + '" fill="' + core + '"/>' +
+      '<circle cx="' + (cx - r * 0.22).toFixed(2) + '" cy="' + (cy - r * 0.26).toFixed(2) + '" r="' + (r * 0.16).toFixed(2) + '" fill="#ffffff" opacity="0.75"/>';
   }
-  function stickSvg(cx, cy, L, W) {
+  // 立体竹节
+  function stickSvg(cx, cy, L, W, accent) {
     var x = cx - W / 2, y = cy - L / 2;
+    var body = accent ? RED : GREEN;
+    var mid = accent ? '#e05a49' : '#3fae6d';
+    var hi = accent ? '#ffb3a6' : '#8fe0b0';
+    var dk = accent ? RED_D : '#0f5c33';
     return '<g>' +
-      '<rect x="' + x.toFixed(2) + '" y="' + y.toFixed(2) + '" width="' + W + '" height="' + L + '" rx="' + (W / 2).toFixed(2) + '" fill="#1e8449"/>' +
-      '<rect x="' + (x + W * 0.34).toFixed(2) + '" y="' + (y + L * 0.2).toFixed(2) + '" width="' + (W * 0.32).toFixed(2) + '" height="' + (L * 0.6).toFixed(2) + '" rx="' + (W * 0.16).toFixed(2) + '" fill="#4cc47c"/>' +
-      '<rect x="' + x.toFixed(2) + '" y="' + y.toFixed(2) + '" width="' + W + '" height="' + (L * 0.15).toFixed(2) + '" rx="' + (W / 2).toFixed(2) + '" fill="#c0392b"/>' +
-      '<rect x="' + x.toFixed(2) + '" y="' + (y + L * 0.85).toFixed(2) + '" width="' + W + '" height="' + (L * 0.15).toFixed(2) + '" rx="' + (W / 2).toFixed(2) + '" fill="#c0392b"/>' +
+      '<rect x="' + x.toFixed(2) + '" y="' + y.toFixed(2) + '" width="' + W + '" height="' + L + '" rx="' + (W * 0.36).toFixed(2) + '" fill="' + dk + '"/>' +
+      '<rect x="' + (x + W * 0.16).toFixed(2) + '" y="' + (y + W * 0.14).toFixed(2) + '" width="' + (W * 0.68).toFixed(2) + '" height="' + (L - W * 0.28).toFixed(2) + '" rx="' + (W * 0.3).toFixed(2) + '" fill="' + body + '"/>' +
+      '<rect x="' + (x + W * 0.5).toFixed(2) + '" y="' + (y + W * 0.24).toFixed(2) + '" width="' + (W * 0.2).toFixed(2) + '" height="' + (L - W * 0.48).toFixed(2) + '" rx="' + (W * 0.1).toFixed(2) + '" fill="' + hi + '" opacity="0.85"/>' +
+      '<rect x="' + x.toFixed(2) + '" y="' + (y + L * 0.42).toFixed(2) + '" width="' + W.toFixed(2) + '" height="' + (L * 0.16).toFixed(2) + '" fill="' + mid + '"/>' +
       '</g>';
   }
-  function birdSvg() { // 一条 = 幺鸡
+  // 一条 = 幺鸡
+  function birdSvg() {
     return '<g>' +
-      '<path d="M24 47 L15 61 L24 55.5 L33 61 Z" fill="#2f6b26"/>' +
-      '<ellipse cx="24" cy="37" rx="11.5" ry="14" fill="#3f8f3a"/>' +
-      '<ellipse cx="24" cy="40.5" rx="7.6" ry="9.6" fill="#e6f2e0"/>' +
-      '<circle cx="24" cy="16.5" r="8.4" fill="#3f8f3a"/>' +
-      '<path d="M19 9 L24 2 L29 9 Z" fill="#c0392b"/>' +
-      '<path d="M31.5 17 L42 20.5 L31.5 24 Z" fill="#e8a33d"/>' +
-      '<circle cx="27.2" cy="14.8" r="1.8" fill="#12210f"/>' +
-      '<path d="M19.5 50 L19.5 58 M28.5 50 L28.5 58" stroke="#e8a33d" stroke-width="2" stroke-linecap="round"/>' +
-      '<rect x="12" y="58" width="24" height="3.4" rx="1.7" fill="#1e8449"/>' +
+      '<path d="M24 46 L14 61 L24 55 L34 61 Z" fill="#1e7a45"/>' +
+      '<ellipse cx="24" cy="37" rx="11.6" ry="14" fill="#2f9e5e"/>' +
+      '<ellipse cx="25.5" cy="39" rx="8" ry="10.4" fill="#e8f6ec"/>' +
+      '<path d="M13 32 Q24 24 35 32 Q24 30 13 32 Z" fill="#1a7a45"/>' +
+      '<circle cx="24" cy="16.5" r="8.6" fill="#2f9e5e"/>' +
+      '<path d="M19 9.5 L24 2 L29 9.5 Z" fill="' + RED + '"/>' +
+      '<path d="M31.5 17 L42.5 20.6 L31.5 24.2 Z" fill="#e8a33d"/>' +
+      '<path d="M31.5 20.6 L42.5 20.6 L31.5 24.2 Z" fill="#c07d1e"/>' +
+      '<circle cx="27.4" cy="14.6" r="1.9" fill="#12210f"/>' +
+      '<circle cx="27.9" cy="14" r="0.6" fill="#ffffff"/>' +
+      '<path d="M19.6 49 L19.6 58 M28.4 49 L28.4 58" stroke="#e8a33d" stroke-width="2.2" stroke-linecap="round"/>' +
+      '<rect x="11" y="58" width="26" height="3.6" rx="1.8" fill="#1a7a45"/>' +
+      '<rect x="11" y="58" width="26" height="1.4" rx="0.7" fill="#3fae6d"/>' +
+      '</g>';
+  }
+  // 万字：红色汉字数字 + 萬，带淡淡投影做出"刻印"感
+  function wanSvg(n) {
+    var num = CN_NUM[n - 1], f = 'KaiTi,STKaiti,SimSun,serif';
+    return '<g>' +
+      '<text x="24.9" y="29.9" text-anchor="middle" font-size="27" font-weight="700" font-family="' + f + '" fill="rgba(0,0,0,.16)">' + num + '</text>' +
+      '<text x="24" y="29" text-anchor="middle" font-size="27" font-weight="700" font-family="' + f + '" fill="' + RED + '" stroke="' + RED_D + '" stroke-width="0.5">' + num + '</text>' +
+      '<text x="24.9" y="59.9" text-anchor="middle" font-size="26" font-weight="700" font-family="' + f + '" fill="rgba(0,0,0,.16)">萬</text>' +
+      '<text x="24" y="59" text-anchor="middle" font-size="26" font-weight="700" font-family="' + f + '" fill="' + RED + '" stroke="' + RED_D + '" stroke-width="0.5">萬</text>' +
       '</g>';
   }
   var FACE_CACHE = [];
   function tileFace(kind) {
     if (FACE_CACHE[kind]) return FACE_CACHE[kind];
-    var suit = (kind / 9) | 0, n = kind % 9 + 1, i, s;
-    if (suit === 0) {                       // 万：数字 + 萬
-      s = '<text x="24" y="27" text-anchor="middle" font-size="25" font-weight="700" ' +
-          'font-family="KaiTi,STKaiti,SimSun,serif" fill="#17324a">' + CN_NUM[n - 1] + '</text>' +
-          '<text x="24" y="58" text-anchor="middle" font-size="26" font-weight="700" ' +
-          'font-family="KaiTi,STKaiti,SimSun,serif" fill="#c0392b">萬</text>';
-      return (FACE_CACHE[kind] = svgWrap(s));
-    }
-    if (suit === 1) {                       // 条：幺鸡 / 竹节
+    var suit = (kind / 9) | 0, n = kind % 9 + 1, i, s2;
+    if (suit === 0) return (FACE_CACHE[kind] = svgWrap(wanSvg(n)));
+    if (suit === 1) {
       if (n === 1) return (FACE_CACHE[kind] = svgWrap(birdSvg()));
       var lay = STICK_LAYOUT[n];
-      s = '';
-      for (i = 0; i < lay.pts.length; i++) s += stickSvg(lay.pts[i][0], lay.pts[i][1], lay.L, lay.W);
-      return (FACE_CACHE[kind] = svgWrap(s));
+      s2 = '';
+      for (i = 0; i < lay.pts.length; i++) {
+        s2 += stickSvg(lay.pts[i][0], lay.pts[i][1], lay.L, lay.W, lay.accent.indexOf(i) >= 0);
+      }
+      return (FACE_CACHE[kind] = svgWrap(s2));
     }
-    var L2 = DOT_LAYOUT[n];                 // 筒：圆点
-    s = '';
+    var L2 = DOT_LAYOUT[n];
+    s2 = '';
     for (i = 0; i < L2.pts.length; i++) {
-      var c1 = DOT_COLORS[i % 3], c2 = DOT_COLORS[(i + 1) % 3];
-      if (n === 1) s += dotSvg(L2.pts[i][0], L2.pts[i][1], L2.r, '#c0392b', '#1c6fb5') + dotSvg(L2.pts[i][0], L2.pts[i][1], L2.r * 0.3, '#c0392b', '#c0392b');
-      else s += dotSvg(L2.pts[i][0], L2.pts[i][1], L2.r, c1, c2);
+      var cx = L2.pts[i][0], cy = L2.pts[i][1];
+      if (n === 1) {
+        s2 += '<circle cx="24" cy="32" r="13" fill="#fdfaf0" stroke="' + BLUE + '" stroke-width="4.4"/>' +
+          '<circle cx="24" cy="32" r="8" fill="none" stroke="' + RED + '" stroke-width="2.8"/>' +
+          '<circle cx="24" cy="32" r="3.4" fill="' + RED + '"/>' +
+          '<circle cx="20" cy="28" r="1.8" fill="#ffffff" opacity="0.8"/>';
+      } else {
+        s2 += dotSvg(cx, cy, L2.r, BLUE, RED);
+      }
     }
-    return (FACE_CACHE[kind] = svgWrap(s));
+    return (FACE_CACHE[kind] = svgWrap(s2));
   }
+
 
   function tileEl(kind, size, cls) {
     var d = document.createElement('div');
