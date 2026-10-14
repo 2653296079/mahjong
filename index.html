@@ -644,6 +644,15 @@ main{flex:1;display:flex;min-height:0}
     [[0, 0.113, 0.440, 0.397, 0.049, 0, 0, 0], [0, 0.315, 0.548, 0.129, 0.008, 0, 0, 0], [0, 0.488, 0.494, 0.019, 0, 0, 0, 0]],
     [[0, 0.320, 0.490, 0.178, 0.011, 0, 0, 0], [0, 0.553, 0.406, 0.040, 0.001, 0, 0, 0], [0, 0.744, 0.251, 0.005, 0, 0, 0, 0]]
   ];
+  // 构造采样器的【目标分布】：由「目标→实际向听」混淆矩阵反演得到，使采样出的手牌
+  // 实际向听分布与 SHANTEN_PRIOR 一致。标定脚本：calibrate.js + solve-prior.js
+  var SHANTEN_TARGET = [
+    [[0, 0, 0, 0, 0.099, 0.901, 0, 0], [0, 0, 0.367, 0.559, 0.074, 0, 0, 0], [0, 1, 0, 0, 0, 0, 0, 0]],
+    [[0, 0.005, 0.055, 0, 0.748, 0.192, 0, 0], [0, 0.067, 0.464, 0.429, 0.04, 0, 0, 0], [0, 0.813, 0.187, 0, 0, 0, 0, 0]],
+    [[0, 0.021, 0.169, 0.259, 0.55, 0, 0, 0], [0, 0.188, 0.554, 0.214, 0.045, 0, 0, 0], [0, 0.475, 0.501, 0.025, 0, 0, 0, 0]],
+    [[0, 0.064, 0.247, 0.441, 0.247, 0, 0, 0], [0, 0.319, 0.524, 0.129, 0.028, 0, 0, 0], [0, 0.55, 0.45, 0, 0, 0, 0, 0]],
+    [[0, 0.251, 0.437, 0.257, 0.055, 0, 0, 0], [0, 0.627, 0.338, 0.032, 0.003, 0, 0, 0], [0, 0.9, 0.1, 0, 0, 0, 0, 0]]
+  ];
   function priorBucketIdx(turnCount) {
     return turnCount <= 4 ? 0 : turnCount <= 8 ? 1 : turnCount <= 12 ? 2 : turnCount <= 16 ? 3 : 4;
   }
@@ -831,7 +840,7 @@ main{flex:1;display:flex;min-height:0}
       var hands = [], shs = [], waits = [];
       for (j = 0; j < opps.length; j++) {
         var mc = Math.min(meldsArr[j], 2);
-        var target = pickShanten(SHANTEN_PRIOR[bi][mc], rng);   // 按标定先验抽目标向听
+        var target = pickShanten(SHANTEN_TARGET[bi][mc], rng);   // 按【反演修正后】的目标分布抽
         var h = sampleHandForShanten(pool, need[j], meldsArr[j], target, rng);
         if (!h) { h = uniformHand(pool, need[j], rng); fallback++; }
         var sh = shanten(h, meldsArr[j]);
@@ -1705,6 +1714,7 @@ main{flex:1;display:flex;min-height:0}
     analyzeSituation: analyzeSituation, visiblePool: visiblePool, waitTiles: waitTiles,
     newStats: newStats, accumulateStats: accumulateStats, statsSummary: statsSummary,
     makeScenario: makeScenario, serializeHand: serializeHand,
+    _sampler: { sampleHandForShanten: sampleHandForShanten, structureFor: structureFor, pickShanten: pickShanten, priorBucketIdx: priorBucketIdx },
     replayStates: replayStates, stateAsHand: stateAsHand,
     priorTenpaiRate: priorTenpaiRate, SHANTEN_PRIOR: SHANTEN_PRIOR,
     createGame: createGame, buildWall: buildWall, mulberry32: mulberry32
