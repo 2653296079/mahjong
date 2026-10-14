@@ -368,7 +368,7 @@ main{flex:1;display:flex;min-height:0}
   var KINDS = 27;
 
   var RULES = {
-    discardBase: 5,      // 收炮的"底"= 1 只鸟的价钱（鸟钱已含此底，见 birdMoney）
+    discardBase: 5,      // 收炮基础：叠加在鸟钱之上（放炮者付 基础 + 鸟钱）
     zimoBase: 10,        // 自摸基础：叠加在鸟钱之上（三家各付 基础 + 鸟钱）
     gangAn: 10,          // 暗杠：每家
     gangMing: 15,        // 大明杠：放杠者
@@ -1156,8 +1156,8 @@ main{flex:1;display:flex;min-height:0}
           result.title = (result.gangDraw ? '杠上开花' : '自摸') + ' · ' + birdN + ' 只鸟';
           log(nameOf(w) + (result.gangDraw ? ' 杠上开花' : ' 自摸') + '！' + birdN + ' 只鸟（鸟钱 ' + money + ' 元 + 基础 ' + RULES.zimoBase + ' 元），三家各付 ' + each + ' 元', 'win');
         } else {
-          // 收炮：放炮者付「鸟钱」（5 元底即 1 只鸟的价钱，已在鸟钱内）
-          var total = money;
+          // 收炮：放炮者付「基础 5 元 + 鸟钱」
+          var total = RULES.discardBase + money;
           result.perPay = total;
           result.winners.forEach(function (ws) {
             pay(result.loser, ws, total, '收炮');
@@ -1166,7 +1166,7 @@ main{flex:1;display:flex;min-height:0}
           G.seats[result.loser].paoCount++;
           result.title = '收炮 · ' + birdN + ' 只鸟 · ' + result.winners.map(nameOf).join('、');
           log(nameOf(result.loser) + ' 放炮，' + result.winners.map(nameOf).join('、') + ' 胡 ' + tileName(result.kind) +
-            '，' + birdN + ' 只鸟（鸟钱 ' + money + ' 元），放炮方付 ' + total + ' 元' + (result.winners.length > 1 ? '（一炮多响，各赔各的）' : ''), 'win');
+            '，' + birdN + ' 只鸟（基础 ' + RULES.discardBase + ' + 鸟钱 ' + money + '），放炮方付 ' + total + ' 元' + (result.winners.length > 1 ? '（一炮多响，各赔各的）' : ''), 'win');
         }
       }
       // 汇总本局收支（含杠钱与胡牌赔付）
@@ -1237,7 +1237,7 @@ main{flex:1;display:flex;min-height:0}
       var threat = 0;
       for (var t = 0; t < 4; t++) if (t !== seat && H.players[t].melds.length >= 2) threat++;
       // 速查表门槛：自摸值 6 倍收炮，宽听且巡目足够才放过等自摸
-      var need = outs >= 8 ? 2 : outs >= 6 ? 3 : outs >= 4 ? 4 : outs >= 3 ? 4 : 6;
+      var need = outs >= 8 ? 2 : outs >= 6 ? 3 : outs >= 4 ? 4 : outs >= 3 ? 5 : 8;
       if (threat >= 2) need += 2;
       if (outs >= 2 && left >= need) return 'pass';
       return 'hu';
@@ -1720,10 +1720,10 @@ window.onerror = function (msg, src, line, col) {
       var prob = Math.round(selfDrawProb(outs + 1, left, Math.max(H.wall.length, 8)) * 100);
       var threat = 0;
       for (var t = 0; t < 4; t++) if (t !== hs && H.players[t].melds.length >= 2) threat++;
-      var need = outs >= 8 ? 2 : outs >= 6 ? 3 : outs >= 4 ? 4 : outs >= 3 ? 4 : 6;
+      var need = outs >= 8 ? 2 : outs >= 6 ? 3 : outs >= 4 ? 4 : outs >= 3 ? 5 : 8;
       if (threat >= 2) need += 2;
       el.textContent = '收炮抉择：听 ' + outs + ' 种 · 还能摸 ' + left + ' 巡 · 自摸概率约 ' + prob + '% → ' +
-        (outs >= 2 && left >= need ? '建议放过等自摸（自摸 ≈ 5.4 倍收炮）' : '建议收炮落袋');
+        (outs >= 2 && left >= need ? '建议放过等自摸（自摸 ≈ 3.85 倍收炮）' : '建议收炮落袋');
       return;
     }
     var opts = game.evaluateDiscards(hs);
@@ -1969,12 +1969,12 @@ window.onerror = function (msg, src, line, col) {
       var prob = selfDrawProb(outs + 1, left, Math.max(H.wall.length, 8));
       var threat = 0;
       for (var t = 0; t < 4; t++) if (t !== hs && H.players[t].melds.length >= 2) threat++;
-      var need = outs >= 8 ? 2 : outs >= 6 ? 3 : outs >= 4 ? 4 : outs >= 3 ? 4 : 6;
+      var need = outs >= 8 ? 2 : outs >= 6 ? 3 : outs >= 4 ? 4 : outs >= 3 ? 5 : 8;
       if (threat >= 2) need += 2;
       var shouldPass = outs >= 2 && left >= need;
       rows.push('<b>该不该收炮？</b>');
       rows.push('听牌张数：<b>' + outs + '</b> 种剩余 · 还能摸 <b>' + left + '</b> 巡 · 自摸概率约 <b>' + Math.round(prob * 100) + '%</b>');
-      rows.push('收炮 = 鸟钱（均 12.7 元）｜自摸 = 每家 10 + 鸟钱，三家共 <b>68 元 ≈ 5.4 倍</b>');
+      rows.push('收炮 = 基础 5 + 鸟钱（均 17.7 元）｜自摸 = 每家 10 + 鸟钱，三家共 <b>68 元 ≈ 3.85 倍</b>');
       rows.push(shouldPass
         ? '<span class="rec">建议：放过，等自摸。</span><span class="warn">（放过后本巡转完前不能再要炮）</span>'
         : '<span class="rec">建议：收炮落袋。</span>（巡目不足或听牌太窄）');
@@ -2040,7 +2040,8 @@ window.onerror = function (msg, src, line, col) {
         var each = ZMJ.RULES.zimoBase + per;
         rows += '<span>结算</span><span>自摸：每家 基础 ' + ZMJ.RULES.zimoBase + ' + 鸟钱 ' + per + ' = <b>' + each + ' 元</b>，三家共 +' + (3 * each) + ' 元</span>';
       } else {
-        rows += '<span>结算</span><span>收炮：' + game.nameOf(r.loser) + ' 付 <b>' + per + ' 元</b> × ' + r.winners.length + ' 家（5 元底即 1 只鸟的价钱，已含在鸟钱内）</span>';
+        var each2 = ZMJ.RULES.discardBase + per;
+        rows += '<span>结算</span><span>收炮：' + game.nameOf(r.loser) + ' 付 <b>' + each2 + ' 元</b> × ' + r.winners.length + ' 家（基础 ' + ZMJ.RULES.discardBase + ' + 鸟钱 ' + per + '）</span>';
       }
       rows += '</div>';
     }
@@ -2082,7 +2083,7 @@ window.onerror = function (msg, src, line, col) {
       '<li><b>杠</b>：暗杠 每家 10 元；大明杠 放杠者 15 元；补杠（碰后自摸第 4 张）三家各 5 元。<b>补杠不可被抢杠</b>。</li>' +
       '<li><b>鸟</b>：胡牌后翻 6 张，摸到 1/5/9 各算一只。</li>' +
       '<li><b>鸟钱</b>：0 只 = 30 元（大满贯），1~5 只 = 只数 × 5 元，6 只 = 60 元。</li>' +
-      '<li><b>收炮</b>：放炮者付 <b>鸟钱</b>（5 元底就是 1 只鸟的价钱，已含在内）。</li>' +
+      '<li><b>收炮</b>：放炮者付「基础 5 元 + 鸟钱」。例：0 只鸟 → 5+30 = <b>35 元</b>。</li>' +
       '<li><b>自摸</b>：三家各付「基础 10 元 + 鸟钱」。例：0 只鸟 → 每家 10+30 = <b>40 元</b>。</li>' +
       '<li><b>过水</b>：放弃一次的炮，在自己摸牌前不能再胡炮。</li>' +
       '<li><b>荒庄</b>：无赔付，庄给下家。<b>一炮多响</b>：各赔各的。</li>' +
@@ -2090,12 +2091,12 @@ window.onerror = function (msg, src, line, col) {
       '</ul>' +
       '<h2 style="font-size:16px;margin-top:14px">核心赔率（期望值）</h2>' +
       '<table><tr><th>事件</th><th>期望</th><th>相对</th></tr>' +
-      '<tr><td>我自摸</td><td>+68 元</td><td>5.4</td></tr>' +
-      '<tr><td>别人自摸（我付）</td><td>−22.7 元</td><td>1.8</td></tr>' +
-      '<tr><td>我收炮 / 我点炮</td><td>±12.7 元</td><td>1</td></tr>' +
+      '<tr><td>我自摸</td><td>+68 元</td><td>3.85</td></tr>' +
+      '<tr><td>别人自摸（我付）</td><td>−22.7 元</td><td>1.28</td></tr>' +
+      '<tr><td>我收炮 / 我点炮</td><td>±17.7 元</td><td>1</td></tr>' +
       '<tr><td>暗杠 / 大明杠 / 补杠</td><td>+30 / +15 / +15 元</td><td>2.4 / 1.2 / 1.2</td></tr>' +
       '</table>' +
-      '<div style="font-size:13px;color:#9fb3a8">收炮与自摸翻的是同一批鸟牌，差别只在"基础"那一项 ⇒ <b style="color:#f2c14e">自摸 ≈ 5.4 倍收炮</b>，收炮算 +12.7 元，自摸算 +68 元。</div>' +
+      '<div style="font-size:13px;color:#9fb3a8">收炮与自摸翻的是同一批鸟牌，差别在"基础"：收炮 +5 元、自摸每家 +10 元 ⇒ <b style="color:#f2c14e">自摸 ≈ 3.85 倍收炮</b>（收炮 +17.7 元，自摸 +68 元）。</div>' +
       '<div class="center"><button class="act" id="btnClose">知道了</button></div>';
     $('btnClose').onclick = function () { $('modal').classList.add('hidden'); };
     $('modal').classList.remove('hidden');
