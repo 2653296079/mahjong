@@ -62,23 +62,26 @@ main{flex:1;display:flex;min-height:0}
 /* 实体麻将牌质感：象牙面 + 内斜面 + 砖块厚度 + 落地阴影 */
 .tile{position:relative;
   background:linear-gradient(178deg,#ffffff 0%,#fdfbf4 30%,#f7f1de 68%,#eae1c6 100%);
-  color:var(--ink);border:1px solid #c9c0a2;border-radius:7px;
+  color:var(--ink);border:1px solid #c9c0a2;border-radius:8px;
   display:flex;align-items:center;justify-content:center;padding:2px 3px;overflow:hidden;user-select:none;
   box-shadow:
     inset 0 2px 0 rgba(255,255,255,.98),
-    inset 2px 0 1px rgba(255,255,255,.72),
-    inset -2px 0 2px rgba(148,133,98,.22),
-    inset 0 -3px 5px rgba(140,124,88,.28),
-    0 3px 0 #cec3a4,
-    0 4px 0 #b5a884,
-    0 5px 0 #94875e,
-    0 8px 12px rgba(0,0,0,.5)}
+    inset 2px 0 1px rgba(255,255,255,.75),
+    inset -2px 0 2px rgba(140,125,92,.26),
+    inset 0 -5px 7px rgba(126,110,78,.34),
+    0 2px 0 #f4ecd8,
+    0 5px 0 #e2d7ba,
+    0 8px 0 #cabd9c,
+    0 11px 0 #a89a78,
+    0 13px 0 #8b7f61,
+    0 17px 18px rgba(0,0,0,.55)}
 .tile svg{width:100%;height:100%;display:block}
-.tile.small{width:28px;height:38px;border-radius:4px;padding:1px 2px;
-  box-shadow:inset 0 1px 0 #fff, inset 0 -2px 3px rgba(140,124,88,.26),
-    0 1px 0 #cec3a4, 0 2px 0 #b5a884, 0 4px 5px rgba(0,0,0,.42)}
-.tile.meldTile{width:24px;height:33px;border-radius:3px;padding:1px 2px;
-  box-shadow:inset 0 1px 0 #fff, 0 1px 0 #cec3a4, 0 3px 4px rgba(0,0,0,.4)}
+.tile.small{width:28px;height:38px;border-radius:5px;padding:1px 2px;
+  box-shadow:inset 0 1px 0 #fff, inset 0 -3px 4px rgba(126,110,78,.30),
+    0 1px 0 #f4ecd8, 0 3px 0 #ddd2b4, 0 5px 0 #bfb392, 0 7px 7px rgba(0,0,0,.48)}
+.tile.meldTile{width:24px;height:33px;border-radius:4px;padding:1px 2px;
+  box-shadow:inset 0 1px 0 #fff, inset 0 -2px 3px rgba(126,110,78,.28),
+    0 1px 0 #f4ecd8, 0 3px 0 #d8cdaf, 0 5px 6px rgba(0,0,0,.44)}
 .tile.mid{width:34px;height:46px}
 .tile.big{width:48px;height:64px}
 .tile.back{background:linear-gradient(170deg,#2a8a5f 0%,#1c6b4a 45%,#0d4630 100%);
@@ -319,6 +322,25 @@ main{flex:1;display:flex;min-height:0}
 .tile.clickable:active{transform:translateY(-2px) scale(.97)}
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.001s !important;animation-iteration-count:1 !important;transition-duration:.001s !important}
+}
+/* ---------- 横向窄屏：保证 14 张手牌单行排得下 ---------- */
+@media (max-width:1040px){
+  #side{width:262px;padding:8px 9px 8px 0}
+  .tile.big{width:40px;height:53px}
+  .handRow{gap:3px;padding:4px}
+}
+@media (max-width:920px){
+  #side{width:236px}
+  .tile.big{width:36px;height:48px}
+  #table{padding:6px}
+}
+@media (max-width:820px){
+  #side{width:214px}
+  .tile.big{width:33px;height:44px}
+  .handRow{gap:2px;padding:3px}
+}
+@media (max-width:700px){
+  .tile.big{width:30px;height:40px}
 }
 </style>
 <link rel="manifest" href="manifest.webmanifest">
@@ -2009,6 +2031,8 @@ window.onerror = function (msg, src, line, col) {
       aiStyleV2: cfg.aiStyle === 'v1' ? [] : [1, 2, 3],
       aiStyleV3: cfg.aiStyle === 'v3' ? [1, 2, 3] : [] });
     window.__zmjGame = game;   // 调试用：控制台里可直接查看牌局状态
+    window.__zmjTile = tileEl;  // 调试用：window.__zmjTile(kind,'big') 生成一张牌
+    window.__zmjFace = tileFace;
     game.startHand();
     resetHandExtra();
     render();
@@ -2239,7 +2263,13 @@ window.onerror = function (msg, src, line, col) {
     });
     // 打牌风险
     if (myTurn && cands.length) {
+      var maxP = 0;
+      cands.forEach(function (c) { if (c.prob > maxP) maxP = c.prob; });
       out.push('<div class="sitSec">我打每张牌的放铳概率</div>');
+      if (maxP < 0.005) {
+        out.push('<div style="color:#7ee2a8;font-size:12.5px">目前没有人在听的迹象 —— 按牌效打即可，' +
+          '推荐 <b style="color:#f2c14e">' + ZMJ.tileName(cands[0].kind) + '</b>（进张 ' + cands[0].ukeire + '）</div>');
+      } else {
       out.push('<table class="sit">');
       cands.forEach(function (c, i) {
         var kill = c.killers.length ? '<span class="kill">' + c.killers.map(function (k) { return game.nameOf(k.seat) + Math.round(k.prob * 100) + '%'; }).join(' ') + '</span>' : '';
@@ -2250,6 +2280,7 @@ window.onerror = function (msg, src, line, col) {
           '<td>' + kill + '</td></tr>');
       });
       out.push('</table>');
+      }
       // 建议：进张价值 vs 放铳风险
       var best = null;
       cands.forEach(function (c) {
@@ -2626,19 +2657,13 @@ window.onerror = function (msg, src, line, col) {
     var mc = p.melds.length;
     var sh = opts.length ? opts[0].shanten : 0;
     var shName = sh <= -1 ? '已胡' : (sh === 0 ? '听牌' : sh + ' 向听');
-    rows.push('<b>牌效</b>：' + shName + (mc ? '（副露 ' + mc + ' 组）' : ''));
+    rows.push('<b>' + shName + '</b>' + (mc ? '（副露 ' + mc + ' 组）' : ''));
     var u = game.ukeireFor(hs);
     if (sh === 0 && u.kinds.length) {
       rows.push('听：' + u.kinds.map(function (k) { return ZMJ.tileName(k); }).join('、') + '（共 ' + u.total + ' 张）');
     }
     if (opts.length) {
-      var top = opts.slice(0, 3);
-      var html = '<table><tr><td>推荐</td><td>向听</td><td>进张</td></tr>';
-      top.forEach(function (o, i) {
-        html += '<tr><td>' + (i === 0 ? '<span class="rec">' : '') + ZMJ.tileName(o.kind) + (i === 0 ? '</span>' : '') + '</td><td>' + o.shanten + '</td><td>' + o.ukeire + '</td></tr>';
-      });
-      html += '</table>';
-      rows.push(html);
+      rows.push('<span style="color:#9fb3a8">具体打哪张与放铳概率见上方「局势分析」。</span>');
     }
     // 七对
     if (mc === 0) {
