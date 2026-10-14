@@ -477,7 +477,9 @@ main{flex:1;display:flex;min-height:0}
     birdPer: 5,          // 每只鸟 5 元
     birdZero: 30,        // 0 只鸟 = 6 番
     birdSix: 60,         // 6 只鸟 = 12 番
-    sevenPairsAllowQuad: true
+    sevenPairsAllowQuad: true,
+    winGain: 43,        // 和了一局的期望收益（自摸 68 / 收炮 17.7 的混合）
+    riskWeight: 17.67   // 放铳一次的期望损失（可标定：与 winGain 的比值决定攻守倾向）
   };
 
   // ---------- 基础工具 ----------
@@ -959,6 +961,37 @@ main{flex:1;display:flex;min-height:0}
       birdHist: s.birdHist.slice(),
       recent: s.recent.slice()
     };
+  }
+
+  /* 单步决策质量评估（NAGA/Mortal 式「每手 EV 损失」）
+   * 给定局面与座位，用校准后的模型给每张候选牌打分，返回 {best, scores:{kind->ev}, byKind}
+   * allowFold=true 时把"最安全的几张"也纳入候选（与 v3 一致） */
+  function discardEVs(hand, seat, opts) {
+    opts = opts || {};
+    var worlds = opts.worlds || 80;
+    var list = evaluateDiscards(hand, seat);
+    if (!list.length) return null;
+    var minSh = list[0].shanten;
+    var sit = analyzeSituation(hand, seat, { worlds: worlds, seed: (opts.seed >>> 0) || 1 });
+    var set = list.filter(function (o) { return o.shanten <= minSh; }).slice(0, 6);
+    if (opts.allowFold && minSh >= 1) {
+      var bySafe = list.slice().sort(function (a, b) { return sit.dealIn(a.kind).prob - sit.dealIn(b.kind).prob; }).slice(0, 3);
+      bySafe.forEach(function (o) { if (set.indexOf(o) < 0) set.push(o); });
+    }
+    var d = drawsLeft(hand), W = Math.max(8, hand.wall.length);
+    var GAIN = RULES.winGain, LOSS = RULES.riskWeight;
+    var scores = {}, bestEv = -1e9, bestKind = -1;
+    set.forEach(function (o) {
+      var pProg = 1 - Math.exp(-o.ukeire * d / W);
+      var pWin = Math.pow(pProg, Math.max(1, o.shanten));
+      var pDeal = sit.dealIn(o.kind).prob;
+      var ev = pWin * GAIN - pDeal * LOSS;
+      scores[o.kind] = ev;
+      if (ev > bestEv) { bestEv = ev; bestKind = o.kind; }
+    });
+    // 手牌里没有被评分的牌，给一个保守下界（按最差的候选算）
+    list.forEach(function (o) { if (scores[o.kind] === undefined) scores[o.kind] = bestEv - 99; });
+    return { best: bestKind, bestEv: bestEv, scores: scores };
   }
 
   // ================= 复盘回放：从牌谱重建逐步状态 =================
@@ -1577,7 +1610,7 @@ main{flex:1;display:flex;min-height:0}
       }
       if (set.length === 1) return set[0].kind;
       var d = drawsLeft(H), W = Math.max(8, H.wall.length);
-      var GAIN = 43, LOSS = RULES.discardBase + 12.67;   // 放铳期望损失 ≈ 17.7 元
+      var GAIN = RULES.winGain, LOSS = RULES.riskWeight;   // 均可标定
       var best = null;
       set.forEach(function (o) {
         var pProg = 1 - Math.exp(-o.ukeire * d / W);
@@ -1731,7 +1764,7 @@ main{flex:1;display:flex;min-height:0}
     newStats: newStats, accumulateStats: accumulateStats, statsSummary: statsSummary,
     makeScenario: makeScenario, serializeHand: serializeHand,
     _sampler: { sampleHandForShanten: sampleHandForShanten, structureFor: structureFor, pickShanten: pickShanten, priorBucketIdx: priorBucketIdx },
-    replayStates: replayStates, stateAsHand: stateAsHand,
+    replayStates: replayStates, stateAsHand: stateAsHand, discardEVs: discardEVs,
     priorTenpaiRate: priorTenpaiRate, SHANTEN_PRIOR: SHANTEN_PRIOR,
     createGame: createGame, buildWall: buildWall, mulberry32: mulberry32
   };
@@ -1758,7 +1791,7 @@ window.onerror = function (msg, src, line, col) {
 
   var game = null, timer = null;
   var cfg = { rotate: true, aiStyle: 'ev', speed: 420, hint: true, seed: null, analyze: true, worlds: 150,
-              turnTime: 30, aiThink: 3, sound: true, aiV2: true, aiStyle: 'v3' };   // 人类每步 30 秒；电脑思考 3 秒
+              turnTime: 30, aiThink: 3, sound: true, aiV2: true, aiStyle: 'v2' };   // 人类每步 30 秒；电脑思考 3 秒
   var turnDeadline = 0, lastPopKind = -1;
   // ---------- 训练统计（跨会话持久化） ----------
   var STAT_KEY = 'zmj_stats_v1';
@@ -2717,8 +2750,8 @@ window.onerror = function (msg, src, line, col) {
       '<div class="setRow"><span>对手风格</span><select id="setStyle"><option value="ev">按 EV 打（会放过炮等自摸）</option><option value="greedy">见炮就胡（像牌桌真人）</option></select></div>' +
       '<div class="setRow"><span>决策提示</span><select id="setHint"><option value="1">开启</option><option value="0">关闭</option></select></div>' +
       '<div class="setRow"><span>电脑打牌算法</span><select id="setAiStyle">' +
-        '<option value="v3">v3 概率驱动 + 会弃和（默认）</option>' +
-        '<option value="v2">v2 概率驱动（只看最优向听）</option>' +
+        '<option value="v2">v2 概率驱动（默认，已证明决策显著更优）</option>' +
+        '<option value="v3">v3 概率驱动 + 会弃和（实验性，未见额外收益）</option>' +
         '<option value="v1">v1 启发式（手写危险度）</option></select></div>' +
       '<div class="setRow"><span>音效（程序合成，无外部文件）</span><select id="setSound"><option value="1">开启</option><option value="0">关闭</option></select></div>' +
       '<div class="setRow"><span>局势分析（对手采样 + 放铳概率）</span><select id="setAnalyze"><option value="1">开启</option><option value="0">关闭</option></select></div>' +
