@@ -1185,10 +1185,12 @@ main{flex:1;display:flex;min-height:0}
     }
 
     var v2Seats = opts.aiStyleV2 || [];
+    var v3Seats = opts.aiStyleV3 || [];
     G.seats[0] = makePlayer('you', '你', true, v2Seats.indexOf(0) >= 0 ? 'v2' : 'v1');
     var nq = npcNames.slice();
     for (var s = 1; s < 4; s++) {
-      G.seats[s] = makePlayer('npc' + s, nq.shift(), false, v2Seats.indexOf(s) >= 0 ? 'v2' : 'v1');
+      G.seats[s] = makePlayer('npc' + s, nq.shift(), false,
+        v3Seats.indexOf(s) >= 0 ? 'v3' : (v2Seats.indexOf(s) >= 0 ? 'v2' : 'v1'));
     }
     while (nq.length) { G.queue.push(makePlayer('npc_q' + nq.length, nq.shift(), false, 'v1')); }
 
@@ -1549,36 +1551,50 @@ main{flex:1;display:flex;min-height:0}
      *   P(和了) 由进张数与剩余巡目估算：P ≈ (1 − e^(−u·d/W))^max(1,向听)
      *   收益取值：自摸 +68 / 收炮 +17.7 → 综合约 43 元；放铳 −17.7 元
      */
-    function aiDiscardV2(seat) {
+    /* 期望值打分（v2 / v3 共用）
+     * EV(打 k) = P(最终和了) × 43 元 − P(立即放铳) × 17.7 元
+     *   P(和了) ≈ (1 − e^(−进张·剩余巡目/牌墙))^max(1,向听)
+     * allowFold=true（v3）时，候选集额外纳入【手牌里最安全的几张】，
+     *   即使它们会牺牲向听 —— 这才是真正意义上的弃和（ベタオリ）。
+     */
+    function aiDiscardEval(seat, allowFold) {
       var H = G.hand;
       var opts = evaluateDiscards(H, seat);
       if (!opts.length) return null;
       var minSh = opts[0].shanten;
-      var cand = opts.filter(function (o) { return o.shanten <= minSh; }).slice(0, 6);
-      if (cand.length === 1) return cand[0].kind;
       var sit;
       try {
         sit = analyzeSituation(H, seat, { worlds: 80, seed: ((G.handNo * 7919 + H.turnCount * 131 + seat * 17) >>> 0) });
-      } catch (e) { return cand[0].kind; }
+      } catch (e) {
+        return opts[0].kind;
+      }
+      var set = opts.filter(function (o) { return o.shanten <= minSh; }).slice(0, 6);
+      if (set.length === 0) set = [opts[0]];
+      if (allowFold && minSh >= 1) {
+        // 手牌里放铳概率最低的 3 张（可能向听更差）作为弃和候选
+        var bySafe = opts.slice().sort(function (a, b) { return sit.dealIn(a.kind).prob - sit.dealIn(b.kind).prob; }).slice(0, 3);
+        bySafe.forEach(function (o) { if (set.indexOf(o) < 0) set.push(o); });
+      }
+      if (set.length === 1) return set[0].kind;
       var d = drawsLeft(H), W = Math.max(8, H.wall.length);
-      var GAIN = 43, LOSS = RULES.discardBase + 12.67;   // 放铳期望损失 ≈ 17.7
+      var GAIN = 43, LOSS = RULES.discardBase + 12.67;   // 放铳期望损失 ≈ 17.7 元
       var best = null;
-      cand.forEach(function (o) {
-        var u = o.ukeire;
-        var pProg = 1 - Math.exp(-u * d / W);
+      set.forEach(function (o) {
+        var pProg = 1 - Math.exp(-o.ukeire * d / W);
         var pWin = Math.pow(pProg, Math.max(1, o.shanten));
         var pDeal = sit.dealIn(o.kind).prob;
         var ev = pWin * GAIN - pDeal * LOSS;
-        if (!best || ev > best.ev) best = { kind: o.kind, ev: ev, pWin: pWin, pDeal: pDeal, ukeire: u, shanten: o.shanten };
+        if (!best || ev > best.ev) best = { kind: o.kind, ev: ev, pWin: pWin, pDeal: pDeal, ukeire: o.ukeire, shanten: o.shanten };
       });
-      // 兜底：万一分析异常，回退到静态排序
-      if (!best) return cand[0].kind;
-      return best.kind;
+      return best ? best.kind : set[0].kind;
     }
+    function aiDiscardV2(seat) { return aiDiscardEval(seat, false); }
+    function aiDiscardV3(seat) { return aiDiscardEval(seat, true); }
 
     function aiDiscard(seat) {
       var H = G.hand, p = H.players[seat];
       if (G.seats[seat] && G.seats[seat].aiStyle === 'v2') return aiDiscardV2(seat);
+      if (G.seats[seat] && G.seats[seat].aiStyle === 'v3') return aiDiscardV3(seat);
       var opts = evaluateDiscards(H, seat);
       if (!opts.length) return null;
       var best = opts[0];
@@ -1742,7 +1758,7 @@ window.onerror = function (msg, src, line, col) {
 
   var game = null, timer = null;
   var cfg = { rotate: true, aiStyle: 'ev', speed: 420, hint: true, seed: null, analyze: true, worlds: 150,
-              turnTime: 30, aiThink: 3, sound: true, aiV2: true };   // 人类每步 30 秒；电脑思考 3 秒
+              turnTime: 30, aiThink: 3, sound: true, aiV2: true, aiStyle: 'v3' };   // 人类每步 30 秒；电脑思考 3 秒
   var turnDeadline = 0, lastPopKind = -1;
   // ---------- 训练统计（跨会话持久化） ----------
   var STAT_KEY = 'zmj_stats_v1';
@@ -1957,7 +1973,8 @@ window.onerror = function (msg, src, line, col) {
     clearTimeout(timer);
     loadStats();
     game = ZMJ.createGame({ seed: cfg.seed == null ? undefined : cfg.seed, rotate: cfg.rotate, aiStyle: cfg.aiStyle,
-      aiStyleV2: cfg.aiV2 ? [1, 2, 3] : [] });
+      aiStyleV2: cfg.aiStyle === 'v1' ? [] : [1, 2, 3],
+      aiStyleV3: cfg.aiStyle === 'v3' ? [1, 2, 3] : [] });
     window.__zmjGame = game;   // 调试用：控制台里可直接查看牌局状态
     game.startHand();
     resetHandExtra();
@@ -2699,7 +2716,10 @@ window.onerror = function (msg, src, line, col) {
       '<div class="setRow"><span>转转模式（胡牌者下桌）</span><select id="setRotate"><option value="1">开启</option><option value="0">关闭（固定四人）</option></select></div>' +
       '<div class="setRow"><span>对手风格</span><select id="setStyle"><option value="ev">按 EV 打（会放过炮等自摸）</option><option value="greedy">见炮就胡（像牌桌真人）</option></select></div>' +
       '<div class="setRow"><span>决策提示</span><select id="setHint"><option value="1">开启</option><option value="0">关闭</option></select></div>' +
-      '<div class="setRow"><span>电脑打牌算法</span><select id="setAiV2"><option value="1">放铳概率驱动 v2（默认）</option><option value="0">启发式 v1</option></select></div>' +
+      '<div class="setRow"><span>电脑打牌算法</span><select id="setAiStyle">' +
+        '<option value="v3">v3 概率驱动 + 会弃和（默认）</option>' +
+        '<option value="v2">v2 概率驱动（只看最优向听）</option>' +
+        '<option value="v1">v1 启发式（手写危险度）</option></select></div>' +
       '<div class="setRow"><span>音效（程序合成，无外部文件）</span><select id="setSound"><option value="1">开启</option><option value="0">关闭</option></select></div>' +
       '<div class="setRow"><span>局势分析（对手采样 + 放铳概率）</span><select id="setAnalyze"><option value="1">开启</option><option value="0">关闭</option></select></div>' +
       '<div class="setRow"><span>采样组数（越大越准越慢）</span><select id="setWorlds"><option value="80">80（快）</option><option value="150">150（推荐）</option><option value="300">300（准）</option></select></div>' +
@@ -2712,7 +2732,7 @@ window.onerror = function (msg, src, line, col) {
     $('setStyle').value = cfg.aiStyle;
     $('setHint').value = cfg.hint ? '1' : '0';
     $('setRotateHint').value = rotateDismissed ? '0' : '1';
-    $('setAiV2').value = cfg.aiV2 ? '1' : '0';
+    $('setAiStyle').value = cfg.aiStyle || 'v3';
     $('setSound').value = cfg.sound ? '1' : '0';
     $('setAnalyze').value = cfg.analyze ? '1' : '0';
     $('setWorlds').value = String(cfg.worlds);
@@ -2724,7 +2744,7 @@ window.onerror = function (msg, src, line, col) {
       cfg.rotate = $('setRotate').value === '1';
       cfg.aiStyle = $('setStyle').value;
       cfg.hint = $('setHint').value === '1';
-      cfg.aiV2 = $('setAiV2').value === '1';
+      cfg.aiStyle = $('setAiStyle').value;
       cfg.sound = $('setSound').value === '1';
       cfg.analyze = $('setAnalyze').value === '1';
       cfg.worlds = parseInt($('setWorlds').value, 10) || 150;
