@@ -1,0 +1,26 @@
+{
+  "name": "转转麻将 · 练牌室",
+  "short_name": "转转麻将",
+  "description": "湖南转转麻将练习器：规则精确、AI 对手、实时放铳概率分析、训练统计与牌谱导出",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0a4a31",
+  "theme_color": "#0a4a31",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
