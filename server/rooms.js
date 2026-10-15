@@ -166,6 +166,7 @@ class Room {
   pump() {
     const G = this.game;
     if (!G || !G.hand) return;
+    this.syncLateJoiners();
     let guard = 0;
     while (guard++ < 4000) {
       if (G.hand.over) break;
@@ -183,6 +184,30 @@ class Room {
       if (!G.aiStep()) break;
     }
     this.rev++;
+  }
+
+  /**
+   * 牌局开打之后才进房间的真人，要真的补进等待区。
+   * 不做这一步的话，他会一直看到「你在等待区」，却永远轮不到上桌 —— 因为开局时的名单里没有他。
+   */
+  syncLateJoiners() {
+    const G = this.game;
+    if (!G || typeof G.addPlayer !== 'function') return 0;
+    let added = 0;
+    for (const m of this.members) {
+      if (m.gone) continue;
+      if (G.seatOfId(m.pid) >= 0) continue;
+      if (G.isInQueue(m.pid)) continue;
+      if (G.addPlayer({ id: m.pid, name: m.name, isHuman: true })) added++;
+    }
+    return added;
+  }
+
+  /** 真人还在不在这个房间（在桌上或在等待区都算） */
+  hasPlayer(pid) {
+    const G = this.game;
+    if (!G) return this.memberByPid(pid) != null;
+    return G.seatOfId(pid) >= 0 || G.isInQueue(pid);
   }
 
   /** 真人的一次操作 */
@@ -353,7 +378,8 @@ class RoomStore {
   sweep(now, idleMs) {
     const dead = [];
     for (const [id, r] of this.rooms) {
-      if (r.onlineCount() === 0 && now - Math.max(r.lastActive, r.createdAt) > (idleMs || 600000)) dead.push(id);
+      // 没人在线超过两分钟就回收；以前是十分钟，废弃房会在列表里挂太久
+      if (r.onlineCount() === 0 && now - Math.max(r.lastActive, r.createdAt) > (idleMs || 120000)) dead.push(id);
     }
     for (const id of dead) this.rooms.delete(id);
     return dead;
@@ -361,11 +387,15 @@ class RoomStore {
   list() {
     const out = [];
     for (const r of this.rooms.values()) {
+      // 没人在线的房间是废弃房：列出来只会让人点进去发现打不了
+      if (r.onlineCount() === 0) continue;
       const i = r.info();
       out.push({ id: r.id, phase: i.phase, humans: i.humans, online: i.online, handNo: i.handNo });
     }
     return out.sort((a, b) => b.online - a.online || b.humans - a.humans);
   }
+  /** 没人了就直接拆掉房间 */
+  drop(id) { return this.rooms.delete(String(id)); }
 }
 
 module.exports = { Room, RoomStore, loadCore, publicResult, DEFAULTS };

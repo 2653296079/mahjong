@@ -1,0 +1,56 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>联机面板检查</title>
+<body style="margin:0;font:12px/1.6 monospace;background:#111;color:#ddd">
+<pre id="log" style="margin:0;padding:6px;height:160px;overflow:auto"></pre>
+<iframe id="f" src="/index.html" style="width:440px;height:640px;border:1px solid #444"></iframe>
+<script>
+var out = { ok: false, steps: [], errors: [], checks: {} };
+function say(s) { out.steps.push(s); document.getElementById('log').textContent = out.steps.join('\n'); }
+var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+function bootErr(w) { var b = w.document.getElementById('boot'); return b && !b.classList.contains('hidden') ? b.textContent.slice(0, 200) : null; }
+function report() { fetch('/__result?d=' + encodeURIComponent(JSON.stringify(out))).then(function () {}, function () {}); }
+function chip(w) { var e = w.document.getElementById('netBar'); return e && e.offsetParent !== null ? e.textContent.trim() : '(无)'; }
+(async function () {
+  try {
+    var w = document.getElementById('f').contentWindow;
+    var t0 = Date.now();
+    while (Date.now() - t0 < 10000) { if (w.document.getElementById('homeOnline')) break; await sleep(150); }
+    w.document.getElementById('homeOnline').click();          // 主界面 → 联机打牌
+    say('点了「联机打牌」');
+    await sleep(1500);
+    var c1 = chip(w);
+    out.checks.chipAfterOpen = c1;
+    say('状态条：' + c1);
+
+    // 等连上（出现名字输入框就是连上了）
+    var t1 = Date.now();
+    while (Date.now() - t1 < 12000) { if (w.document.getElementById('netName')) break; await sleep(200); }
+    out.checks.connected = !!w.document.getElementById('netName');
+    say('已连上服务器=' + out.checks.connected + '，状态条：' + chip(w));
+
+    // 废弃房 9999 不能出现在列表里
+    var boxTxt = w.document.getElementById('netBox') ? w.document.getElementById('netBox').textContent : '';
+    out.checks.abandonedListed = boxTxt.indexOf('9999') >= 0;
+    say('废弃房 9999 出现在列表里=' + out.checks.abandonedListed);
+    out.checks.listTxt = boxTxt.replace(/\s+/g, ' ').slice(0, 220);
+
+    // 点「关闭」——绝不该因此进房间
+    var closeBtn = w.document.getElementById('netClose2') || w.document.getElementById('netClose');
+    out.checks.hasClose = !!closeBtn;
+    if (closeBtn) closeBtn.click();
+    await sleep(1200);
+    out.checks.modalHidden = w.document.getElementById('modal').classList.contains('hidden');
+    var c2 = chip(w);
+    out.checks.chipAfterClose = c2;
+    out.checks.inRoomAfterClose = c2.indexOf('房间') >= 0;
+    say('点关闭后：弹窗隐藏=' + out.checks.modalHidden + '，状态条「' + c2 + '」，是否进了房间=' + out.checks.inRoomAfterClose);
+
+    out.checks.boot = bootErr(w);
+    out.ok = out.checks.connected && out.checks.hasClose && out.checks.modalHidden &&
+             !out.checks.inRoomAfterClose && !out.checks.abandonedListed && !out.checks.boot;
+    say('结论：' + (out.ok ? '通过' : '未通过'));
+  } catch (e) { out.errors.push(String((e && e.message) || e)); say('异常：' + e); }
+  report();
+})();
+</script>

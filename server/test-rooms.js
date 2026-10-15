@@ -234,6 +234,55 @@ test('五个人：真人优先上桌，多余的进等待区，转转轮换后�
   assert.ok(rotations > 0, '20 局都没人胡牌，轮换没被验证');
 });
 
+test('中途进房间的人真的能轮换上桌（不能只是显示「等待区」）', () => {
+  const store = new RoomStore();
+  const room = store.create('1010');
+  fakeClient(room, '甲');
+  fakeClient(room, '乙');
+  room.start();
+  assert.strictEqual(room.game.seats.length, 4);
+  // 牌局已经开打之后，丙才进来
+  const c = fakeClient(room, '丙');
+  assert.strictEqual(room.game.seatOfId(c.pid), -1, '丙一开始当然不在座位上');
+  room.pump();
+  assert.ok(room.hasPlayer(c.pid), '丙必须被补进等待区，否则永远轮不到他');
+  assert.ok(room.info().queue.some((q) => q.name === '丙'), '等待区里要能看到丙');
+  // 打下去，丙必须坐上过桌子
+  let satDown = false;
+  for (let h = 0; h < 15 && !satDown; h++) {
+    playHand(room);
+    room.advance();
+    room.pump();
+    if (room.game.seatOfId(c.pid) >= 0) satDown = true;
+  }
+  assert.ok(satDown, '丙等了 15 局都没能上桌');
+  // 上桌之后视图里要给他自己的手牌
+  const v = room.viewFor(c);
+  assert.strictEqual(v.you.seat >= 0, true, '丙上桌后应当有座位号');
+  assert.ok(v.hand.mine, '丙上桌后要能拿到自己的手牌');
+});
+
+test('废弃房间不出现在列表里，没人了就回收', () => {
+  const store = new RoomStore();
+  const r1 = store.create('1011');
+  const m = fakeClient(r1, '甲');
+  r1.start();
+  assert.strictEqual(store.list().length, 1, '有人在线的房间应该出现');
+  assert.strictEqual(store.list()[0].phase, 'playing');
+  m.conn = null;                                    // 人走了，房间还留着
+  assert.strictEqual(store.list().length, 0, '没人在线的房间不该出现在列表里（点了也打不了）');
+  const dead = store.sweep(Date.now() + 3 * 60 * 1000, 2 * 60 * 1000);
+  assert.ok(dead.indexOf('1011') >= 0, '废弃房超过两分钟应该被回收');
+  assert.strictEqual(store.get('1011'), null);
+  // 走空（成员也没有了）时直接拆
+  const r2 = store.create('1012');
+  const m2 = fakeClient(r2, '乙');
+  r2.leave(m2);
+  assert.strictEqual(r2.members.length, 0, '没开局时离开就是直接移除');
+  store.drop(r2.id);
+  assert.strictEqual(store.get('1012'), null);
+});
+
 test('等待区的人不能操作牌局', () => {
   const store = new RoomStore();
   const room = store.create('1008');

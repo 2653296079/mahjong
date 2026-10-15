@@ -39,6 +39,9 @@ function report() { fetch('/__result?d=' + encodeURIComponent(JSON.stringify(out
           break;
         }
       }
+      // 一局打完会出现「继续下一局」，不点它就会一直空等到超时（这里以前漏了）
+      var next = w.document.getElementById('btnNext');
+      if (next) { next.click(); await sleep(600); continue; }
       if (btns.length) { btns[0].click(); await sleep(140); continue; }
       var tile = w.document.querySelector('.handRow .clickable');
       if (tile) { tile.click(); await sleep(140); continue; }

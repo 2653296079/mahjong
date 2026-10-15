@@ -12,7 +12,9 @@ const { execFile } = require('child_process');
 const ROOT = path.join(__dirname, '..');
 const PORT = Number(process.env.PORT || 8171);
 // 可指定要跑的测试页：node tests/pages-compat.js coach-advice
-const PAGE = (process.argv[2] || 'pages-compat').replace(/\.html$/, '');
+const ARGS = process.argv.slice(2);
+const PAGE = (ARGS.filter((a) => a.indexOf('--') !== 0)[0] || 'pages-compat').replace(/\.html$/, '');
+const WITH_HUB = ARGS.indexOf('--hub') >= 0;   // 需要联机时才接上 WebSocket 服务
 const EDGE = ['C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
               'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
               '/usr/bin/google-chrome', '/usr/bin/chromium'].filter((p) => fs.existsSync(p))[0];
@@ -38,9 +40,21 @@ const server = http.createServer((req, res) => {
   res.end(fs.readFileSync(file));
 });
 
+let hub = null;
+if (WITH_HUB) hub = require(path.join(ROOT, 'server', 'mjs-server.js')).attach(server);
+
 server.listen(PORT, '127.0.0.1', () => {
   const base = 'http://127.0.0.1:' + PORT;
-  console.log('纯静态服务器: ' + base + '  测试页: tests/' + PAGE + '.html');
+  console.log((WITH_HUB ? '带联机服务的服务器' : '纯静态服务器') + ': ' + base + '  测试页: tests/' + PAGE + '.html');
+  if (hub) {
+    // 造一个「开局后人都走光」的废弃房，验证它不会出现在房间里列表
+    const ghost = hub.store.create('9999');
+    const g = ghost.join('幽灵');
+    g.conn = { send() {} };
+    ghost.start();
+    g.conn = null;
+    console.log('已造废弃房 9999（开局后无人）');
+  }
   const child = execFile(EDGE, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
     '--user-data-dir=' + path.join(__dirname, '_edgeprofile'),
     base + '/tests/' + PAGE + '.html'], { timeout: 120000 }, () => {});

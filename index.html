@@ -1918,6 +1918,17 @@ main{flex:1;display:flex;min-height:0}
       for (var j = 0; j < G.queue.length; j++) if (G.queue[j].id === id) return true;
       return false;
     };
+    // 联机：牌局已经开打之后才进房间的人，要真的进等待区，
+    // 否则他会一直显示「等待区」却永远轮不到上桌（因为开局时的名单里没有他）。
+    G.addPlayer = function (who) {
+      if (!who || !who.id) return false;
+      if (G.seatOfId(who.id) >= 0) return false;
+      if (G.isInQueue(who.id)) return false;
+      var p = makePlayer(who.id, who.name || '玩家', who.isHuman !== false, who.style || 'v1');
+      if (who.score) p.score = who.score;
+      G.queue.push(p);
+      return true;
+    };
     G.nameOf = nameOf;
     G.evaluateDiscards = function (seat) { return evaluateDiscards(G.hand, seat == null ? humanSeat() : seat); };
     G.turnOptionsFor = function (seat) { return turnOptions(seat); };
@@ -4006,13 +4017,15 @@ window.onerror = function (msg, src, line, col) {
         'background:rgba(0,0,0,.3);color:#e8f3ec;font-size:14px">';
       var list = NET.lobby || [];
       if (list.length) {
-        h += '<div style="font-size:12px;color:#9fb3a8;margin-top:12px">进行中的房间</div>';
+        h += '<div style="font-size:12px;color:#9fb3a8;margin-top:12px">正在等人的房间（没人在线的房间不会列出来）</div>';
         for (var i = 0; i < list.length && i < 6; i++) {
+          var L = list[i], playing = L.phase === 'playing';
           h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;' +
             'border-bottom:1px solid rgba(255,255,255,.07);font-size:13px">' +
-            '<span>房间 <b style="color:#f2c14e">' + netEsc(list[i].id) + '</b> · ' +
-            (list[i].phase === 'playing' ? '打牌中' : '等人') + ' · ' + list[i].online + ' 人在线</span>' +
-            '<button class="act" data-room="' + netEsc(list[i].id) + '" style="padding:3px 10px;font-size:12px">加入</button></div>';
+            '<span>房间 <b style="color:#f2c14e">' + netEsc(L.id) + '</b> · ' +
+            (playing ? '打牌中（进去要排队）' : '还没开局') + ' · ' + L.online + ' 人在线</span>' +
+            '<button class="act" data-room="' + netEsc(L.id) + '" style="padding:3px 10px;font-size:12px">' +
+            (playing ? '排队' : '加入') + '</button></div>';
         }
       }
       h += '<div class="center" style="margin-top:12px"><button class="act" id="netEnter">进入房间</button> ' +

@@ -27,7 +27,7 @@ const { RoomStore } = require('./rooms');
 
 const HEARTBEAT_MS = 25000;
 const TICK_MS = 500;
-const SWEEP_MS = 60000;
+const SWEEP_MS = 30000;
 
 function attach(server, opts) {
   opts = opts || {};
@@ -148,6 +148,8 @@ function attach(server, opts) {
     session.member = null;
     session.room = null;
     broadcast(room);
+    // 走空了就把房间拆掉；还留着的人（掉线的）等 sweep 回收
+    if (room.members.length === 0) store.drop(room.id);
   }
 
   // ---------- 定时器：心跳 / 推进 / 回收 ----------
@@ -166,7 +168,13 @@ function attach(server, opts) {
     }
   }, TICK_MS);
 
-  const sweeper = setInterval(() => { store.sweep(Date.now(), 10 * 60 * 1000); }, SWEEP_MS);
+  const sweeper = setInterval(() => {
+    store.sweep(Date.now(), 2 * 60 * 1000);
+    // 房间里一个人都不剩了，直接拆掉，别留在列表里
+    for (const room of Array.from(store.rooms.values())) {
+      if (room.members.length === 0) store.drop(room.id);
+    }
+  }, SWEEP_MS);
 
   for (const t of [heartbeat, ticker, sweeper]) if (t.unref) t.unref();
 
