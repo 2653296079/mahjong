@@ -1,0 +1,120 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>联机浏览器测试</title>
+<body style="margin:0;font:13px/1.5 monospace;background:#111;color:#ddd">
+<pre id="log" style="margin:0;padding:8px;height:180px;overflow:auto"></pre>
+<iframe id="fa" src="/index.html" style="width:430px;height:640px;border:1px solid #444"></iframe>
+<iframe id="fb" src="/index.html" style="width:430px;height:640px;border:1px solid #444"></iframe>
+<script>
+var out = { ok: false, steps: [], errors: [] };
+function say(s) { out.steps.push(s); document.getElementById('log').textContent = out.steps.join('\n'); }
+var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+function until(fn, ms, what) {
+  var t0 = Date.now();
+  return new Promise(function (resolve, reject) {
+    (function loop() {
+      var v = null;
+      try { v = fn(); } catch (e) { v = null; }
+      if (v) return resolve(v);
+      if (Date.now() - t0 > ms) return reject(new Error('超时：' + what));
+      setTimeout(loop, 100);
+    })();
+  });
+}
+function doc(w) { return w.document; }
+function report() {
+  var q = '/__result?d=' + encodeURIComponent(JSON.stringify(out));
+  fetch(q).then(function () {}, function () {});
+}
+function checkBoot(w, who) {
+  try {
+    var b = w.document.getElementById('boot');
+    if (b && !b.classList.contains('hidden')) {
+      out.errors.push(who + ' 页面报错：' + b.textContent.slice(0, 200));
+    }
+  } catch (e) {}
+}
+function clickFirstAction(w) {
+  var bar = w.document.getElementById('actionBtns');
+  if (!bar) return false;
+  var b = bar.querySelector('button');
+  if (b) { b.click(); return 'action:' + b.textContent.slice(0, 12); }
+  return false;
+}
+function clickTile(w) {
+  var t = w.document.querySelector('.handRow .clickable');
+  if (t) { t.click(); return 'tile'; }
+  return false;
+}
+(async function () {
+  try {
+    var A = document.getElementById('fa').contentWindow;
+    var B = document.getElementById('fb').contentWindow;
+    await until(function () { return doc(A).getElementById('btnNet'); }, 10000, '页面 A 加载');
+    say('两个页面都加载完成');
+
+    // 甲进房
+    doc(A).getElementById('btnNet').click();
+    await sleep(2500);
+    out.diag = {
+      modalHidden: doc(A).getElementById('modal').classList.contains('hidden'),
+      netBox: !!doc(A).getElementById('netBox'),
+      netName: !!doc(A).getElementById('netName'),
+      netServer: !!doc(A).getElementById('netServer'),
+      modalHTML: (doc(A).getElementById('modalBox').innerHTML || '').slice(0, 400),
+      boot: (function () { var b = doc(A).getElementById('boot'); return b && !b.classList.contains('hidden') ? b.textContent.slice(0, 300) : 'ok'; })(),
+      netBar: (function () { var b = doc(A).getElementById('netBar'); return b ? b.textContent + '|display=' + b.style.display : 'none'; })()
+    };
+    say('诊断：' + JSON.stringify(out.diag));
+    await until(function () { return doc(A).getElementById('netName'); }, 8000, 'A 出现联机面板');
+    doc(A).getElementById('netName').value = '甲';
+    doc(A).getElementById('netEnter').click();
+    say('甲 提交进房');
+
+    // 乙进房
+    doc(B).getElementById('btnNet').click();
+    await until(function () { return doc(B).getElementById('netName'); }, 10000, 'B 出现联机面板');
+    doc(B).getElementById('netName').value = '乙';
+    doc(B).getElementById('netRoomIn').value = '';
+    doc(B).getElementById('netEnter').click();
+    say('乙 提交进房');
+    await sleep(800);
+
+    // 甲开始对局
+    var startBtn = await until(function () { return doc(A).getElementById('netStart') || null; }, 10000, '出现开始按钮');
+    startBtn.click();
+    say('甲 点开始对局');
+
+    // 打出至少一手，直到出现「继续下一局」
+    var acts = 0, tiles = 0, done = false;
+    var t0 = Date.now();
+    while (Date.now() - t0 < 45000) {
+      checkBoot(A, '甲'); checkBoot(B, '乙');
+      if (doc(A).getElementById('btnNext') || doc(B).getElementById('btnNext')) { done = true; break; }
+      var did = clickFirstAction(A) || clickFirstAction(B);
+      if (did) { acts++; await sleep(160); continue; }
+      did = clickTile(A) || clickTile(B);
+      if (did) { tiles++; await sleep(160); continue; }
+      await sleep(120);
+    }
+    say('操作按钮点击 ' + acts + ' 次，出牌 ' + tiles + ' 次，打完一局=' + done);
+    out.acts = acts; out.tiles = tiles; out.handDone = done;
+
+    // 状态校验：两边都看得见自己的手牌、且看不到别人的
+    var ha = doc(A).querySelectorAll('.handRow .tile').length;
+    var hb = doc(B).querySelectorAll('.handRow .tile').length;
+    out.tilesA = ha; out.tilesB = hb;
+    say('甲手牌张数=' + ha + ' 乙手牌张数=' + hb);
+
+    // 结算面板的数字
+    var resA = doc(A).getElementById('modalBox');
+    out.resultShown = !!(resA && /继续下一局/.test(resA.textContent));
+    out.ok = done && out.errors.length === 0;
+    say('结论：' + (out.ok ? '通过' : '未通过'));
+  } catch (e) {
+    out.errors.push(String(e && e.message || e));
+    say('异常：' + e);
+  }
+  report();
+})();
+</script>

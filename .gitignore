@@ -1,0 +1,4 @@
+tests/_edgeprofile/
+tests/shot-*.png
+server/*.txt
+*.log

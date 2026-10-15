@@ -2235,6 +2235,7 @@ window.onerror = function (msg, src, line, col) {
 
   // ---------- 开局 ----------
   function newGame() {
+    if (game && game.online) { netToast('联机中：想自己练牌，先点「离开房间」'); return; }
     clearTimeout(timer);
     turnDeadline = 0; pauseStarted = 0; lastAwaiting = null; feedback = null; selectedKind = null;
     guideCache = { key: '', entries: {} };
@@ -2258,6 +2259,20 @@ window.onerror = function (msg, src, line, col) {
   function tick() {
     clearTimeout(timer);
     if (!game) return;
+    if (game.online) {
+      // 联机：牌局在服务器上跑，这里只把收到的状态画出来
+      var Hnet = game.hand;
+      if (!Hnet) return;
+      if (Hnet.over) {
+        lastAwaiting = null; pauseStarted = 0; turnDeadline = 0;
+        if (settledHandNo !== game.handNo) { recordHandStats(); render(); showSettlement(); }
+        return;
+      }
+      lastAwaiting = game.awaiting;
+      turnDeadline = 0;
+      render();
+      return;
+    }
     if (!(game.awaiting && game.awaiting.type === 'turn')) selectedKind = null;
     var H = game.hand;
     if (H.over) {
@@ -2343,6 +2358,7 @@ window.onerror = function (msg, src, line, col) {
   // ---------- 渲染 ----------
   function render() {
     if (!game) return;
+    if (game.online && !game.hand) return;   // 联机还没开局，牌桌没什么可画的
     renderScores();
     renderMyStat();
     for (var p = 0; p < 4; p++) renderSeat(p);
@@ -2670,7 +2686,8 @@ window.onerror = function (msg, src, line, col) {
       hp.melds.forEach(function (m) { md2.appendChild(meldEl(m, meldT)); });
       var bk = document.createElement('div'); bk.className = 'backRow';
       var total = 0;
-      for (var kk = 0; kk < ZMJ.KINDS; kk++) total += hp.concealed[kk];
+      if (hp.concealedCount != null) total = hp.concealedCount;   // 联机时服务器只发张数
+      else for (var kk = 0; kk < ZMJ.KINDS; kk++) total += hp.concealed[kk];
       var maxBacks = narrow ? (pos === 2 ? 12 : 5) : 13;
       var shown = Math.min(total, maxBacks);
       for (var i = 0; i < shown; i++) bk.appendChild(backEl(sideSeat ? meldT : smallT));
@@ -3559,6 +3576,436 @@ window.onerror = function (msg, src, line, col) {
     $('btnExportClose').onclick = function () { $('modal').classList.add('hidden'); };
     $('modal').classList.remove('hidden');
   }
+  // ================= 联机（服务端权威） =================
+  // 联机时牌局跑在服务器上，浏览器只做两件事：提交自己的操作、把收到的状态画出来。
+  // 服务器只发「你自己的暗牌 + 所有人公开的牌」，所以提示/进张/放铳概率照样能用，
+  // 但谁都拿不到别人的手牌（连网络流量里也没有）。
+  var NET_KEY = 'zmj_net_v1';
+  var NET = { ws: null, status: 'off', err: '', note: '', state: null, lobby: null,
+              room: '', name: '', server: '', token: '', pid: '', wantRoom: '', retry: 0 };
+  try {
+    var savedNet = JSON.parse(localStorage.getItem(NET_KEY) || 'null');
+    if (savedNet) { NET.name = savedNet.name || ''; NET.server = savedNet.server || ''; }
+  } catch (e) {}
+  function netSaveCfg() {
+    try { localStorage.setItem(NET_KEY, JSON.stringify({ name: NET.name, server: NET.server })); } catch (e) {}
+  }
+  function netEsc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function netURL() {
+    var s = String(NET.server || '').trim();
+    if (s) {
+      if (/^wss?:\/\//i.test(s)) return s.replace(/\/+$/, '');
+      if (/^https?:\/\//i.test(s)) return s.replace(/^http/i, 'ws').replace(/\/+$/, '');
+      return (location.protocol === 'https:' ? 'wss://' : 'ws://') + s.replace(/^\/+/, '').replace(/\/+$/, '');
+    }
+    // 直接双击打开的本地文件没有服务器，默认连本机的 8000 端口
+    if (location.protocol === 'file:') return 'ws://127.0.0.1:8000/ws';
+    var host = location.hostname || '127.0.0.1';
+    var port = location.port ? ':' + location.port : '';
+    return (location.protocol === 'https:' ? 'wss://' : 'ws://') + host + port + '/ws';
+  }
+  var netBarEl = null;
+  function netBar() {
+    if (!netBarEl) {
+      netBarEl = document.createElement('div');
+      netBarEl.id = 'netBar';
+      netBarEl.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:6px;z-index:60;' +
+        'padding:5px 12px;border-radius:14px;font-size:12px;display:none;align-items:center;gap:8px;' +
+        'background:rgba(12,26,20,.92);border:1px solid rgba(242,193,78,.45);color:#e8f3ec;' +
+        'box-shadow:0 6px 18px rgba(0,0,0,.35)';
+      document.body.appendChild(netBarEl);
+    }
+    var show = NET.status === 'connecting' || NET.status === 'on' || NET.status === 'error';
+    if (!show) { netBarEl.style.display = 'none'; return; }
+    var txt, dot;
+    if (NET.status === 'connecting') { txt = '正在连接联机服务器…'; dot = '#f2c14e'; }
+    else if (NET.status === 'error') { txt = NET.err || '连接出问题'; dot = '#e2685a'; }
+    else if (!NET.room) { txt = '已连上联机服务器'; dot = '#5ec98a'; }
+    else {
+      var st = NET.state;
+      var mine = st && st.you ? st.you : null;
+      var where = mine && mine.queued ? '等待区' : '桌上';
+      txt = '房间 ' + NET.room + ' · ' + (NET.name || '我') + '（' + where + '）';
+      dot = '#5ec98a';
+    }
+    netBarEl.innerHTML = '';
+    var d = document.createElement('span');
+    d.style.cssText = 'width:7px;height:7px;border-radius:50%;background:' + dot + ';flex:0 0 auto';
+    var t = document.createElement('span');
+    t.textContent = txt;
+    var b = document.createElement('button');
+    b.textContent = '联机';
+    b.style.cssText = 'background:transparent;border:1px solid rgba(242,193,78,.5);color:#f2c14e;' +
+      'border-radius:9px;font-size:11px;padding:1px 7px;cursor:pointer';
+    b.onclick = showNet;
+    netBarEl.appendChild(d); netBarEl.appendChild(t); netBarEl.appendChild(b);
+    netBarEl.style.display = 'flex';
+  }
+  function netToast(msg) {
+    NET.note = msg;
+    var el = $('netToast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'netToast';
+      el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:80;' +
+        'padding:8px 14px;border-radius:10px;font-size:13px;background:rgba(12,26,20,.95);color:#ffe6a8;' +
+        'border:1px solid rgba(242,193,78,.5);max-width:86vw;text-align:center';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.display = 'block';
+    clearTimeout(netToast.t);
+    netToast.t = setTimeout(function () { el.style.display = 'none'; }, 2600);
+  }
+
+  function netSend(obj) {
+    if (!NET.ws || NET.ws.readyState !== 1) { netToast('还没连上服务器'); return false; }
+    try { NET.ws.send(JSON.stringify(obj)); return true; }
+    catch (e) { netToast('发送失败：' + e.message); return false; }
+  }
+
+  function netConnect(done) {
+    if (NET.ws && (NET.ws.readyState === 0 || NET.ws.readyState === 1)) { if (done) done(); return; }
+    var url = netURL();
+    NET.status = 'connecting'; NET.err = ''; netBar(); if ($('netBox')) renderNet();
+    var ws;
+    try { ws = new WebSocket(url); }
+    catch (e) { NET.status = 'error'; NET.err = '服务器地址不对：' + url; netBar(); if ($('netBox')) renderNet(); return; }
+    NET.ws = ws;
+    ws.onopen = function () {
+      NET.status = 'on'; NET.retry = 0; NET.err = '';
+      netBar();
+      if (NET.room) netJoin(NET.room, NET.name, NET.token);   // 断线重连：自动回到原来的房间
+      else netSend({ t: 'rooms' });
+      if (done) done();
+    };
+    ws.onmessage = function (ev) {
+      var m = null;
+      try { m = JSON.parse(ev.data); } catch (e) { return; }
+      onNetMessage(m);
+    };
+    ws.onclose = function () {
+      NET.ws = null;
+      if (NET.status === 'error') { netBar(); return; }
+      NET.status = 'error'; NET.err = '与服务器断开了';
+      netBar();
+      if (NET.room && NET.retry < 5) {          // 掉线自动重连
+        NET.retry++;
+        setTimeout(function () { if (NET.room) netConnect(); }, 800 * NET.retry);
+      } else if (NET.room) {
+        netToast('已断开，点「联机」可以手动重连');
+      }
+      if ($('netBox')) renderNet();
+    };
+    ws.onerror = function () { NET.err = '连不上 ' + url; };
+  }
+
+  function netJoin(room, name, token) {
+    return netSend({ t: 'join', room: room, name: name, token: token || undefined, create: true });
+  }
+
+  function netLeave() {
+    if (NET.ws && NET.ws.readyState === 1) netSend({ t: 'leave' });
+    NET.room = ''; NET.token = ''; NET.state = null;
+    NET.status = NET.ws ? 'on' : 'off';
+    netBar();
+    if (game && game.online) { game = null; newGame(); }   // 回到单机
+    if ($('netBox')) renderNet();
+  }
+
+  // ---------- 代理牌局：形状与单机 game 完全一致，界面代码一行都不用改 ----------
+  function makeProxyGame() {
+    var P = {
+      online: true, seats: [], queue: [], hand: null, awaiting: null, lastResult: null,
+      logs: [], handNo: 0, dealer: 0, records: [], fastForward: false, mySeat: -1, lastRecord: null
+    };
+    P.humanSeat = function () { return P.mySeat; };
+    P.nameOf = function (seat) { return (P.seats[seat] && P.seats[seat].name) || ('座位' + ((seat | 0) + 1)); };
+    P.aiStep = function () { return false; };            // 电脑由服务器驱动
+    P.hasPendingResolve = function () { return false; };
+    P.resolvePending = function () { return false; };
+    P.startHand = function () { netSend({ t: 'start' }); };
+    P.nextHand = function () { netSend({ t: 'next' }); };
+    P.humanDiscard = function (kind) { return netSend({ t: 'act', act: 'discard', kind: kind }); };
+    P.humanClaim = function (act, kind) { return netSend({ t: 'act', act: act, kind: kind }); };
+    P.humanGang = function (kind, type) {
+      return netSend({ t: 'act', act: type === 'an' ? 'angang' : 'bugang', kind: kind });
+    };
+    P.humanZimo = function () { return netSend({ t: 'act', act: 'zimo' }); };
+    P.setAiStyle = function () {};
+    P.drawsLeft = function () { return P.hand ? Math.floor(P.hand.wall.length / 4) : 0; };
+    P.turnOptionsFor = function (seat) {
+      var a = P.awaiting;
+      if (a && a.type === 'turn' && (seat == null || seat === a.seat)) return a.options;
+      return { canZimo: false, anGang: [], buGang: [], tile: null };
+    };
+    P.evaluateDiscards = function (seat) {
+      var s = (seat == null ? P.mySeat : seat);
+      if (!P.hand || s < 0) return [];
+      try { return ZMJ.evaluateDiscards(P.hand, s); } catch (e) { return []; }
+    };
+    P.ukeireFor = function (seat) {
+      var s = (seat == null ? P.mySeat : seat);
+      if (!P.hand || s < 0) return { total: 0, kinds: [] };
+      var p = P.hand.players[s];
+      try { return ZMJ.ukeire(p.concealed, p.melds.length, ZMJ.visiblePool(P.hand, s)); }
+      catch (e) { return { total: 0, kinds: [] }; }
+    };
+    P.sevenPairsShanten = function () {
+      if (!P.hand || P.mySeat < 0) return 99;
+      try { return ZMJ.shantenSevenPairs(P.hand.players[P.mySeat].concealed); } catch (e) { return 99; }
+    };
+    P.exportRecords = function () {
+      return { game: '转转麻将（联机）', version: 3, exportedAt: new Date().toISOString(),
+               rules: ZMJ.RULES || null, hands: P.records };
+    };
+    P.exportText = function () {
+      var L = ['转转麻将 · 联机牌谱  ' + new Date().toLocaleString(), '房间 ' + NET.room, ''];
+      for (var i = 0; i < P.records.length; i++) {
+        var r = P.records[i], res = r.result || {};
+        L.push('第 ' + r.no + ' 局：' + (res.title || '') +
+          '  收支 ' + (res.deltas || []).join(' / '));
+      }
+      if (P.records.length === 0) L.push('（本次联机还没有打完一局）');
+      return L.join('\n');
+    };
+    P.applyView = function (v) {
+      NET.state = v;
+      P.mySeat = (v.you && typeof v.you.seat === 'number') ? v.you.seat : -1;
+      var rs = (v.room && v.room.seats) ? v.room.seats : [];
+      P.seats = [];
+      for (var i = 0; i < 4; i++) {
+        var s = rs[i];
+        // 还没开局时服务器不发座位，这里必须给占位对象：界面会直接读 seats[i].isHuman
+        P.seats.push(s ? { name: s.name, score: s.score, isHuman: !!s.isHuman, online: !!s.online,
+                           zimoCount: s.zimoCount, paoCount: s.paoCount,
+                           handsWon: s.handsWon, handsPlayed: s.handsPlayed }
+                       : { name: '空位', score: 0, isHuman: false, online: true,
+                           zimoCount: 0, paoCount: 0, handsWon: 0, handsPlayed: 0 });
+      }
+      P.queue = [];
+      var q = (v.room && v.room.queue) ? v.room.queue : [];
+      for (var j = 0; j < q.length; j++) P.queue.push({ name: q[j].name, isHuman: !!q[j].isHuman });
+      P.handNo = v.room ? v.room.handNo : 0;
+      if (!v.hand) { P.hand = null; P.awaiting = null; P.lastResult = null; return; }
+      var h = v.hand;
+      P.dealer = h.dealer;
+      P.awaiting = h.awaiting
+        ? { type: h.awaiting.type, seat: P.mySeat, options: h.awaiting.options, tile: h.awaiting.tile }
+        : null;
+      var players = [];
+      for (var s2 = 0; s2 < 4; s2++) {
+        var pub = h.players[s2] || {};
+        var mineHere = h.mine && h.mine.seat === s2;
+        var cons = [];
+        for (var k = 0; k < ZMJ.KINDS; k++) cons.push(mineHere ? (h.mine.concealed[k] || 0) : 0);
+        players.push({
+          concealed: cons,
+          concealedCount: pub.concealedCount,                 // 界面画对手的牌背时用这个
+          melds: (pub.melds || []).slice(),
+          discards: (pub.discards || []).slice(),
+          passedWin: !!pub.passedWin
+        });
+      }
+      P.hand = {
+        players: players,
+        wall: { length: h.wallLeft },                          // 牌墙只给张数，顺序不出服务器
+        turn: h.turn, lastDraw: h.lastDraw, lastDiscard: h.lastDiscard,
+        turnCount: h.turnCount, over: !!h.over,
+        result: v.result || null,
+        birds: (v.result && v.result.birds) ? v.result.birds : []
+      };
+      P.lastResult = v.result || null;
+      P.logs = (v.logs || []).slice();
+      if (v.record) {
+        var last = P.records.length ? P.records[P.records.length - 1] : null;
+        if (!last || last.no !== v.record.no) P.records.push(v.record);
+        P.lastRecord = v.record;
+      }
+    };
+    return P;
+  }
+
+  var proxyGame = null;
+  function netUseProxy() {
+    if (game && game.online) return game;
+    if (!proxyGame) proxyGame = makeProxyGame();
+    clearTimeout(timer);
+    turnDeadline = 0; pauseStarted = 0; lastAwaiting = null; feedback = null; selectedKind = null;
+    guideCache = { key: '', entries: {} };
+    sitCache = { key: '', data: null, cands: null };
+    sfxSig = { disc: '', meld: '', drawn: -1, over: '' };
+    settledHandNo = 0;
+    loadStats();
+    game = proxyGame;
+    window.__zmjGame = game;
+    return game;
+  }
+
+  function onNetMessage(m) {
+    if (!m || !m.t) return;
+    if (m.t === 'welcome' || m.t === 'rooms') { NET.lobby = m.rooms || null; if ($('netBox')) renderNet(); return; }
+    if (m.t === 'joined') {
+      NET.room = m.room; NET.token = m.token; NET.pid = m.pid;
+      if (m.you) NET.name = m.you;
+      netSaveCfg();
+      netToast('进入房间 ' + m.room);
+      netBar();
+      if ($('netBox')) renderNet();
+      return;
+    }
+    if (m.t === 'left') { NET.room = ''; NET.state = null; netBar(); if ($('netBox')) renderNet(); return; }
+    if (m.t === 'err') { netToast(m.msg); NET.err = m.msg; if ($('netBox')) renderNet(); return; }
+    if (m.t === 'pong') return;
+    if (m.t === 'chat') { netToast(m.from + '：' + m.text); return; }
+    if (m.t === 'state') {
+      var P = netUseProxy();
+      P.applyView(m);
+      netBar();
+      render();
+      tick();
+      if ($('netBox')) renderNet();
+      return;
+    }
+  }
+
+  // ---------- 联机面板 ----------
+  function showNet() {
+    netOpenBox();
+    if (NET.status === 'off' || NET.status === 'error') {
+      if (!NET.wantRoom) {
+        try {
+          var q = new URLSearchParams(location.search).get('room');
+          if (q) NET.wantRoom = q;
+        } catch (e) {}
+      }
+      if (NET.status === 'off') netConnect();
+      else { NET.status = 'off'; netConnect(); }
+    }
+    renderNet();
+    $('modal').classList.remove('hidden');
+  }
+
+  function renderNet() {
+    if (!$('netBox')) return;
+    var box = $('netBox');
+    var h = '';
+    if (NET.status !== 'on') {
+      h += '<div style="font-size:13px;color:#cfd8d3;line-height:1.7;margin-bottom:8px">' +
+        '联机需要一台跑着 <b style="color:#f2c14e">node server.js</b> 的电脑（局域网里任意一台就行）。' +
+        '在 GitHub Pages 上打开时，请在下面填那台电脑的地址。</div>' +
+        '<div style="font-size:13px;color:#ffcf7a;min-height:20px">' + netEsc(NET.err || '正在连接…') + '</div>' +
+        '<div style="font-size:12px;color:#9fb3a8;margin-top:8px">服务器地址</div>' +
+        '<input id="netServer" value="' + netEsc(NET.server) + '" placeholder="留空 = 当前网址；也可填 192.168.1.5:8000" ' +
+        'style="width:100%;box-sizing:border-box;padding:9px;border-radius:9px;border:1px solid #33584a;' +
+        'background:rgba(0,0,0,.3);color:#e8f3ec;font-size:14px">';
+      h += '<div class="center" style="margin-top:12px"><button class="act" id="netRetry">重新连接</button> ' +
+        '<button class="act pass" id="netClose">关闭</button></div>';
+      box.innerHTML = h;
+      $('netRetry').onclick = function () {
+        var v = $('netServer').value;
+        NET.server = v;
+        netSaveCfg();
+        if (NET.ws) { try { NET.ws.close(); } catch (e) {} NET.ws = null; }
+        netConnect();
+      };
+      $('netClose').onclick = function () { $('modal').classList.add('hidden'); };
+      return;
+    }
+    if (!NET.room) {
+      h += '<div style="font-size:13px;color:#cfd8d3;line-height:1.7">连上了服务器。开一间房，把房间号告诉朋友；' +
+        '人数不够时空座位由电脑补上。</div>' +
+        '<div style="font-size:12px;color:#9fb3a8;margin-top:10px">你的名字</div>' +
+        '<input id="netName" maxlength="12" value="' + netEsc(NET.name || '') + '" ' +
+        'style="width:100%;box-sizing:border-box;padding:9px;border-radius:9px;border:1px solid #33584a;' +
+        'background:rgba(0,0,0,.3);color:#e8f3ec;font-size:14px">' +
+        '<div style="font-size:12px;color:#9fb3a8;margin-top:10px">房间号（留空 = 新开一间）</div>' +
+        '<input id="netRoomIn" maxlength="8" value="' + netEsc(NET.wantRoom || '') + '" ' +
+        'style="width:100%;box-sizing:border-box;padding:9px;border-radius:9px;border:1px solid #33584a;' +
+        'background:rgba(0,0,0,.3);color:#e8f3ec;font-size:14px">';
+      var list = NET.lobby || [];
+      if (list.length) {
+        h += '<div style="font-size:12px;color:#9fb3a8;margin-top:12px">进行中的房间</div>';
+        for (var i = 0; i < list.length && i < 6; i++) {
+          h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;' +
+            'border-bottom:1px solid rgba(255,255,255,.07);font-size:13px">' +
+            '<span>房间 <b style="color:#f2c14e">' + netEsc(list[i].id) + '</b> · ' +
+            (list[i].phase === 'playing' ? '打牌中' : '等人') + ' · ' + list[i].online + ' 人在线</span>' +
+            '<button class="act" data-room="' + netEsc(list[i].id) + '" style="padding:3px 10px;font-size:12px">加入</button></div>';
+        }
+      }
+      h += '<div class="center" style="margin-top:12px"><button class="act" id="netEnter">进入房间</button> ' +
+        '<button class="act pass" id="netClose2">关闭</button></div>';
+      box.innerHTML = h;
+      var joinIt = function (rid) {
+        var nm = $('netName').value || '';
+        NET.name = nm;
+        NET.wantRoom = rid || '';
+        netSaveCfg();
+        netJoin(rid || '', nm, '');
+      };
+      $('netEnter').onclick = function () { joinIt($('netRoomIn').value.trim()); };
+      $('netClose2').onclick = function () { $('modal').classList.add('hidden'); };
+      var btns = box.querySelectorAll('button[data-room]');
+      for (var b = 0; b < btns.length; b++) {
+        btns[b].onclick = function () { joinIt(this.getAttribute('data-room')); };
+      }
+      return;
+    }
+    // 已在房间里
+    var st = NET.state;
+    h += '<div style="font-size:13px;color:#cfd8d3">房间 <b style="color:#f2c14e">' + netEsc(NET.room) + '</b>' +
+      (st && st.room && st.room.phase === 'playing' ? ' · 第 ' + st.room.handNo + ' 局' : ' · 还没开局') + '</div>';
+    if (st && st.room) {
+      h += '<div style="margin-top:8px;font-size:13px;line-height:1.9">';
+      for (var s = 0; s < st.room.seats.length; s++) {
+        var seat = st.room.seats[s];
+        if (!seat) continue;
+        var me = st.you && st.you.seat === s;
+        h += '<div>' + (me ? '<b style="color:#f2c14e">▶ </b>' : '') + netEsc(seat.name) +
+          (seat.isHuman ? '' : '（电脑）') + (seat.isHuman && !seat.online ? ' <span style="color:#e2685a">掉线托管中</span>' : '') +
+          ' <span style="color:#9fb3a8">' + seat.score + ' 元</span></div>';
+      }
+      if (st.room.queue.length) {
+        h += '<div style="font-size:12px;color:#9fb3a8;margin-top:6px">等待区：' +
+          st.room.queue.map(function (q) { return netEsc(q.name) + (q.isHuman ? '' : '(电脑)'); }).join('、') + '</div>';
+      }
+      if (st.you && st.you.queued) {
+        h += '<div style="font-size:12px;color:#ffcf7a;margin-top:6px">你在等待区，这一局结束后轮到你上桌</div>';
+      }
+    }
+    h += '</div>';
+    h += '<div class="center" style="margin-top:12px">';
+    if (!st || !st.room || st.room.phase !== 'playing') h += '<button class="act" id="netStart">开始对局</button> ';
+    else if (st.hand && st.hand.over) h += '<button class="act" id="netNext">下一局</button> ';
+    h += '<button class="act pass" id="netCopyLink">复制邀请链接</button> ';
+    h += '<button class="act pass" id="netLeave">离开房间</button> ';
+    h += '<button class="act pass" id="netClose3">关闭</button></div>';
+    h += '<div style="font-size:12px;color:#9fb3a8;margin-top:8px;line-height:1.7">' +
+      '规则和单机完全一样：服务器负责发牌和判定，所有人看到的都是同一副牌。' +
+      '谁掉线了电脑先替他打，重连后接着自己打。</div>';
+    box.innerHTML = h;
+    if ($('netStart')) $('netStart').onclick = function () { netSend({ t: 'start' }); };
+    if ($('netNext')) $('netNext').onclick = function () { netSend({ t: 'next' }); };
+    $('netCopyLink').onclick = function () {
+      var url = location.origin + location.pathname + '?room=' + encodeURIComponent(NET.room);
+      var done = function (ok) { netToast(ok ? '邀请链接已复制，发给朋友即可' : '复制被浏览器拒绝，链接是：' + url); };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(function () { done(true); }, function () { done(false); });
+        else done(false);
+      } catch (e) { done(false); }
+    };
+    $('netLeave').onclick = function () { netLeave(); $('modal').classList.add('hidden'); };
+    $('netClose3').onclick = function () { $('modal').classList.add('hidden'); };
+  }
+
+  function netOpenBox() {
+    $('modalBox').innerHTML = '<h2>联机打牌</h2><div id="netBox"></div>';
+  }
+
   $('btnExport').onclick = showExport;
   $('btnStats').onclick = showStats;
   $('btnDojo').onclick = function () { dojoNew(); };
@@ -3578,6 +4025,19 @@ window.onerror = function (msg, src, line, col) {
 
   $('btnRules').onclick = showRules;
   $('btnSettings').onclick = showSettings;
+  (function initNetButton() {
+    var tools = document.querySelector('.tools');
+    if (tools) {
+      var b = document.createElement('button');
+      b.id = 'btnNet'; b.className = 'mini'; b.textContent = '联机';
+      b.onclick = showNet;
+      tools.insertBefore(b, tools.firstChild);
+    }
+    try {
+      var q = new URLSearchParams(location.search).get('room');
+      if (q) { NET.wantRoom = q; setTimeout(showNet, 500); }   // 朋友发来的邀请链接
+    } catch (e) {}
+  })();
   $('btnNew').onclick = function () { cfg.seed = (Math.random() * 0xffffffff) >>> 0; newGame(); };
 
   // 启动提示：JS 跑起来就把它收掉；跑不起来它会留在页面正中告诉用户原因

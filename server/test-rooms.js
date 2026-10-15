@@ -36,7 +36,10 @@ function step(room) {
   }
   if (G.hasPendingResolve()) { G.resolvePending(); room.rev++; return true; }
   if (G.aiStep()) { room.rev++; return true; }
-  return false;
+  // 没有真人可操作时，交给服务器的托管逻辑推进（真实服务器在掉线、超时时也会调它）
+  const before = room.rev;
+  room.pump();
+  return room.rev !== before;
 }
 
 function playHand(room, maxSteps) {
@@ -84,44 +87,56 @@ test('开局：真人先坐满，缺的座位用电脑补，等待区也放电�
   assert.strictEqual(info.queue.every((q) => !q.isHuman), true);
 });
 
-test('防作弊：视图里绝不能出现对手的暗牌', () => {
+test('防作弊：视图里绝不能出现对手的暗牌（跨多局、逐帧检查）', () => {
   const store = new RoomStore();
   const room = store.create('1003');
-  const m0 = fakeClient(room, '甲');
-  const m1 = fakeClient(room, '乙');
-  const m2 = fakeClient(room, '丙');
+  const ms = [fakeClient(room, '甲'), fakeClient(room, '乙'), fakeClient(room, '丙')];
   room.start();
-  let checked = 0;
-  for (let n = 0; n < 400 && !room.game.hand.over; n++) {
-    const G = room.game, H = G.hand;
-    for (const m of [m0, m1, m2]) {
-      const seat = G.seatOfId(m.pid);
-      if (seat < 0) continue;
-      const view = room.viewFor(m);
-      assert.ok(view.hand.mine, '自己必须拿到自己的暗牌');
-      // 1) 自己的暗牌必须完整正确
-      assert.deepStrictEqual(Array.from(view.hand.mine.concealed),
-        Array.from(H.players[seat].concealed), '自己的暗牌不对');
-      const json = JSON.stringify(view);
-      for (let s = 0; s < 4; s++) {
-        if (s === seat) continue;
-        // 2) 对手的暗牌数组不能以任何形式出现
-        assert.strictEqual(view.hand.players[s].concealed, undefined, '对手暗牌字段泄漏');
-        const secret = JSON.stringify(Array.from(H.players[s].concealed));
-        assert.ok(json.indexOf(secret) < 0, '对手暗牌内容出现在了视图里：座位 ' + s);
-        // 3) 张数是公开信息，必须给对
-        const real = H.players[s].concealed.reduce((a, b) => a + b, 0);
-        assert.strictEqual(view.hand.players[s].concealedCount, real, '对手暗牌张数不对');
+  let checked = 0, frames = 0;
+  for (let hand = 0; hand < 6; hand++) {
+    let guard = 0;
+    while (!room.game.hand.over && guard++ < 600) {
+      const G = room.game, H = G.hand;
+      for (const m of ms) {
+        const seat = G.seatOfId(m.pid);
+        if (seat < 0) continue;
+        const view = room.viewFor(m);
+        assert.ok(view.hand.mine, '自己必须拿到自己的暗牌');
+        // 1) 自己的暗牌必须完整正确
+        assert.deepStrictEqual(Array.from(view.hand.mine.concealed),
+          Array.from(H.players[seat].concealed), '自己的暗牌不对');
+        const json = JSON.stringify(view);
+        for (let s = 0; s < 4; s++) {
+          if (s === seat) continue;
+          // 2) 对手的暗牌数组不能以任何形式出现
+          assert.strictEqual(view.hand.players[s].concealed, undefined, '对手暗牌字段泄漏');
+          const secret = JSON.stringify(Array.from(H.players[s].concealed));
+          assert.ok(json.indexOf(secret) < 0, '对手暗牌内容出现在了视图里：座位 ' + s);
+          // 3) 张数是公开信息，必须给对
+          const real = H.players[s].concealed.reduce((a, b) => a + b, 0);
+          assert.strictEqual(view.hand.players[s].concealedCount, real, '对手暗牌张数不对');
+        }
+        // 4) 牌墙顺序、鸟牌、局中牌谱（牌谱里有每一次摸的什么牌）都不能下发
+        assert.strictEqual(view.hand.wall, undefined, '不能把牌墙发出去');
+        assert.strictEqual(view.hand.birds, undefined, '鸟牌不能提前发');
+        assert.strictEqual(view.record, undefined, '局中不能下发牌谱（里面有每次摸牌）');
+        // 注意：牌墙摸空时 slice 出来是 []，而 "[]" 在 JSON 里到处都是，必须先确认探测串非空
+        if (H.wall.length >= 8) {
+          assert.ok(json.indexOf(JSON.stringify(Array.from(H.wall.slice(0, 8)))) < 0, '牌墙内容泄漏');
+        }
+        if (H.birds.length >= 3) {
+          assert.ok(json.indexOf(JSON.stringify(Array.from(H.birds))) < 0, '鸟牌内容泄漏');
+        }
+        checked++;
       }
-      // 4) 牌墙顺序、鸟牌不能泄漏
-      assert.strictEqual(view.hand.wall, undefined, '不能把牌墙发出去');
-      assert.strictEqual(view.hand.birds, undefined, '鸟牌不能提前发');
-      assert.ok(json.indexOf(JSON.stringify(H.wall.slice(0, 8))) < 0, '牌墙内容泄漏');
-      checked++;
+      frames++;
+      if (!step(room)) break;
     }
-    if (!step(room)) break;
+    assert.ok(room.game.hand.over, '第 ' + (hand + 1) + ' 局没打完');
+    room.advance();
   }
-  assert.ok(checked > 30, '检查次数太少（' + checked + '），这个测试没覆盖到');
+  assert.ok(checked > 300, '检查次数太少（' + checked + ' 次 / ' + frames + ' 帧），覆盖不足');
+  assert.ok(frames > 60, '采样帧数太少：' + frames);
 });
 
 test('三人联机打到结束：分数零和，且结束时才发牌谱', () => {
@@ -151,6 +166,7 @@ test('掉线不炸局：人一掉线，电脑立刻接管他的座位，牌局�
   room.start();
   for (let i = 0; i < 12; i++) step(room);
   a.conn = null;                       // 甲掉线
+  room.pump();                         // 真实服务器在连接关闭时会做这件事，这里要照做
   assert.strictEqual(room.isLiveHuman(room.game.seatOfId(a.pid)), false);
   const ok = playHand(room);           // 没有甲的任何操作，牌局必须能自己走完
   assert.ok(ok, '有人掉线后牌局卡死了');
