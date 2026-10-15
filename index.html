@@ -1689,7 +1689,9 @@ main{flex:1;display:flex;min-height:0}
           winners.forEach(function (ws) {
             var leaving = G.seats[ws];
             var incoming = G.queue.shift();
-            if (!incoming) { G.queue.push(leaving); return; }
+            // 等待区没人时不能轮换：否则同一个人会既留在座位上、又被塞进等待区，
+            // 之后可能被当成候补坐上另一张座位，出现「一人占两座」。
+            if (!incoming) return;
             G.queue.push(leaving);
             G.seats[ws] = incoming;
           });
@@ -1885,23 +1887,26 @@ main{flex:1;display:flex;min-height:0}
     G.humanZimo = humanZimo;
     G.humanSeat = humanSeat;
     G.pendingAwaits = function () { return awaits.slice(); };
-    // 联机：换人 / 掉线托管。on=true 表示这个座位交给电脑代打
-    G.autoPilot = function (seat, on) {
-      var p = G.seats[seat];
-      if (!p) return false;
-      p.isHuman = !on;
-      if (!on) return true;
-      // 托管时把该座位已经挂起的待决立刻用电脑思路处理掉，否则会卡住整局
-      var t = findAwait(seat, 'turn');
-      if (t) { autoPlayTurn(seat); return true; }
+    // 联机：替某个座位打掉它当前挂起的待决（掉线托管 / 超时托管都用它）。
+    // 注意它不改变 isHuman，所以玩家重连后能无缝接回自己的座位。
+    G.autoPlaySeat = function (seat) {
+      if (findAwait(seat, 'turn')) return autoPlayTurn(seat);
       var c = findAwait(seat, 'claim');
       if (c) {
         var o = c.options, act = 'pass';
         if (o.hu && aiWinDecision(seat, o.kind) === 'hu') act = 'hu';
         else if (o.gang) act = 'gang';
         else if (o.peng && aiPengDecision(seat, o.kind)) act = 'peng';
-        applyClaimDecision(seat, act);
+        return applyClaimDecision(seat, act);
       }
+      return false;
+    };
+    // 联机：彻底托管某个座位（on=true 表示这个座位以后都交给电脑）
+    G.autoPilot = function (seat, on) {
+      var p = G.seats[seat];
+      if (!p) return false;
+      p.isHuman = !on;
+      if (on) G.autoPlaySeat(seat);
       return true;
     };
     // 联机：按玩家 id 找座位（-1 表示不在桌上，可能在等待区）
