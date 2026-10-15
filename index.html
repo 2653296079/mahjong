@@ -128,6 +128,18 @@ main{flex:1;display:flex;min-height:0}
 #hint{font-size:13px;line-height:1.65}
 #hint .rec{font-weight:700;color:var(--gold)}
 #hint .good{color:#7ee2a8}.warn{color:#ffcf7a}.bad{color:#ff9a8b}
+#hint .guideLead{font-size:15px;font-weight:700;color:#ffe08a}
+#hint .guideStep{margin-top:8px;color:#e8f4ed;font-weight:700}
+#hint .guideMath{margin:5px 0;padding:7px 9px;border-radius:8px;background:rgba(242,193,78,.10);color:#f9e6ae}
+#hint .guideTiles{display:flex;flex-wrap:wrap;gap:4px;margin:5px 0}
+#hint .guideTiles span{padding:1px 6px;border-radius:6px;background:rgba(255,255,255,.09);white-space:nowrap}
+#hint .guidePath{padding:5px 0;border-bottom:1px dashed rgba(255,255,255,.1)}
+#hint .guideNote{font-size:11.5px;color:#b6c9bd;line-height:1.5;margin-top:6px}
+#hint .guideCompare{display:grid;grid-template-columns:1fr auto auto;gap:2px 6px;font-size:12px}
+#hint .guideCompare b{color:#ffe08a}
+#hint details{margin-top:8px;font-size:12px;color:#c7d8cd}
+#hint summary{cursor:pointer;color:#f2c14e}
+#hint a{color:#a8d9ff}
 #hint table{width:100%;border-collapse:collapse;font-size:12px}
 #hint td{padding:1px 2px}
 #log{overflow-y:auto;font-size:12.5px;line-height:1.7;flex:1;padding-right:4px}
@@ -368,6 +380,9 @@ main{flex:1;display:flex;min-height:0}
 @media (max-width:700px){
   .tile.big{width:30px;height:40px}
 }
+@media (max-width:680px){
+  #side{width:100%;padding:10px 10px calc(12px + env(safe-area-inset-bottom))}
+}
 </style>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-512.png">
@@ -451,16 +466,16 @@ main{flex:1;display:flex;min-height:0}
 
     <aside id="side">
       <div class="panel">
+        <div class="panelTitle">出牌讲解 <span class="tag">向听 → 进张 → 听牌</span></div>
+        <div id="hint"></div>
+      </div>
+      <div class="panel">
         <div class="panelTitle">局势分析 <span class="tag" id="sitTag">采样推断</span></div>
         <div id="situation"></div>
       </div>
       <div class="panel">
         <div class="panelTitle">我的牌况</div>
         <div id="myStat"></div>
-      </div>
-      <div class="panel">
-        <div class="panelTitle">提示 <span class="tag">按 EV 计算</span></div>
-        <div id="hint"></div>
       </div>
       <div class="panel grow">
         <div class="panelTitle">牌局记录</div>
@@ -1223,6 +1238,58 @@ main{flex:1;display:flex;min-height:0}
     return out;
   }
 
+  // 给训练提示用的可核算数据：只用自己的手牌和公开牌，不查看对手暗牌。
+  function trainingGuide(hand, seat, discard, includePaths) {
+    var p = hand.players[seat];
+    if (!p || p.concealed[discard] <= 0) return null;
+    var mc = meldCountOf(p);
+    var unseen = visiblePool(hand, seat);
+    var unknown = unseen.reduce(function (sum, n) { return sum + n; }, 0);
+    var counts = p.concealed.slice();
+    counts[discard]--;
+    var sh = shanten(counts, mc), draws = [], total = 0;
+    for (var k = 0; k < KINDS; k++) {
+      if (!unseen[k]) continue;
+      counts[k]++;
+      var nextSh = shanten(counts, mc);
+      counts[k]--;
+      if (nextSh < sh) {
+        draws.push({ kind: k, count: unseen[k] });
+        total += unseen[k];
+      }
+    }
+    var paths = [];
+    if (includePaths && sh === 1) {
+      draws.forEach(function (draw) {
+        counts[draw.kind]++;
+        var afterDraw = unseen.slice();
+        afterDraw[draw.kind]--;
+        var best = null;
+        for (var d = 0; d < KINDS; d++) {
+          if (!counts[d]) continue;
+          counts[d]--;
+          if (shanten(counts, mc) === 0) {
+            var waits = ukeire(counts, mc, afterDraw);
+            if (!best || waits.total > best.waitTotal ||
+                (waits.total === best.waitTotal && waits.kinds.length > best.waits.length)) {
+              best = { draw: draw.kind, drawCount: draw.count, discard: d,
+                waits: waits.kinds.slice(), waitTotal: waits.total,
+                waitCounts: waits.kinds.map(function (w) { return afterDraw[w]; }) };
+            }
+          }
+          counts[d]++;
+        }
+        counts[draw.kind]--;
+        if (best) paths.push(best);
+      });
+      paths.sort(function (a, b) {
+        return b.waitTotal - a.waitTotal || b.drawCount - a.drawCount || a.draw - b.draw;
+      });
+    }
+    return { kind: discard, shanten: sh, draws: draws, total: total,
+      unknown: unknown, chanceNext: unknown ? total / unknown : 0, paths: paths };
+  }
+
   // 危险度：0 最安全
   function dangerOf(hand, seat, kind) {
     var base = [8, 4, 2, 1, 1, 1, 2, 4, 8][kind % 9]; // 边张安全，中张危险
@@ -1805,7 +1872,7 @@ main{flex:1;display:flex;min-height:0}
     newCounts: newCounts, sumCounts: sumCounts,
     isWin: isWin, isSevenPairs: isSevenPairs,
     shanten: shanten, shantenStandard: shantenStandard, shantenSevenPairs: shantenSevenPairs,
-    ukeire: ukeire, evaluateDiscards: evaluateDiscards,
+    ukeire: ukeire, evaluateDiscards: evaluateDiscards, trainingGuide: trainingGuide,
     birdFan: birdFan, birdMoney: birdMoney, countBirds: countBirds,
     analyzeSituation: analyzeSituation, visiblePool: visiblePool, waitTiles: waitTiles,
     newStats: newStats, accumulateStats: accumulateStats, statsSummary: statsSummary,
@@ -1855,6 +1922,7 @@ window.onerror = function (msg, src, line, col) {
   } catch (e) {}
   function saveConfig() { try { localStorage.setItem('zmj_cfg_v2', JSON.stringify(cfg)); } catch (e) {} }
   var turnDeadline = 0, pauseStarted = 0, lastAwaiting = null, lastPopKind = -1, feedback = null;
+  var guideCache = { key: '', entries: {} };
   // ---------- 训练统计（跨会话持久化） ----------
   var STAT_KEY = 'zmj_stats_v1';
   var STATS = null, handExtra = null, settledHandNo = 0;
@@ -2069,6 +2137,7 @@ window.onerror = function (msg, src, line, col) {
   function newGame() {
     clearTimeout(timer);
     turnDeadline = 0; pauseStarted = 0; lastAwaiting = null; feedback = null; selectedKind = null;
+    guideCache = { key: '', entries: {} };
     sitCache = { key: '', data: null, cands: null };
     sfxSig = { disc: '', meld: '', drawn: -1, over: '' };
     settledHandNo = 0;
@@ -2295,6 +2364,19 @@ window.onerror = function (msg, src, line, col) {
     }
     return sitCache.data;
   }
+  function getTrainingGuide(kind, includePaths) {
+    var hs = game.humanSeat();
+    if (hs < 0) return null;
+    var key = situationKey() + '|' + game.hand.players[hs].concealed.join('');
+    if (guideCache.key !== key) guideCache = { key: key, entries: {} };
+    var entry = guideCache.entries[kind];
+    if (!entry || (includePaths && !entry.withPaths)) {
+      entry = { withPaths: !!includePaths,
+        guide: ZMJ.trainingGuide(game.hand, hs, kind, includePaths) };
+      guideCache.entries[kind] = entry;
+    }
+    return entry.guide;
+  }
   function riskCls(p) { return p >= 0.10 ? 'risk-hi' : (p >= 0.04 ? 'risk-mid' : 'risk-lo'); }
   function barColor(p) { return p >= 0.45 ? '#ff9a8b' : (p >= 0.2 ? '#ffcf7a' : '#7ee2a8'); }
 
@@ -2330,8 +2412,7 @@ window.onerror = function (msg, src, line, col) {
       cands.forEach(function (c) { if (c.prob > maxP) maxP = c.prob; });
       out.push('<div class="sitSec">我打每张牌的放铳概率</div>');
       if (maxP < 0.005) {
-        out.push('<div style="color:#7ee2a8;font-size:12.5px">采样暂未发现明显听牌迹象；可先按牌效考虑，' +
-          '推荐 <b style="color:#f2c14e">' + ZMJ.tileName(cands[0].kind) + '</b>（进张 ' + cands[0].ukeire + '）</div>');
+        out.push('<div style="color:#7ee2a8;font-size:12.5px">采样暂未发现明显听牌迹象。上方「出牌讲解」列出了牌效推荐、有效牌和计算依据。</div>');
       } else {
       out.push('<table class="sit">');
       cands.forEach(function (c, i) {
@@ -2351,11 +2432,11 @@ window.onerror = function (msg, src, line, col) {
         if (!best || score > best.score) { best = { c: c, score: score }; }
       });
       var safest = cands.slice().sort(function (x, y) { return x.prob - y.prob; })[0];
-      out.push('<div class="advice">建议打 <b>' + ZMJ.tileName(best.c.kind) + '</b>（进张 ' + best.c.ukeire + '，放铳 ' + (best.c.prob * 100).toFixed(1) + '%）');
+      out.push('<div class="advice">风险折中参考：打 <b>' + ZMJ.tileName(best.c.kind) + '</b>（进张 ' + best.c.ukeire + '，采样放铳 ' + (best.c.prob * 100).toFixed(1) + '%）');
       if (safest.kind !== best.c.kind && safest.prob + 0.02 < best.c.prob) {
         out.push('<br>想稳一点可以打 <b>' + ZMJ.tileName(safest.kind) + '</b>（放铳仅 ' + (safest.prob * 100).toFixed(1) + '%，但进张 ' + safest.ukeire + '）');
       }
-      out.push('</div>');
+      out.push('<br><small>此处是启发式权衡，采样概率有误差；纯牌效推导见上方。</small></div>');
     } else if (!myTurn) {
       out.push('<div class="sitHead" style="margin-top:6px">（非我回合，显示的是最新推断）</div>');
     }
@@ -2382,14 +2463,17 @@ window.onerror = function (msg, src, line, col) {
         (outs >= 2 && left >= need ? '建议放过等自摸（自摸 ≈ 3.85 倍收炮）' : '建议收炮落袋');
       return;
     }
+    if (!a || a.type !== 'turn' || a.seat !== hs) {
+      el.textContent = '等待你的回合；摸牌后会按实际可打的牌重新计算';
+      return;
+    }
     var opts = game.evaluateDiscards(hs);
-    var sh = opts.length ? opts[0].shanten : 0;
-    var u = game.ukeireFor(hs);
-    var txt = (sh <= -1 ? '已胡' : sh === 0 ? '已听牌' : sh + ' 向听');
-    if (sh === 0 && u.kinds.length) txt += ' · 听 ' + u.kinds.length + ' 种/未见 ' + u.total + ' 张';
-    else txt += ' · 进张 ' + u.kinds.length + ' 种/未见 ' + u.total + ' 张';
-    if (opts.length) txt += ' · 推荐打 ' + ZMJ.tileName(opts[0].kind) + '（进张 ' + opts[0].ukeire + '）';
-    el.textContent = txt;
+    var guide = opts.length ? getTrainingGuide(opts[0].kind, false) : null;
+    if (!guide) { el.textContent = '等待出牌建议…'; return; }
+    el.textContent = '牌效推荐打 ' + ZMJ.tileName(guide.kind) + ' · ' +
+      (guide.shanten === 0 ? '听 ' : guide.shanten + ' 向听 · 有效进张 ') +
+      guide.draws.length + ' 种 / 未见 ' + guide.total + ' 张 · 下次自摸命中约 ' +
+      (guide.chanceNext * 100).toFixed(1) + '% · 点「牌况 / 提示」看推导';
   }
 
   function renderScores() {
@@ -2658,10 +2742,13 @@ window.onerror = function (msg, src, line, col) {
       detail.textContent = '先看牌形和剩余牌，再做选择';
     } else if (a && a.seat === game.humanSeat() && a.type === 'turn') {
       var opts = game.evaluateDiscards(a.seat);
-      var sh = opts.length ? opts[0].shanten : 0;
+      var guide = cfg.hint && opts.length ? getTrainingGuide(opts[0].kind, false) : null;
       eyebrow.textContent = '全桌第 ' + H.turnCount + ' 摸 · 你的回合';
-      main.textContent = sh <= 0 ? '已听牌，谨慎出牌' : '当前 ' + sh + ' 向听';
-      detail.textContent = '观察牌形，选择一张牌打出；每步结束会显示简短复盘';
+      main.textContent = guide ? '牌效推荐打 ' + ZMJ.tileName(guide.kind) : '观察牌形，选一张弃牌';
+      detail.textContent = guide ?
+        ('打后' + (guide.shanten === 0 ? '听牌' : guide.shanten + ' 向听') +
+          ' · 有效 ' + guide.draws.length + ' 种 / 未见 ' + guide.total + ' 张 · 详见出牌讲解') :
+        '每次摸牌后重新比较向听和有效进张';
     } else {
       eyebrow.textContent = '牌局进行中'; main.textContent = '观察对手的出牌';
       detail.textContent = '留意副露、牌河与剩余巡目';
@@ -2764,10 +2851,10 @@ window.onerror = function (msg, src, line, col) {
     if (!cfg.hint) { el.innerHTML = '<span style="color:#9fb3a8">提示已关闭</span>'; return; }
     var hs = game.humanSeat();
     if (hs < 0) { el.innerHTML = '<span style="color:#9fb3a8">你在等待区，先看看别人怎么打。</span>'; return; }
-    var H = game.hand, p = H.players[hs];
+    var H = game.hand, p = H.players[hs], a = game.awaiting;
     var rows = [];
     // 胡牌抉择提示
-    if (game.awaiting && game.awaiting.type === 'claim' && game.awaiting.options.hu) {
+    if (a && a.type === 'claim' && a.options.hu) {
       var outs = game.ukeireFor(hs).total;
       var left = game.drawsLeft();
       var prob = selfDrawProb(outs + 1, left, Math.max(H.wall.length, 8));
@@ -2777,35 +2864,83 @@ window.onerror = function (msg, src, line, col) {
       if (threat >= 2) need += 2;
       var shouldPass = outs >= 2 && left >= need;
       rows.push('<b>该不该收炮？</b>');
-      rows.push('听牌张数：<b>' + outs + '</b> 种剩余 · 还能摸 <b>' + left + '</b> 巡 · 自摸概率约 <b>' + Math.round(prob * 100) + '%</b>');
+      rows.push('未见和牌张数：<b>' + outs + '</b> 张 · 还能摸约 <b>' + left + '</b> 次 · 自摸概率粗估 <b>' + Math.round(prob * 100) + '%</b>');
       rows.push('收炮 = 基础 5 + 鸟钱（均 17.7 元）｜自摸 = 每家 10 + 鸟钱，三家共 <b>68 元 ≈ 3.85 倍</b>');
       rows.push(shouldPass
         ? '<span class="rec">建议：放过，等自摸。</span><span class="warn">（放过后本巡转完前不能再要炮）</span>'
         : '<span class="rec">建议：收炮落袋。</span>（巡目不足或听牌太窄）');
-      rows.push('——');
+      el.innerHTML = rows.join('<br>');
+      return;
     }
-    // 牌效提示
+    if (!a || a.type !== 'turn' || a.seat !== hs) {
+      el.innerHTML = '<span style="color:#c7d8cd">摸到牌、轮到你出牌时，这里会按每个弃牌选择重新计算。</span>';
+      return;
+    }
     var opts = game.evaluateDiscards(hs);
-    var mc = p.melds.length;
-    var sh = opts.length ? opts[0].shanten : 0;
-    var shName = sh <= -1 ? '已胡' : (sh === 0 ? '听牌' : sh + ' 向听');
-    rows.push('<b>' + shName + '</b>' + (mc ? '（副露 ' + mc + ' 组）' : ''));
-    var u = game.ukeireFor(hs);
-    if (sh === 0 && u.kinds.length) {
-      rows.push('听：' + u.kinds.map(function (k) { return ZMJ.tileName(k); }).join('、') + '（共 ' + u.total + ' 张）');
+    var guide = opts.length ? getTrainingGuide(opts[0].kind, true) : null;
+    if (!guide) { el.textContent = '当前没有可计算的弃牌。'; return; }
+    var stateName = guide.shanten === 0 ? '听牌' : guide.shanten + ' 向听';
+    var hitName = guide.shanten === 0 ? '和牌张' : '有效进张';
+    rows.push('<div class="guideLead">牌效推荐打 ' + ZMJ.tileName(guide.kind) + ' → ' + stateName + '</div>');
+    rows.push('<div class="guideNote">向听是离听牌的牌形距离，0 向听就是已听牌；有效进张是下一摸能降低向听的牌。推荐先比较向听，再比较未见有效张数；放铳风险另列。</div>');
+    rows.push('<div class="guideStep">① 打后会等哪些牌？</div>');
+    rows.push('<div>共 <b>' + guide.draws.length + '</b> 种' + hitName + '，未见 <b>' + guide.total + '</b> 张：</div>');
+    rows.push('<div class="guideTiles">' + (guide.draws.length ? guide.draws.map(function (d) {
+      return '<span>' + ZMJ.tileName(d.kind) + ' × ' + d.count + '</span>';
+    }).join('') : '<span>暂无可见的有效张</span>') + '</div>');
+    rows.push('<div class="guideMath">下一次自己摸到' + hitName + '的基准概率：' +
+      guide.total + ' ÷ ' + guide.unknown + ' 张未见牌 ≈ <b>' +
+      (guide.chanceNext * 100).toFixed(1) + '%</b></div>');
+    rows.push('<div class="guideStep">② 为什么比其他弃牌好？</div>');
+    rows.push('<div class="guideCompare"><b>弃牌</b><b>打后</b><b>未见' + hitName + '</b>');
+    opts.slice(0, 3).forEach(function (o) {
+      var g = getTrainingGuide(o.kind, false);
+      rows.push('<span>' + ZMJ.tileName(o.kind) + (o.kind === guide.kind ? ' ★' : '') +
+        '</span><span>' + (g.shanten === 0 ? '听牌' : g.shanten + ' 向听') +
+        '</span><span>' + (g.shanten === guide.shanten ? g.total + ' 张' : '不同阶段') + '</span>');
+    });
+    rows.push('</div>');
+    if (opts.length > 1) {
+      var second = getTrainingGuide(opts[1].kind, false);
+      if (second.shanten > guide.shanten) {
+        rows.push('<div class="guideNote">例如打 ' + ZMJ.tileName(second.kind) + ' 会退到 ' +
+          second.shanten + ' 向听；不同向听阶段的进张数字不能直接比较。</div>');
+      } else if (second.total < guide.total) {
+        rows.push('<div class="guideNote">同样是 ' + stateName + '，打 ' + ZMJ.tileName(guide.kind) +
+          ' 比打 ' + ZMJ.tileName(second.kind) + ' 多 ' + (guide.total - second.total) +
+          ' 张未见' + hitName + '。</div>');
+      } else {
+        rows.push('<div class="guideNote">前两种弃牌的向听和进张相同；排序还参考公开牌推断的弃牌危险度，不代表确定安全。</div>');
+      }
     }
-    if (opts.length) {
-      rows.push('<span style="color:#9fb3a8">具体打哪张与放铳概率见上方「局势分析」。</span>');
+    rows.push('<div class="guideStep">③ 接下来怎么做牌？</div>');
+    if (guide.shanten === 0) {
+      rows.push('<div>这 13 张已经听牌。等上方列出的牌即可和牌；听口越宽，通常下次摸中的机会越大。</div>');
+    } else if (guide.shanten === 1 && guide.paths.length) {
+      rows.push('<div>下面是摸到有效牌后的较宽听口路线，实际摸牌后可再调整：</div>');
+      guide.paths.slice(0, 3).forEach(function (path) {
+        rows.push('<div class="guidePath">摸 <b>' + ZMJ.tileName(path.draw) + '</b>（未见 ' + path.drawCount +
+          ' 张）→ 再打 <b>' + ZMJ.tileName(path.discard) + '</b> → 听 <b>' +
+          path.waits.map(function (w, i) { return ZMJ.tileName(w) + '×' + path.waitCounts[i]; }).join('、') +
+          '</b>（合计未见 ' + path.waitTotal + ' 张；静态模型下再摸中约 ' +
+          (guide.unknown > 1 ? (path.waitTotal / (guide.unknown - 1) * 100).toFixed(1) : '0.0') + '%）</div>');
+      });
+      rows.push('<div class="guideNote">这里为每种示例摸牌寻找能保持听牌且未见听张最多的下一张弃牌；不含放铳风险。</div>');
+    } else {
+      rows.push('<div>先争取摸到上方的有效牌，把 ' + guide.shanten + ' 向听推进到 ' +
+        (guide.shanten - 1) + ' 向听。每次摸牌后重新比较弃牌，优先保留能接纳更多未见牌的搭子和对子。</div>');
     }
-    // 七对
-    if (mc === 0) {
-      var sp = game.sevenPairsShanten();
-      var pairs = 0;
-      for (var k2 = 0; k2 < ZMJ.KINDS; k2++) if (p.concealed[k2] >= 2) pairs++;
-      rows.push('<span style="color:#9fb3a8">小七对：' + (sp <= 0 ? '已听牌' : sp + ' 向听') + '（现有 ' + pairs + ' 对）' +
-        (sp <= sh ? ' · <span class="warn">与平胡同价，别为它拆平胡进度</span>' : '') + '</span>');
-    }
-    el.innerHTML = rows.join('<br>');
+    var after = p.concealed.slice(); after[guide.kind]--;
+    rows.push('<details><summary>向听、进张与概率怎么算？</summary>' +
+      '<div>0 向听表示再来一张和牌张就能胡；1 向听表示先摸到有效牌、调整弃牌后可以听牌。' +
+      '普通牌型按四组面子加一对将，小七对单独计算，取较近的路线。</div>' +
+      '<div>本选择：普通牌型 ' + ZMJ.shantenStandard(after, p.melds.length) + ' 向听' +
+      (p.melds.length ? '' : '；小七对 ' + ZMJ.shantenSevenPairs(after) + ' 向听') + '。</div>' +
+      '<div>有效进张是下一摸能降低向听的牌；听牌时则是能直接和牌的牌。每种牌原有四张，减去自己手牌与公开牌，得到“未见张数”。</div>' +
+      '<div>上面的概率按未见牌均匀分布计算，只描述下一次自摸；未见牌也可能在对手暗牌或预留鸟牌里，牌河变化后要重算。</div>' +
+      '<div>术语参考：<a href="https://arxiv.org/abs/2108.06832" target="_blank" rel="noopener noreferrer">向听数的研究论文</a>、' +
+      '<a href="https://github.com/tomohxx/necessary-and-unnecessary-tiles" target="_blank" rel="noopener noreferrer">有效牌的开源计算示例</a>。</div></details>');
+    el.innerHTML = rows.join('');
   }
 
   function renderLog() {

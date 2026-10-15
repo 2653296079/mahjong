@@ -47,6 +47,31 @@ test('discard advice does not read hidden opponent hands', () => {
   assert.deepEqual(after, before);
 });
 
+test('training guide counts exact waits and next-draw probability after a discard', () => {
+  const hand = { players: [player(), player(), player(), player()] };
+  [0, 1, 2, 9, 10, 11, 18, 19, 20, 3, 4, 14, 14, 26].forEach(k => hand.players[0].concealed[k]++);
+  const guide = ZMJ.trainingGuide(hand, 0, 26, true);
+  assert.equal(guide.shanten, 0);
+  assert.deepEqual(Array.from(guide.draws, x => [x.kind, x.count]), [[2, 3], [5, 4]]);
+  assert.equal(guide.total, 7);
+  assert.equal(guide.unknown, 94);
+  assert.equal(guide.chanceNext, 7 / 94);
+});
+
+test('one-shanten guide shows a valid route to a wider wait without seeing opponents', () => {
+  const hand = { players: [player(), player(), player(), player()] };
+  [0, 1, 2, 9, 10, 11, 18, 19, 20, 3, 4, 14, 25, 26].forEach(k => hand.players[0].concealed[k]++);
+  const guide = ZMJ.trainingGuide(hand, 0, 25, true);
+  assert.equal(guide.shanten, 1);
+  const route = guide.paths.find(x => x.draw === 14);
+  assert.ok(route, 'drawing 6-dot should make a tenpai route');
+  assert.ok(route.waitTotal >= 7);
+  const hiddenBefore = hand.players[1].concealed[5];
+  hand.players[1].concealed[5] = 3;
+  assert.deepEqual(ZMJ.trainingGuide(hand, 0, 25, true), guide);
+  hand.players[1].concealed[5] = hiddenBefore;
+});
+
 test('kong options include four existing tiles and a held fourth tile after a pung', () => {
   const game = ZMJ.createGame({ seed: 8, rotate: false });
   game.startHand();
