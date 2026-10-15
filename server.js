@@ -1,5 +1,5 @@
 /* 转转麻将 · 手机访问用迷你静态服务器（零依赖，只需 Node）
- * 用法：双击「启动手机服务器.bat」，或  node server.js 8000
+ * 用法：双击「启动手机服务器.bat」，或 node server.js 8000
  */
 const http = require('http');
 const fs = require('fs');
@@ -8,12 +8,13 @@ const os = require('os');
 
 const port = Number(process.argv[2] || 8000);
 const root = __dirname;
-const GAME = '转转麻将.html';
+const GAME = 'index.html';
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
   '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.txt': 'text/plain; charset=utf-8'
 };
@@ -37,8 +38,11 @@ const server = http.createServer((req, res) => {
     urlPath = '/';
   }
   if (urlPath === '/' || urlPath === '/game' || urlPath === '/index.html') urlPath = '/' + GAME;
-  const file = path.join(root, path.normalize(urlPath).replace(/^([/\\]|\.\.)+/, ''));
-  if (!file.startsWith(root)) { res.writeHead(403); res.end('forbidden'); return; }
+  const file = path.resolve(root, '.' + urlPath);
+  const relative = path.relative(root, file);
+  if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
+    res.writeHead(403); res.end('forbidden'); return;
+  }
   fs.readFile(file, (err, data) => {
     if (err) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
