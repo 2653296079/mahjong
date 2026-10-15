@@ -1332,13 +1332,31 @@ main{flex:1;display:flex;min-height:0}
 
     var v2Seats = opts.aiStyleV2 || [];
     var v3Seats = opts.aiStyleV3 || [];
-    G.seats[0] = makePlayer('you', '你', true, v2Seats.indexOf(0) >= 0 ? 'v2' : 'v1');
-    var nq = npcNames.slice();
-    for (var s = 1; s < 4; s++) {
-      G.seats[s] = makePlayer('npc' + s, nq.shift(), false,
-        v3Seats.indexOf(s) >= 0 ? 'v3' : (v2Seats.indexOf(s) >= 0 ? 'v2' : 'v1'));
+    if (opts.roster && opts.roster.length) {
+      // 联机模式：谁坐哪张桌由服务器指定（真人或电脑），多出来的人排队等着轮换上桌
+      var roster = opts.roster;
+      for (var rs = 0; rs < 4; rs++) {
+        var who = roster[rs] || {};
+        var seatP = makePlayer(who.id || ('seat' + rs), who.name || ('座位' + (rs + 1)),
+          !!who.isHuman, who.style || 'v1');
+        if (who.score) seatP.score = who.score;
+        G.seats[rs] = seatP;
+      }
+      for (var rq = 4; rq < roster.length; rq++) {
+        var qp = makePlayer(roster[rq].id || ('q' + rq), roster[rq].name || ('候补' + rq),
+          !!roster[rq].isHuman, roster[rq].style || 'v1');
+        if (roster[rq].score) qp.score = roster[rq].score;
+        G.queue.push(qp);
+      }
+    } else {
+      G.seats[0] = makePlayer('you', '你', true, v2Seats.indexOf(0) >= 0 ? 'v2' : 'v1');
+      var nq = npcNames.slice();
+      for (var s = 1; s < 4; s++) {
+        G.seats[s] = makePlayer('npc' + s, nq.shift(), false,
+          v3Seats.indexOf(s) >= 0 ? 'v3' : (v2Seats.indexOf(s) >= 0 ? 'v2' : 'v1'));
+      }
+      while (nq.length) { G.queue.push(makePlayer('npc_q' + nq.length, nq.shift(), false, 'v1')); }
     }
-    while (nq.length) { G.queue.push(makePlayer('npc_q' + nq.length, nq.shift(), false, 'v1')); }
 
     function humanSeat() {
       for (var i = 0; i < 4; i++) if (G.seats[i].isHuman) return i;
@@ -1347,11 +1365,32 @@ main{flex:1;display:flex;min-height:0}
     function log(text, cls) { G.logs.push({ text: text, cls: cls || '' }); if (G.logs.length > 400) G.logs.shift(); }
     function nameOf(seat) { return G.seats[seat].name; }
 
+    // ---- 待决队列 ----
+    // 单机时最多一条，G.awaiting 行为与从前完全一致；联机时可同时有多位真人需要决策
+    var awaits = [];
+    function syncAwait() { G.awaiting = awaits.length ? awaits[0] : null; }
+    function addAwait(entry) { awaits.push(entry); syncAwait(); return entry; }
+    function findAwait(seat, type) {
+      for (var i = 0; i < awaits.length; i++) {
+        if (awaits[i].seat === seat && awaits[i].type === type) return awaits[i];
+      }
+      return null;
+    }
+    function takeAwait(seat, type) {
+      for (var i = 0; i < awaits.length; i++) {
+        if (awaits[i].seat === seat && awaits[i].type === type) {
+          var e = awaits[i]; awaits.splice(i, 1); syncAwait(); return e;
+        }
+      }
+      return null;
+    }
+    function clearAwaits() { awaits.length = 0; syncAwait(); }
+
     // ---- 开局 ----
     function startHand() {
       G.handNo++;
       G.hand = createHand(rng, G.dealer);
-      G.awaiting = null;
+      clearAwaits();
       G.lastResult = null;
       log('—— 第 ' + G.handNo + ' 局开始，庄家：' + nameOf(G.dealer) + ' ——', 'hd');
       drawFor(G.dealer, false, false);
@@ -1372,7 +1411,7 @@ main{flex:1;display:flex;min-height:0}
       // 可选动作
       var opt = turnOptions(seat);
       if (G.seats[seat].isHuman && !G.fastForward) {
-        G.awaiting = { type: 'turn', seat: seat, options: opt, tile: tile };
+        addAwait({ type: 'turn', seat: seat, options: opt, tile: tile });
       }
       return tile;
     }
@@ -1391,26 +1430,38 @@ main{flex:1;display:flex;min-height:0}
     }
 
     // ---- 人类操作 ----
-    function humanDiscard(kind) {
+    function humanDiscard(kind, seat) {
       var H = G.hand;
-      if (!G.awaiting || G.awaiting.type !== 'turn') return false;
-      var seat = G.awaiting.seat;
-      if (H.players[seat].concealed[kind] <= 0) return false;
-      G.awaiting = null;
-      doDiscard(seat, kind);
+      var e = (seat == null)
+        ? (G.awaiting && G.awaiting.type === 'turn' ? G.awaiting : null)
+        : findAwait(seat, 'turn');
+      if (!e) return false;
+      var s = e.seat;
+      if (H.players[s].concealed[kind] <= 0) return false;
+      takeAwait(s, 'turn');
+      doDiscard(s, kind);
       return true;
     }
 
-    function humanClaim(act, kind) {
+    function applyClaimDecision(s, act) {
       var H = G.hand;
-      if (!G.awaiting || G.awaiting.type !== 'claim') return false;
-      var seat = G.awaiting.seat;
-      var dec = G.hand.claimDecisions || {};
-      dec[seat] = act;
-      G.awaiting = null;
+      var dec = H.claimDecisions || {};
+      dec[s] = act;
       H.claimDecisions = dec;
-      resolveClaims(H.claimDecisions);
+      takeAwait(s, 'claim');
+      // 联机时可能有别的真人还没决定，要等齐了再结算
+      var waiting = false;
+      for (var i = 0; i < awaits.length; i++) if (awaits[i].type === 'claim') waiting = true;
+      if (!waiting) resolveClaims(H.claimDecisions);
       return true;
+    }
+
+    function humanClaim(act, kind, seat) {
+      var e = (seat == null)
+        ? (G.awaiting && G.awaiting.type === 'claim' ? G.awaiting : null)
+        : findAwait(seat, 'claim');
+      if (!e) return false;
+      return applyClaimDecision(e.seat, act);
     }
 
     // ---- 出牌 ----
@@ -1455,17 +1506,14 @@ main{flex:1;display:flex;min-height:0}
         });
       }
       H.claimDecisions = decisions;
-      // 人类是否有选择
-      var hs = humanSeat();
-      var humanOptions = null;
-      if (hs >= 0 && !G.fastForward && hs !== fromSeat) {
+      // 真人是否有选择（联机时可能同时有多个真人要决定）
+      var humanWaiting = false;
+      for (var hs = 0; hs < 4; hs++) {
+        if (!G.seats[hs].isHuman || G.fastForward || hs === fromSeat) continue;
         var o = { hu: claims.hu.indexOf(hs) >= 0, gang: claims.gang.indexOf(hs) >= 0, peng: claims.peng.indexOf(hs) >= 0, kind: kind, from: fromSeat };
-        if (o.hu || o.gang || o.peng) humanOptions = o;
+        if (o.hu || o.gang || o.peng) { addAwait({ type: 'claim', seat: hs, options: o }); humanWaiting = true; }
       }
-      if (humanOptions) {
-        G.awaiting = { type: 'claim', seat: hs, options: humanOptions };
-        return;
-      }
+      if (humanWaiting) return;
       // 有人能碰/杠/胡 → 交给 UI 延迟结算（AI 思考）；没人才可动就直接过
       var anyClaim = claims.hu.length + claims.gang.length + claims.peng.length > 0;
       if (!anyClaim) { resolveClaims(decisions); return; }
@@ -1553,7 +1601,7 @@ main{flex:1;display:flex;min-height:0}
       var opt = turnOptions(seat);
       opt.canZimo = false; // 碰牌不摸牌，不能自摸
       if (G.seats[seat].isHuman && !G.fastForward) {
-        G.awaiting = { type: 'turn', seat: seat, options: opt, tile: null, afterClaim: true };
+        addAwait({ type: 'turn', seat: seat, options: opt, tile: null, afterClaim: true });
       }
     }
 
@@ -1628,7 +1676,7 @@ main{flex:1;display:flex;min-height:0}
       G.records.push(rec);
       if (G.records.length > 400) G.records.shift();
       G.lastResult = result;
-      G.awaiting = null;
+      clearAwaits();
       return result;
     }
 
@@ -1784,20 +1832,38 @@ main{flex:1;display:flex;min-height:0}
     }
 
     // 人类操作入口（含补杠/暗杠）
-    function humanGang(kind, type) {
-      if (!G.awaiting || G.awaiting.type !== 'turn') return false;
-      var seat = G.awaiting.seat;
-      var o = G.awaiting.options;
-      if (type === 'bu' && o.buGang.indexOf(kind) >= 0) { G.awaiting = null; return doBuGang(seat, kind); }
-      if (type === 'an' && o.anGang.indexOf(kind) >= 0) { G.awaiting = null; doAnGang(seat, kind); return true; }
+    function humanGang(kind, type, seat) {
+      var e = (seat == null)
+        ? (G.awaiting && G.awaiting.type === 'turn' ? G.awaiting : null)
+        : findAwait(seat, 'turn');
+      if (!e) return false;
+      var s = e.seat, o = e.options;
+      if (type === 'bu' && o.buGang.indexOf(kind) >= 0) { takeAwait(s, 'turn'); return doBuGang(s, kind); }
+      if (type === 'an' && o.anGang.indexOf(kind) >= 0) { takeAwait(s, 'turn'); doAnGang(s, kind); return true; }
       return false;
     }
 
-    function humanZimo() {
-      if (!G.awaiting || G.awaiting.type !== 'turn' || !G.awaiting.options.canZimo) return false;
-      var seat = G.awaiting.seat;
-      G.awaiting = null;
-      endHand({ type: 'zimo', winners: [seat], gangDraw: G.hand.gangDraw });
+    function humanZimo(seat) {
+      var e = (seat == null)
+        ? (G.awaiting && G.awaiting.type === 'turn' ? G.awaiting : null)
+        : findAwait(seat, 'turn');
+      if (!e || !e.options.canZimo) return false;
+      var s = e.seat;
+      takeAwait(s, 'turn');
+      endHand({ type: 'zimo', winners: [s], gangDraw: G.hand.gangDraw });
+      return true;
+    }
+
+    // 托管代打一个轮次：与 aiStep 里对轮次的处理保持一致
+    function autoPlayTurn(seat) {
+      var e = takeAwait(seat, 'turn');
+      if (!e) return false;
+      if (e.options.canZimo) { endHand({ type: 'zimo', winners: [seat], gangDraw: G.hand.gangDraw }); return true; }
+      if (e.options.anGang.length) { doAnGang(seat, e.options.anGang[0]); return true; }
+      if (e.options.buGang.length) { doBuGang(seat, e.options.buGang[0]); return true; }
+      var k = aiDiscard(seat);
+      if (k == null) { endHand({ type: 'draw' }); return true; }
+      doDiscard(seat, k);
       return true;
     }
 
@@ -1818,6 +1884,35 @@ main{flex:1;display:flex;min-height:0}
     G.humanGang = humanGang;
     G.humanZimo = humanZimo;
     G.humanSeat = humanSeat;
+    G.pendingAwaits = function () { return awaits.slice(); };
+    // 联机：换人 / 掉线托管。on=true 表示这个座位交给电脑代打
+    G.autoPilot = function (seat, on) {
+      var p = G.seats[seat];
+      if (!p) return false;
+      p.isHuman = !on;
+      if (!on) return true;
+      // 托管时把该座位已经挂起的待决立刻用电脑思路处理掉，否则会卡住整局
+      var t = findAwait(seat, 'turn');
+      if (t) { autoPlayTurn(seat); return true; }
+      var c = findAwait(seat, 'claim');
+      if (c) {
+        var o = c.options, act = 'pass';
+        if (o.hu && aiWinDecision(seat, o.kind) === 'hu') act = 'hu';
+        else if (o.gang) act = 'gang';
+        else if (o.peng && aiPengDecision(seat, o.kind)) act = 'peng';
+        applyClaimDecision(seat, act);
+      }
+      return true;
+    };
+    // 联机：按玩家 id 找座位（-1 表示不在桌上，可能在等待区）
+    G.seatOfId = function (id) {
+      for (var i = 0; i < 4; i++) if (G.seats[i].id === id) return i;
+      return -1;
+    };
+    G.isInQueue = function (id) {
+      for (var j = 0; j < G.queue.length; j++) if (G.queue[j].id === id) return true;
+      return false;
+    };
     G.nameOf = nameOf;
     G.evaluateDiscards = function (seat) { return evaluateDiscards(G.hand, seat == null ? humanSeat() : seat); };
     G.turnOptionsFor = function (seat) { return turnOptions(seat); };
