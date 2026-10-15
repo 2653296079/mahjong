@@ -30,7 +30,9 @@ if defined DIRTY (
 echo Pushing main to:
 git remote get-url origin
 echo.
-git push origin main
+rem 绕过全局代理：~/.gitconfig 里通常有代理客户端的设置，
+rem 代理没开时 git 会连不上；这两个空值让本次推送直连 GitHub。
+git -c http.proxy= -c https.proxy= -c http.https://github.com.proxy= push origin main
 if errorlevel 1 (
   echo [ERROR] Push failed. Check the network, login, and remote branch.
   goto fail
