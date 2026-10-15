@@ -56,6 +56,13 @@ echo 把它前面的 http:// 补上发给朋友即可： http://cn-xx.natfrp.clo
 echo.
 echo 这个窗口要一直开着；关掉它朋友就连不上了。
 echo.
+echo 注意：樱花 frp 会拦截 HTTP 明文访问（机房合规要求），直接用 http:// 打开会看到 501。
+echo 解决办法（只需设置一次）：
+echo   1. 打开 https://www.natfrp.com/tunnel/ 编辑这条隧道
+echo   2. 把「自动 HTTPS」设为「自动」或「启用」，保存
+echo   3. 重启本脚本，然后改用 https:// 开头的地址访问
+echo 开了之后浏览器和联机的加密连接都由樱花那边处理，本机不用装证书。
+echo.
 
 tools\frpc.exe -n
 
