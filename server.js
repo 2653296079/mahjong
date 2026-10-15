@@ -5,6 +5,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const online = require('./server/mjs-server');   // 联机房间（WebSocket）
 
 const port = Number(process.argv[2] || 8000);
 const root = __dirname;
@@ -70,6 +71,9 @@ server.on('error', (e) => {
   process.exit(1);
 });
 
+// 联机：同一个端口上同时提供页面和 WebSocket，大家用浏览器打开同一个地址就能一起打
+const hub = online.attach(server);
+
 server.listen(port, '0.0.0.0', () => {
   const ips = localIPs();
   console.log('');
@@ -90,9 +94,18 @@ server.listen(port, '0.0.0.0', () => {
     console.log('      (no LAN IP found - check your network connection)');
   }
   console.log('');
+  console.log('  Multiplayer: everyone opens the SAME address above,');
+  console.log('               then taps 联机 -> 进房间 with the same room number.');
+  console.log('               Empty seats are filled by computer players.');
+  console.log('');
   console.log('  Tip (iPhone): Safari -> Share -> Add to Home Screen');
   console.log('                then it runs fullscreen like a native app.');
   console.log('');
   console.log('  Press Ctrl+C to stop.');
   console.log('');
+});
+
+process.on('SIGINT', () => {
+  try { hub.close(); } catch (e) {}
+  process.exit(0);
 });
