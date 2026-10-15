@@ -115,38 +115,72 @@ test('四个人同桌：全部由真人决策，牌局能打完且分数零和',
     '25 局都没出现「多位真人同时待决」，这个测试没验证到目标行为');
 });
 
-test('转转轮换：胡牌者下桌，等待区玩家上桌（任意人数）', () => {
-  const roster = makeRoster(6, 6);
+test('转转轮换：真人赢了不下桌，电脑赢了换人，等待区的真人优先上桌', () => {
+  // 桌上 2 真人 + 2 电脑；等待区 2 真人 + 2 电脑
+  const roster = [
+    { id: 'h0', name: '真人0', isHuman: true },
+    { id: 'h1', name: '真人1', isHuman: true },
+    { id: 'b0', name: '电脑0', isHuman: false },
+    { id: 'b1', name: '电脑1', isHuman: false },
+    { id: 'h2', name: '候补真人', isHuman: true },
+    { id: 'h3', name: '候补真人2', isHuman: true },
+    { id: 'b2', name: '电脑2', isHuman: false },
+    { id: 'b3', name: '电脑3', isHuman: false }
+  ];
   const G = ZMJ.createGame({ seed: 99, roster: roster });
-  const qIds = G.queue.map((p) => p.id);
-  let rotated = 0;
+  const total = G.seats.length + G.queue.length;
+  let humanWinStayed = 0, botWinRotated = 0, humanEnteredOverBot = 0;
   for (let h = 0; h < 40; h++) {
-    const before = G.seats.map((p) => p.id);
-    const queueBefore = G.queue.map((p) => p.id);
+    const seatsBefore = Array.from(G.seats, (p) => p.id);
+    const humansWaiting = G.queue.filter((p) => p.isHuman).map((p) => p.id);
     G.startHand();
     driveHand(G, { multiClaimBatches: 0, multiClaimHandled: 0 });
-    const res = G.lastResult;
-    const winners = res.winners || [];
-    if (!winners.length) continue;
-    G.dealer = G.dealer;              // nextHand 内部处理庄家
-    // 手动走一遍 nextHand 的轮换（不重开一局）
-    const seatIds = before;
-    for (const w of winners) {
-      assert.ok(queueBefore.length > 0, '等待区空的时候不该轮换');
-      rotated++;
-    }
-    // 直接验证 nextHand 的行为
-    const seatsBefore = G.seats.map((p) => p.id);
-    G.nextHand();
-    const seatsAfter = G.seats.map((p) => p.id);
-    winners.forEach((w) => {
-      if (queueBefore.length === 0) return;
-      assert.equal(seatsAfter[w], queueBefore[0], '胡牌者的座位应由等待区第一位接替');
-      assert.ok(G.queue.some((p) => p.id === seatsBefore[w]), '下桌的胡牌者应进等待区');
+    const winners = (G.lastResult.winners || []).slice();
+    const winnerWasHuman = winners.map((w) => G.seats[w].isHuman);
+    G.nextHand();                       // 内部完成轮换并开下一局
+    const seatsAfter = Array.from(G.seats, (p) => p.id);
+    winners.forEach((w, i) => {
+      if (winnerWasHuman[i]) {
+        // 真人赢了必须原地不动
+        assert.equal(seatsAfter[w], seatsBefore[w], '真人赢牌不该被换下桌');
+        humanWinStayed++;
+      } else {
+        // 电脑赢了必须换人（只要等待区还有人）
+        if (G.queue.length + 4 > total) return;
+        assert.notEqual(seatsAfter[w], seatsBefore[w], '电脑赢牌应该换人上桌');
+        assert.ok(G.queue.some((p) => p.id === seatsBefore[w]), '下桌的电脑应进等待区');
+        botWinRotated++;
+        // 只要等待区还有真人，上桌的就必须是真人（真人优先级最高）
+        if (humansWaiting.length) {
+          assert.ok(humansWaiting.indexOf(seatsAfter[w]) >= 0,
+            '等待区有真人时，上桌的却是个电脑：' + seatsAfter[w]);
+          humanEnteredOverBot++;
+        }
+      }
     });
-    assert.equal(G.seats.length, 4, '桌上永远 4 个座位');
-    h++;                              // nextHand 已经开了一局，计数对齐
+    // 桌上不能出现同一个人两次
+    assert.equal(new Set(seatsAfter).size, 4, '有人占了两个座位：' + seatsAfter.join(','));
+    assert.equal(G.seats.length + G.queue.length, total, '总人数必须守恒');
   }
-  assert.ok(rotated > 0, '40 局里一次轮换都没发生');
-  assert.equal(G.seats.length + G.queue.length, 6, '总人数必须守恒');
+  assert.ok(humanWinStayed > 0, '40 局里没有真人胡过牌，没验证到「真人不下桌」');
+  assert.ok(botWinRotated > 0, '40 局里电脑一次都没胡过，没验证到「电脑赢了换人」');
+  assert.ok(humanEnteredOverBot > 0, '没出现「等待区真人优先于电脑上桌」的机会');
+});
+
+test('真人退房后，座位让给等待区的真人', () => {
+  const roster = [
+    { id: 'h0', name: '真人0', isHuman: true },
+    { id: 'b0', name: '电脑0', isHuman: false },
+    { id: 'b1', name: '电脑1', isHuman: false },
+    { id: 'b2', name: '电脑2', isHuman: false },
+    { id: 'h1', name: '候补真人', isHuman: true },
+    { id: 'b3', name: '电脑3', isHuman: false }
+  ];
+  const G = ZMJ.createGame({ seed: 7, roster: roster });
+  assert.equal(G.seatOfId('h1'), -1, '候补一开始在等待区');
+  assert.equal(G.seatVacated(0), true, '座位 0 空出来后应由等待区的真人顶上');
+  assert.equal(G.seatOfId('h1'), 0, '候补真人应该坐上 0 号位');
+  assert.equal(G.isInQueue('h1'), false, '上桌之后不该还在等待区');
+  // 等待区没有真人时，不让位（交给电脑代打）
+  assert.equal(G.seatVacated(1), false, '等待区没真人时不该换人');
 });

@@ -517,7 +517,7 @@ main{flex:1;display:flex;min-height:0}
  *  - 鸟：胡牌后翻 6 张，摸到 1/5/9 各算一只。0 只=30 元，1-5 只=只数*5 元，6 只=60 元
  *  - 收炮基础 5 元（点炮方付）；自摸基础 10 元（三家各付）
  *  - 过水：放弃一次炮后，在自己摸牌之前不能再胡炮
- *  - 转转：胡牌者下桌，等待区的人上桌
+ *  - 转转：真人赢牌不下桌；电脑赢牌下桌，等待区的人补位（等待区有真人时真人优先）
  * 无 DOM 依赖，浏览器与 Node 通用。
  * ============================================================ */
 (function (root, factory) {
@@ -1680,22 +1680,34 @@ main{flex:1;display:flex;min-height:0}
       return result;
     }
 
+    // 从等待区取下一个上桌的人：真人优先，等待区没有真人才轮到电脑
+    function nextFromQueue() {
+      for (var i = 0; i < G.queue.length; i++) {
+        if (G.queue[i].isHuman) return G.queue.splice(i, 1)[0];
+      }
+      return G.queue.length ? G.queue.shift() : null;
+    }
+
     // ---- 一局结束后的处理：转转轮换 / 庄家 ----
     function nextHand() {
       var res = G.lastResult;
       if (res) {
         var winners = (res.winners || []).slice();
+        var rotated = false;
         if (G.rotate && winners.length) {
           winners.forEach(function (ws) {
             var leaving = G.seats[ws];
-            var incoming = G.queue.shift();
+            // 真人赢牌不下桌：牌桌上不该因为打得好反而被换下去
+            if (leaving.isHuman) return;
+            var incoming = nextFromQueue();
             // 等待区没人时不能轮换：否则同一个人会既留在座位上、又被塞进等待区，
             // 之后可能被当成候补坐上另一张座位，出现「一人占两座」。
             if (!incoming) return;
             G.queue.push(leaving);
             G.seats[ws] = incoming;
+            rotated = true;
           });
-          log('转转：胡牌者下桌，等待区玩家上桌', 'hd');
+          if (rotated) log('转转：电脑胡牌下桌，等待区的人上桌', 'hd');
           // 庄家：原庄家的下一位（若原庄家已下桌）
           G.dealer = (G.dealer + 1) % 4;
         } else if (winners.length) {
@@ -1916,6 +1928,18 @@ main{flex:1;display:flex;min-height:0}
     };
     G.isInQueue = function (id) {
       for (var j = 0; j < G.queue.length; j++) if (G.queue[j].id === id) return true;
+      return false;
+    };
+    // 联机：座位上的真人退房走了，把这张座位让给等待区里的真人。
+    // 等待区没有真人就先放着（服务器会继续用电脑代打），避免座位空着没法开局。
+    G.seatVacated = function (seat) {
+      if (!G.seats[seat]) return false;
+      for (var i = 0; i < G.queue.length; i++) {
+        if (G.queue[i].isHuman) {
+          G.seats[seat] = G.queue.splice(i, 1)[0];
+          return true;
+        }
+      }
       return false;
     };
     // 联机：牌局已经开打之后才进房间的人，要真的进等待区，
@@ -3195,8 +3219,14 @@ window.onerror = function (msg, src, line, col) {
     html += '</table>';
     var rot = '';
     if (cfg.rotate && r.winners && r.winners.length) {
-      var wn = r.winners.map(function (w) { return game.nameOf(w); }).join('、');
-      rot = '<div style="font-size:13px;color:#ffcf7a">转转：' + wn + ' 胡牌下桌，等待区玩家上桌。</div>';
+      var botW = r.winners.filter(function (w) { return !game.seats[w].isHuman; });
+      var humanW = r.winners.filter(function (w) { return game.seats[w].isHuman; });
+      var parts = [];
+      if (botW.length) {
+        parts.push(botW.map(function (w) { return game.nameOf(w); }).join('、') + '（电脑）胡牌下桌，等待区的人上桌');
+      }
+      if (humanW.length) parts.push('真人赢牌不下桌，继续坐着打');
+      if (parts.length) rot = '<div style="font-size:13px;color:#ffcf7a">转转：' + parts.join('；') + '。</div>';
     }
     html += rot + '<div class="center"><button class="act" id="btnNext">继续下一局</button></div>';
     box.innerHTML = html;
@@ -3222,7 +3252,7 @@ window.onerror = function (msg, src, line, col) {
       '<li><b>自摸</b>：三家各付「基础 10 元 + 鸟钱」。例：0 只鸟 → 每家 10+30 = <b>40 元</b>。</li>' +
       '<li><b>过水</b>：放弃一次的炮，在自己摸牌前不能再胡炮。</li>' +
       '<li><b>荒庄</b>：无赔付，庄给下家。<b>一炮多响</b>：各赔各的。</li>' +
-      '<li><b>转转</b>：胡牌者下桌，等待区玩家上桌；转转时庄位顺延给下家。</li>' +
+      '<li><b>转转</b>：<b>电脑</b>胡牌才下桌，等待区的人补位；等待区有真人时真人优先上桌。真人赢牌一直坐在桌上，不会因为赢了被换下去。转转时庄位顺延给下家。</li>' +
       '</ul>' +
       '<h2 style="font-size:16px;margin-top:14px">核心赔率（期望值）</h2>' +
       '<table><tr><th>事件</th><th>期望</th><th>相对</th></tr>' +
@@ -3240,7 +3270,7 @@ window.onerror = function (msg, src, line, col) {
   function showSettings() {
     var box = $('modalBox');
     box.innerHTML = '<h2>设置</h2>' +
-      '<div class="setRow"><span>转转模式（胡牌者下桌）</span><select id="setRotate"><option value="1">开启</option><option value="0">关闭（固定四人）</option></select></div>' +
+      '<div class="setRow"><span>转转模式（电脑胡牌换人）</span><select id="setRotate"><option value="1">开启</option><option value="0">关闭（固定四人）</option></select></div>' +
       '<div class="setRow"><span>对手风格</span><select id="setStyle"><option value="ev">按 EV 打（会放过炮等自摸）</option><option value="greedy">见炮就胡（像牌桌真人）</option></select></div>' +
       '<div class="setRow"><span>决策提示</span><select id="setHint"><option value="1">开启</option><option value="0">关闭</option></select></div>' +
       '<div class="setRow"><span>电脑打牌算法</span><select id="setAiStyle">' +
@@ -4065,7 +4095,11 @@ window.onerror = function (msg, src, line, col) {
           st.room.queue.map(function (q) { return netEsc(q.name) + (q.isHuman ? '' : '(电脑)'); }).join('、') + '</div>';
       }
       if (st.you && st.you.queued) {
-        h += '<div style="font-size:12px;color:#ffcf7a;margin-top:6px">你在等待区，这一局结束后轮到你上桌</div>';
+        // 说实话：桌上全是真人时，谁都不会因为赢牌下桌，等也等不到
+        var botSeats = st.room.seats.filter(function (s) { return s && !s.isHuman; }).length;
+        h += '<div style="font-size:12px;color:#ffcf7a;margin-top:6px">' + (botSeats
+          ? '你在等待区：桌上只要有电脑胡牌就会换人，你排在最前面，优先上桌'
+          : '你在等待区：桌上 4 位都是真人，真人赢牌不下桌，要等有人离开房间才轮得到你') + '</div>';
       }
     }
     h += '</div>';
@@ -4144,7 +4178,7 @@ window.onerror = function (msg, src, line, col) {
           '</button>' +
           '<button class="homeCard" id="homeOnline">' +
             '<span class="homeTag">联机打牌</span>' +
-            '<span class="homeDesc">开一间房和朋友一起打，人不够由电脑补位。转转轮换，谁胡了谁下桌；掉线了电脑先替你打，重连接着玩。</span>' +
+            '<span class="homeDesc">开一间房和朋友一起打，人不够由电脑补位。真人一直坐在桌上，电脑胡牌才换人，等待区的真人优先上桌；掉线了电脑先替你打，重连接着玩。</span>' +
             '<span class="homeGo">进入房间 →</span>' +
           '</button>' +
         '</div>' +

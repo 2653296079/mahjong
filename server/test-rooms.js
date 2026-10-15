@@ -283,6 +283,23 @@ test('废弃房间不出现在列表里，没人了就回收', () => {
   assert.strictEqual(store.get('1012'), null);
 });
 
+test('座位上的真人退房走了，座位让给等待区的真人', () => {
+  const store = new RoomStore();
+  const room = store.create('1013');
+  const a = fakeClient(room, '甲');
+  fakeClient(room, '乙');
+  room.start();
+  const c = fakeClient(room, '丙');       // 中途进来等位
+  room.pump();
+  assert.ok(room.hasPlayer(c.pid), '丙应该在等待区');
+  assert.strictEqual(room.game.seatOfId(c.pid), -1, '丙还没上桌');
+  const seatA = room.game.seatOfId(a.pid);
+  room.leave(a);                           // 甲退房走了
+  assert.strictEqual(room.releaseAbandonedSeats(), 1, '甲的座位应该让给等待区的真人');
+  assert.strictEqual(room.game.seatOfId(c.pid), seatA, '丙应该坐上甲原来的座位');
+  assert.strictEqual(room.game.isInQueue(c.pid), false, '上桌之后不该还在等待区');
+});
+
 test('等待区的人不能操作牌局', () => {
   const store = new RoomStore();
   const room = store.create('1008');

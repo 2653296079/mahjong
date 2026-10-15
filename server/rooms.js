@@ -203,6 +203,25 @@ class Room {
     return added;
   }
 
+  /**
+   * 座位上的真人退房走了：把座位让给等待区的真人。
+   * 只能在两局之间做 —— 牌局中途换人，他手上的牌就没人认了。
+   */
+  releaseAbandonedSeats() {
+    const G = this.game;
+    if (!G || typeof G.seatVacated !== 'function') return 0;
+    let moved = 0;
+    for (let seat = 0; seat < 4; seat++) {
+      const p = G.seats[seat];
+      if (!p || !p.isHuman) continue;
+      const m = this.memberByPid(p.id);
+      if (m && !m.gone) continue;                       // 人还在，别动他的座位
+      if (!this.members.some((x) => !x.gone && G.isInQueue(x.pid))) continue;  // 没真人候补就先留着
+      if (G.seatVacated(seat)) moved++;
+    }
+    return moved;
+  }
+
   /** 真人还在不在这个房间（在桌上或在等待区都算） */
   hasPlayer(pid) {
     const G = this.game;
@@ -252,6 +271,7 @@ class Room {
     this.nextPending = false;
     this.nextAt = 0;
     this.awaitSince = 0;
+    this.releaseAbandonedSeats();
     G.nextHand();
     this.pump();
     this.rev++;
