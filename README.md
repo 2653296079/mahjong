@@ -90,4 +90,14 @@ node tests/browser-online.js                          # 真浏览器双开联机
 node server.js 8000
 ```
 
-修改页面后请同步递增 `sw.js` 中的缓存版本，以便已安装的网页应用取得新内容。GitHub Pages 从 `main` 分支的仓库根目录部署。发布步骤见 [部署说明.md](部署说明.md)。
+### 发布到 GitHub Pages
+
+在线地址：https://2653296079.github.io/mahjong/ 。Pages 使用仓库 `2653296079/mahjong` 的 `main` 分支根目录，所以 `index.html`、`sw.js`、`manifest.webmanifest`、`icon-512.png` 四个文件必须一起留在根目录（`server/` 和 `tests/` 不影响线上运行，也不会被本地服务器对外开放）。
+
+发布前：
+
+1. 跑一遍测试：`node --test tests/core.test.js tests/multi.test.js`，以及 `node server/test-rooms.js`。
+2. 本地开 `node server.js 8000`，检查桌面和手机布局、出牌与设置。
+3. **改了页面就要把 `sw.js` 里的 `CACHE` 版本加一**，否则已装到主屏幕的离线版会继续用旧页面。
+
+发布：把改动合到 `main` 再推送（`git push origin main`），等 Pages 构建完成再刷新线上页面。Windows 下的 `一键推送到GitHub.bat` 只允许在 `main` 分支运行，在功能分支上会停下，避免误发未审核的改动。

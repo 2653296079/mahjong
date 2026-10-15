@@ -1,0 +1,52 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>碰杠胡推荐检查</title>
+<body style="margin:0;font:12px/1.5 monospace;background:#111;color:#ddd">
+<pre id="log" style="margin:0;padding:6px;height:150px;overflow:auto"></pre>
+<iframe id="f" src="/index.html" style="width:440px;height:660px;border:1px solid #444"></iframe>
+<script>
+var out = { ok: false, samples: [], errors: [], claim: null };
+function say(s) { out.samples.push(s); document.getElementById('log').textContent = out.samples.join('\n'); }
+var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+function bootErr(w) { var b = w.document.getElementById('boot'); return b && !b.classList.contains('hidden') ? b.textContent.slice(0, 200) : null; }
+function report() { fetch('/__result?d=' + encodeURIComponent(JSON.stringify(out))).then(function () {}, function () {}); }
+(async function () {
+  try {
+    var w = document.getElementById('f').contentWindow;
+    var t0 = Date.now();
+    while (Date.now() - t0 < 10000) { if (w.document.getElementById('btnNet')) break; await sleep(150); }
+    var seen = {};
+    var t1 = Date.now();
+    while (Date.now() - t1 < 45000) {
+      var e = bootErr(w);
+      if (e) { out.errors.push(e); break; }
+      var bar = w.document.getElementById('actionBtns');
+      var btns = bar ? Array.prototype.slice.call(bar.querySelectorAll('button')) : [];
+      var labels = btns.map(function (b) { return b.textContent.trim(); });
+      var isClaim = labels.indexOf('过') >= 0 && (labels.indexOf('碰') >= 0 || labels.indexOf('杠') >= 0 || labels.indexOf('胡（收炮）') >= 0);
+      var main = w.document.getElementById('coachMain');
+      var detail = w.document.getElementById('coachDetail');
+      var eyebrow = w.document.getElementById('coachEyebrow');
+      if (main) {
+        var key = main.textContent + ' || ' + detail.textContent;
+        if (!seen[key]) { seen[key] = 1; say('[' + (isClaim ? '碰杠胡' : '其它') + '] ' + main.textContent + ' —— ' + detail.textContent); }
+        if (isClaim && !out.claim) {
+          out.claim = { buttons: labels, eyebrow: eyebrow.textContent, main: main.textContent, detail: detail.textContent };
+          break;
+        }
+      }
+      if (btns.length) { btns[0].click(); await sleep(140); continue; }
+      var tile = w.document.querySelector('.handRow .clickable');
+      if (tile) { tile.click(); await sleep(140); continue; }
+      await sleep(110);
+    }
+    out.bootAtEnd = bootErr(w);
+    out.ok = !!out.claim && out.errors.length === 0 && !out.bootAtEnd &&
+             /建议碰|建议过|^胡 |^杠 /.test(out.claim.main);
+    say('');
+    say(out.claim ? ('捕获到碰杠胡：' + JSON.stringify(out.claim)) : '没等到碰/杠/胡的局面');
+    say('结论：' + (out.ok ? '通过' : '未通过'));
+  } catch (e) { out.errors.push(String((e && e.message) || e)); }
+  report();
+})();
+</script>

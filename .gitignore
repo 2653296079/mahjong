@@ -4,3 +4,9 @@ server/*.txt
 *.log
 tools/
 樱花frp密钥.txt
+# 证书私钥和联机凭据绝不能进仓库
+*.key
+*.crt
+*.pem
+*.p12
+*.pfx

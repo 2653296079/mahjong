@@ -2843,6 +2843,63 @@ window.onerror = function (msg, src, line, col) {
     } else { ba.classList.add('hidden'); }
   }
 
+  // 碰 / 杠 / 胡 / 自摸 的推荐：只用公开信息推算，和出牌推荐同一套口径
+  function shantenWords(s) { return s <= 0 ? '已听牌' : (s + ' 向听'); }
+  function claimAdvice() {
+    var a = game.awaiting;
+    if (!a || !game.hand) return null;
+    var H = game.hand, seat = a.seat, p = H.players[seat];
+    if (!p) return null;
+    if (a.type === 'turn') {
+      var o = a.options || {};
+      if (o.canZimo) {
+        return { main: '自摸胡！', detail: '三家各付 基础 10 元 + 鸟钱，直接收下', cls: 'good' };
+      }
+      if (o.anGang && o.anGang.length) {
+        return { main: '建议暗杠 ' + ZMJ.tileName(o.anGang[0]),
+                 detail: '三家各付 10 元，杠完从牌尾摸一张，还有杠上开花的机会', cls: 'good' };
+      }
+      if (o.buGang && o.buGang.length) {
+        return { main: '建议补杠 ' + ZMJ.tileName(o.buGang[0]),
+                 detail: '三家各付 5 元，杠完从牌尾摸一张；本规则不能抢杠', cls: 'good' };
+      }
+      return null;   // 没有特殊动作，交给原来的弃牌推荐
+    }
+    if (a.type !== 'claim') return null;
+    var c = a.options || {};
+    if (c.hu) {
+      return { main: '胡 ' + ZMJ.tileName(c.kind),
+               detail: game.nameOf(c.from) + ' 放炮，他一个人付 基础 5 元 + 鸟钱', cls: 'good' };
+    }
+    if (c.gang) {
+      return { main: '杠 ' + ZMJ.tileName(c.kind),
+               detail: game.nameOf(c.from) + ' 付 15 元，杠完从牌尾摸一张', cls: 'good' };
+    }
+    if (c.peng) {
+      // 碰之前 / 碰之后 各算一次向听和进张，再决定值不值得碰
+      var mc = p.melds.length, b4, u4, af, uf;
+      try {
+        b4 = ZMJ.shanten(p.concealed, mc);
+        u4 = ZMJ.ukeire(p.concealed, mc, ZMJ.visiblePool(H, seat)).total;
+        p.concealed[c.kind] -= 2;
+        p.melds.push({ type: 'peng', kind: c.kind, from: c.from });
+        af = ZMJ.shanten(p.concealed, mc + 1);
+        uf = ZMJ.ukeire(p.concealed, mc + 1, ZMJ.visiblePool(H, seat)).total;
+      } finally {
+        // 无论算成什么样都要把手牌还原，否则会把牌局改坏
+        if (p.melds.length > mc) p.melds.pop();
+        p.concealed[c.kind] += 2;
+      }
+      var better = af < b4 || (af === b4 && uf > u4);
+      return {
+        main: (better ? '建议碰 ' : '建议过 ') + ZMJ.tileName(c.kind),
+        detail: '不碰：' + shantenWords(b4) + ' · ' + u4 + ' 张进张　｜　碰了：' + shantenWords(af) + ' · ' + uf + ' 张进张',
+        cls: better ? 'good' : ''
+      };
+    }
+    return null;
+  }
+
   function renderCoach() {
     var H = game.hand, a = game.awaiting, box = $('coach');
     var eyebrow = $('coachEyebrow'), main = $('coachMain'), detail = $('coachDetail');
@@ -2850,22 +2907,39 @@ window.onerror = function (msg, src, line, col) {
     if (H.over && H.result) {
       eyebrow.textContent = '本局结束'; main.textContent = H.result.title;
       detail.textContent = '查看结算，然后继续下一局';
+    } else if (a && a.seat === game.humanSeat()) {
+      // 轮到你做决定时，推荐必须压过「上一手复盘」：
+      // 否则你刚打完牌、别人打出的牌正好能碰/杠/胡，中间却还在显示上一手的复盘。
+      if (a.type === 'claim') {
+        var cAdv = claimAdvice();
+        eyebrow.textContent = '轮到你决定';
+        if (cAdv) {
+          main.textContent = cAdv.main; detail.textContent = cAdv.detail;
+          if (cAdv.cls) box.classList.add(cAdv.cls);
+        } else {
+          main.textContent = '碰、杠、胡，还是过？';
+          detail.textContent = '先看牌形和剩余牌，再做选择';
+        }
+      } else {
+        var tAdv = claimAdvice();
+        eyebrow.textContent = '全桌第 ' + H.turnCount + ' 摸 · 你的回合';
+        if (tAdv) {
+          main.textContent = tAdv.main; detail.textContent = tAdv.detail;
+          if (tAdv.cls) box.classList.add(tAdv.cls);
+        } else {
+          var opts = game.evaluateDiscards(a.seat);
+          var guide = cfg.hint && opts.length ? getTrainingGuide(opts[0].kind, false) : null;
+          main.textContent = guide ? '牌效推荐打 ' + ZMJ.tileName(guide.kind) : '观察牌形，选一张弃牌';
+          detail.textContent = guide ?
+            ('打后' + (guide.shanten === 0 ? '听牌' : guide.shanten + ' 向听') +
+              ' · 有效 ' + guide.draws.length + ' 种 / 未见 ' + guide.total + ' 张 · 详见出牌讲解') :
+            '每次摸牌后重新比较向听和有效进张';
+        }
+      }
     } else if (feedback && feedback.handNo === game.handNo) {
       eyebrow.textContent = '上一手复盘'; main.textContent = feedback.main;
       detail.textContent = feedback.detail;
       box.classList.add(feedback.grade);
-    } else if (a && a.seat === game.humanSeat() && a.type === 'claim') {
-      eyebrow.textContent = '轮到你决定'; main.textContent = '碰、杠、胡，还是过？';
-      detail.textContent = '先看牌形和剩余牌，再做选择';
-    } else if (a && a.seat === game.humanSeat() && a.type === 'turn') {
-      var opts = game.evaluateDiscards(a.seat);
-      var guide = cfg.hint && opts.length ? getTrainingGuide(opts[0].kind, false) : null;
-      eyebrow.textContent = '全桌第 ' + H.turnCount + ' 摸 · 你的回合';
-      main.textContent = guide ? '牌效推荐打 ' + ZMJ.tileName(guide.kind) : '观察牌形，选一张弃牌';
-      detail.textContent = guide ?
-        ('打后' + (guide.shanten === 0 ? '听牌' : guide.shanten + ' 向听') +
-          ' · 有效 ' + guide.draws.length + ' 种 / 未见 ' + guide.total + ' 张 · 详见出牌讲解') :
-        '每次摸牌后重新比较向听和有效进张';
     } else {
       eyebrow.textContent = '牌局进行中'; main.textContent = '观察对手的出牌';
       detail.textContent = '留意副露、牌河与剩余巡目';
@@ -3610,13 +3684,17 @@ window.onerror = function (msg, src, line, col) {
   var netBarEl = null;
   function netBar() {
     if (!netBarEl) {
-      netBarEl = document.createElement('div');
+      // 放在工具栏里跟着排版走：以前悬浮在顶部中间会压住四家的分数条
+      netBarEl = document.createElement('span');
       netBarEl.id = 'netBar';
-      netBarEl.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:6px;z-index:60;' +
-        'padding:5px 12px;border-radius:14px;font-size:12px;display:none;align-items:center;gap:8px;' +
-        'background:rgba(12,26,20,.92);border:1px solid rgba(242,193,78,.45);color:#e8f3ec;' +
-        'box-shadow:0 6px 18px rgba(0,0,0,.35)';
-      document.body.appendChild(netBarEl);
+      netBarEl.style.cssText = 'display:none;align-items:center;gap:6px;padding:3px 10px;' +
+        'border-radius:999px;font-size:12px;line-height:1.5;cursor:pointer;white-space:nowrap;' +
+        'background:rgba(94,201,138,.14);border:1px solid rgba(94,201,138,.45);color:#d9f2e4';
+      netBarEl.title = '点这里打开联机面板';
+      netBarEl.onclick = showNet;
+      var bar = document.querySelector('.tools');
+      if (bar) bar.appendChild(netBarEl);
+      else { netBarEl.style.position = 'fixed'; netBarEl.style.right = '8px'; netBarEl.style.top = '8px'; netBarEl.style.zIndex = '60'; document.body.appendChild(netBarEl); }
     }
     var show = NET.status === 'connecting' || NET.status === 'on' || NET.status === 'error';
     if (!show) { netBarEl.style.display = 'none'; return; }
@@ -3636,13 +3714,8 @@ window.onerror = function (msg, src, line, col) {
     d.style.cssText = 'width:7px;height:7px;border-radius:50%;background:' + dot + ';flex:0 0 auto';
     var t = document.createElement('span');
     t.textContent = txt;
-    var b = document.createElement('button');
-    b.textContent = '联机';
-    b.style.cssText = 'background:transparent;border:1px solid rgba(242,193,78,.5);color:#f2c14e;' +
-      'border-radius:9px;font-size:11px;padding:1px 7px;cursor:pointer';
-    b.onclick = showNet;
-    netBarEl.appendChild(d); netBarEl.appendChild(t); netBarEl.appendChild(b);
-    netBarEl.style.display = 'flex';
+    netBarEl.appendChild(d); netBarEl.appendChild(t);
+    netBarEl.style.display = 'inline-flex';
   }
   function netToast(msg) {
     NET.note = msg;

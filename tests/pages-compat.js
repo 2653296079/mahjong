@@ -11,6 +11,8 @@ const { execFile } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = Number(process.env.PORT || 8171);
+// 可指定要跑的测试页：node tests/pages-compat.js coach-advice
+const PAGE = (process.argv[2] || 'pages-compat').replace(/\.html$/, '');
 const EDGE = ['C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
               'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
               '/usr/bin/google-chrome', '/usr/bin/chromium'].filter((p) => fs.existsSync(p))[0];
@@ -38,10 +40,10 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, '127.0.0.1', () => {
   const base = 'http://127.0.0.1:' + PORT;
-  console.log('纯静态服务器（模拟 Pages）: ' + base);
+  console.log('纯静态服务器: ' + base + '  测试页: tests/' + PAGE + '.html');
   const child = execFile(EDGE, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
     '--user-data-dir=' + path.join(__dirname, '_edgeprofile'),
-    base + '/tests/pages-compat.html'], { timeout: 120000 }, () => {});
+    base + '/tests/' + PAGE + '.html'], { timeout: 120000 }, () => {});
   const t0 = Date.now();
   const poll = setInterval(() => {
     if (result) {

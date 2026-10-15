@@ -107,9 +107,18 @@ function clickTile(w) {
     say('甲手牌张数=' + ha + ' 乙手牌张数=' + hb);
 
     // 结算面板的数字
+    // 联机状态条不能压住四家的分数条
+    var nb = doc(A).getElementById('netBar');
+    var sb = doc(A).getElementById('scorebar');
+    if (nb && sb && nb.offsetParent !== null) {
+      var r1 = nb.getBoundingClientRect(), r2 = sb.getBoundingClientRect();
+      out.netBarText = nb.textContent.trim();
+      out.netBarOverlaps = !(r1.right <= r2.left || r1.left >= r2.right || r1.bottom <= r2.top || r1.top >= r2.bottom);
+      say('联机状态条「' + out.netBarText + '」是否压住分数条：' + out.netBarOverlaps);
+    } else { out.netBarOverlaps = null; say('联机状态条没显示（跳过重叠检查）'); }
     var resA = doc(A).getElementById('modalBox');
     out.resultShown = !!(resA && /继续下一局/.test(resA.textContent));
-    out.ok = done && out.errors.length === 0;
+    out.ok = done && out.errors.length === 0 && out.netBarOverlaps !== true;
     say('结论：' + (out.ok ? '通过' : '未通过'));
   } catch (e) {
     out.errors.push(String(e && e.message || e));
