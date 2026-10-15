@@ -9,6 +9,7 @@ const os = require('os');
 const port = Number(process.argv[2] || 8000);
 const root = __dirname;
 const GAME = 'index.html';
+const PUBLIC_FILES = new Set([GAME, 'sw.js', 'manifest.webmanifest', 'icon-512.png']);
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -40,8 +41,8 @@ const server = http.createServer((req, res) => {
   if (urlPath === '/' || urlPath === '/game' || urlPath === '/index.html') urlPath = '/' + GAME;
   const file = path.resolve(root, '.' + urlPath);
   const relative = path.relative(root, file);
-  if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
-    res.writeHead(403); res.end('forbidden'); return;
+  if (!PUBLIC_FILES.has(relative)) {
+    res.writeHead(404); res.end('not found'); return;
   }
   fs.readFile(file, (err, data) => {
     if (err) {
