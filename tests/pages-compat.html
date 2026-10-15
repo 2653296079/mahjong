@@ -1,0 +1,79 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>GitHub Pages 兼容性检查</title>
+<body style="margin:0;font:13px/1.6 monospace;background:#111;color:#ddd">
+<pre id="log" style="margin:0;padding:8px;height:200px;overflow:auto"></pre>
+<iframe id="f" src="/index.html" style="width:440px;height:620px;border:1px solid #444"></iframe>
+<script>
+var out = { ok: false, steps: [], errors: [], checks: {} };
+function say(s) { out.steps.push(s); document.getElementById('log').textContent = out.steps.join('\n'); }
+var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+function boot(w) { var b = w.document.getElementById('boot'); return b && !b.classList.contains('hidden') ? b.textContent.slice(0, 200) : null; }
+function report() { fetch('/__result?d=' + encodeURIComponent(JSON.stringify(out))).then(function () {}, function () {}); }
+(async function () {
+  try {
+    var w = document.getElementById('f').contentWindow;
+    var t0 = Date.now();
+    while (Date.now() - t0 < 10000) {
+      if (w.document.getElementById('btnNet')) break;
+      await sleep(150);
+    }
+    await sleep(1200);
+
+    // 1) 单机必须完全正常
+    out.checks.bootError = boot(w);
+    out.checks.handTiles = w.document.querySelectorAll('.handRow .tile').length;
+    out.checks.scoreChips = w.document.querySelectorAll('.scoreChip').length;
+    out.checks.hasNetBtn = !!w.document.getElementById('btnNet');
+    say('单机：手牌 ' + out.checks.handTiles + ' 张，分数条 ' + out.checks.scoreChips + ' 个，联机按钮 ' + out.checks.hasNetBtn);
+
+    // 2) 点「联机」——这里没有 WebSocket 服务器，必须优雅失败而不是崩
+    w.document.getElementById('btnNet').click();
+    await sleep(400);
+    out.checks.netBoxAppeared = !!w.document.getElementById('netBox');
+    var t1 = Date.now(), err = '';
+    while (Date.now() - t1 < 9000) {
+      var box = w.document.getElementById('netBox');
+      if (box && /连不上|正在连接|断开了|出问题/.test(box.textContent)) { err = box.textContent.slice(0, 120); break; }
+      await sleep(200);
+    }
+    out.checks.netMessage = err;
+    out.checks.bootAfterNet = boot(w);
+    say('点联机后：面板出现=' + out.checks.netBoxAppeared + '，提示=' + (err || '(无)'));
+    say('联机时页面是否报错：' + (out.checks.bootAfterNet || '没有'));
+
+    // 3) 关掉面板，单机还能继续玩
+    var closeBtn = w.document.getElementById('netClose') || w.document.getElementById('netClose2') || w.document.getElementById('netClose3');
+    if (closeBtn) closeBtn.click();
+    await sleep(600);
+    out.checks.modalHiddenAfterClose = w.document.getElementById('modal').classList.contains('hidden');
+    out.checks.handStillThere = w.document.querySelectorAll('.handRow .tile').length;
+    say('关闭后：弹窗隐藏=' + out.checks.modalHiddenAfterClose + '，手牌仍为 ' + out.checks.handStillThere + ' 张');
+
+    // 4) 单机得能真的出牌（证明没被联机代码拖累）
+    var before = w.document.querySelectorAll('.handRow .tile').length;
+    var t2 = Date.now(), played = false;
+    while (Date.now() - t2 < 20000 && !played) {
+      var tile = w.document.querySelector('.handRow .clickable');
+      if (tile) { tile.click(); played = true; break; }
+      var act = w.document.querySelector('#actionBtns button');
+      if (act) { act.click(); }
+      await sleep(200);
+    }
+    await sleep(1500);
+    out.checks.played = played;
+    out.checks.bootAtEnd = boot(w);
+    say('单机出牌：' + played + '，结束时是否报错：' + (out.checks.bootAtEnd || '没有'));
+
+    // 分数条是 4 个座位 + 有等待区时多一个「等待区」提示
+    out.ok = out.checks.handTiles >= 13 && out.checks.scoreChips >= 4 &&
+             out.checks.hasNetBtn && out.checks.netBoxAppeared && !out.checks.bootError &&
+             !out.checks.bootAfterNet && out.checks.modalHiddenAfterClose && out.checks.bootAtEnd == null;
+    say('结论：' + (out.ok ? '通过' : '未通过'));
+  } catch (e) {
+    out.errors.push(String((e && e.message) || e));
+    say('异常：' + e);
+  }
+  report();
+})();
+</script>

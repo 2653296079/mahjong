@@ -2,3 +2,5 @@ tests/_edgeprofile/
 tests/shot-*.png
 server/*.txt
 *.log
+tools/
+樱花frp密钥.txt

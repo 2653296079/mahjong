@@ -3676,7 +3676,7 @@ window.onerror = function (msg, src, line, col) {
     catch (e) { NET.status = 'error'; NET.err = '服务器地址不对：' + url; netBar(); if ($('netBox')) renderNet(); return; }
     NET.ws = ws;
     ws.onopen = function () {
-      NET.status = 'on'; NET.retry = 0; NET.err = '';
+      NET.status = 'on'; NET.retry = 0; NET.err = ''; NET.everConnected = true;
       netBar();
       if (NET.room) netJoin(NET.room, NET.name, NET.token);   // 断线重连：自动回到原来的房间
       else netSend({ t: 'rooms' });
@@ -3690,7 +3690,11 @@ window.onerror = function (msg, src, line, col) {
     ws.onclose = function () {
       NET.ws = null;
       if (NET.status === 'error') { netBar(); return; }
-      NET.status = 'error'; NET.err = '与服务器断开了';
+      NET.status = 'error';
+      // 从没连上过 = 地址不对或没有服务；连上过又断 = 掉线。两种提示不能混。
+      NET.err = NET.everConnected
+        ? '与服务器断开了，正在自动重连…'
+        : '连不上 ' + url + '。这个网页本身不带牌局，需要有一台电脑在跑 node server.js，把它的地址填在下面。';
       netBar();
       if (NET.room && NET.retry < 5) {          // 掉线自动重连
         NET.retry++;
