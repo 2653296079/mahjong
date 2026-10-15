@@ -1,6 +1,6 @@
 /* 转转麻将 · Service Worker：离线可用 + 自动更新
  * 策略：页面走 network-first（保证更新及时），静态资源走 cache-first（保证离线）。 */
-var CACHE = 'zmj-v9';
+var CACHE = 'zmj-v10';
 var ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-512.png'];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ASSETS); }).then(function () { return self.skipWaiting(); }));
