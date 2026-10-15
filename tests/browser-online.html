@@ -50,11 +50,12 @@ function clickTile(w) {
   try {
     var A = document.getElementById('fa').contentWindow;
     var B = document.getElementById('fb').contentWindow;
-    await until(function () { return doc(A).getElementById('btnNet'); }, 10000, '页面 A 加载');
-    say('两个页面都加载完成');
+    await until(function () { return doc(A).getElementById('homeOnline'); }, 10000, '页面 A 加载');
+    await until(function () { return doc(B).getElementById('homeOnline'); }, 10000, '页面 B 加载');
+    say('两个页面都加载完成，主界面已出现');
 
-    // 甲进房
-    doc(A).getElementById('btnNet').click();
+    // 甲：主界面 → 联机打牌
+    doc(A).getElementById('homeOnline').click();
     await sleep(2500);
     out.diag = {
       modalHidden: doc(A).getElementById('modal').classList.contains('hidden'),
@@ -71,8 +72,8 @@ function clickTile(w) {
     doc(A).getElementById('netEnter').click();
     say('甲 提交进房');
 
-    // 乙进房
-    doc(B).getElementById('btnNet').click();
+    // 乙：主界面 → 联机打牌
+    doc(B).getElementById('homeOnline').click();
     await until(function () { return doc(B).getElementById('netName'); }, 10000, 'B 出现联机面板');
     doc(B).getElementById('netName').value = '乙';
     doc(B).getElementById('netRoomIn').value = '';

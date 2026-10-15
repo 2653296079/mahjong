@@ -15,10 +15,16 @@ function report() { fetch('/__result?d=' + encodeURIComponent(JSON.stringify(out
     var w = document.getElementById('f').contentWindow;
     var t0 = Date.now();
     while (Date.now() - t0 < 10000) {
-      if (w.document.getElementById('btnNet')) break;
+      if (w.document.getElementById('homeSolo')) break;
       await sleep(150);
     }
-    await sleep(1200);
+    out.checks.homeShown = !!w.document.getElementById('home') && !w.document.getElementById('home').classList.contains('hidden');
+    out.checks.homeHasBoth = !!w.document.getElementById('homeSolo') && !!w.document.getElementById('homeOnline');
+    say('主界面出现=' + out.checks.homeShown + '，两个入口都在=' + out.checks.homeHasBoth);
+    w.document.getElementById('homeSolo').click();     // 选单机练习
+    await sleep(1400);
+    out.checks.homeHiddenAfterPick = w.document.getElementById('home').classList.contains('hidden');
+    say('选单机后主界面隐藏=' + out.checks.homeHiddenAfterPick);
 
     // 1) 单机必须完全正常
     out.checks.bootError = boot(w);
@@ -66,7 +72,20 @@ function report() { fetch('/__result?d=' + encodeURIComponent(JSON.stringify(out
     say('单机出牌：' + played + '，结束时是否报错：' + (out.checks.bootAtEnd || '没有'));
 
     // 分数条是 4 个座位 + 有等待区时多一个「等待区」提示
-    out.ok = out.checks.handTiles >= 13 && out.checks.scoreChips >= 4 &&
+    // 工具栏的「主界面」按钮要能回到主界面，再选单机还能继续玩
+    if (w.document.getElementById('btnHome')) {
+      w.document.getElementById('btnHome').click();
+      await sleep(400);
+      out.checks.homeBackAfterButton = !w.document.getElementById('home').classList.contains('hidden');
+      say('点「主界面」后回到主界面=' + out.checks.homeBackAfterButton);
+      w.document.getElementById('homeSolo').click();
+      await sleep(900);
+      out.checks.handAfterHomeRoundTrip = w.document.querySelectorAll('.handRow .tile').length;
+      say('再选单机后手牌=' + out.checks.handAfterHomeRoundTrip + ' 张');
+    }
+    out.ok = out.checks.homeShown && out.checks.homeHasBoth && out.checks.homeHiddenAfterPick &&
+             out.checks.homeBackAfterButton && out.checks.handAfterHomeRoundTrip >= 13 &&
+             out.checks.handTiles >= 13 && out.checks.scoreChips >= 4 &&
              out.checks.hasNetBtn && out.checks.netBoxAppeared && !out.checks.bootError &&
              !out.checks.bootAfterNet && out.checks.modalHiddenAfterClose && out.checks.bootAtEnd == null;
     say('结论：' + (out.ok ? '通过' : '未通过'));

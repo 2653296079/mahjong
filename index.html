@@ -3784,12 +3784,13 @@ window.onerror = function (msg, src, line, col) {
     return netSend({ t: 'join', room: room, name: name, token: token || undefined, create: true });
   }
 
-  function netLeave() {
+  function netLeave(noHome) {
     if (NET.ws && NET.ws.readyState === 1) netSend({ t: 'leave' });
     NET.room = ''; NET.token = ''; NET.state = null;
     NET.status = NET.ws ? 'on' : 'off';
     netBar();
-    if (game && game.online) { game = null; newGame(); }   // 回到单机
+    // 离开房间回主界面，而不是直接开一局单机（用户还没选玩法）
+    if (game && game.online) { game = null; if (!noHome) showHome(); }
     if ($('netBox')) renderNet();
   }
 
@@ -4083,6 +4084,72 @@ window.onerror = function (msg, src, line, col) {
     $('modalBox').innerHTML = '<h2>联机打牌</h2><div id="netBox"></div>';
   }
 
+  // ---------- 主界面：先选单机还是联机 ----------
+  function injectHomeCss() {
+    if (document.getElementById('homeCss')) return;
+    var s = document.createElement('style');
+    s.id = 'homeCss';
+    s.textContent =
+      '#home{position:fixed;inset:0;z-index:70;display:flex;align-items:center;justify-content:center;' +
+      'padding:18px;box-sizing:border-box;overflow:auto;background:radial-gradient(circle at 50% 22%,#12684a,#07241a 72%)}' +
+      '#home.hidden{display:none}' +
+      '.homeWrap{width:100%;max-width:700px;text-align:center;color:#e8f3ec}' +
+      '.homeBrand{font-size:26px;font-weight:700;color:var(--gold);letter-spacing:1px}' +
+      '.homeSub{font-size:13px;color:#9fb3a8;margin:6px 0 20px}' +
+      '.homeCards{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}' +
+      '.homeCard{flex:1 1 280px;max-width:330px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:8px;' +
+      'padding:18px;border-radius:14px;background:#0f3b2b;border:1px solid rgba(242,193,78,.35);color:#e8f3ec;' +
+      'font-family:inherit;transition:transform .12s,border-color .12s,box-shadow .12s}' +
+      '.homeCard:hover,.homeCard:focus-visible{border-color:var(--gold);transform:translateY(-2px);' +
+      'box-shadow:0 10px 28px rgba(0,0,0,.45);outline:none}' +
+      '.homeTag{font-size:19px;font-weight:700;color:var(--gold)}' +
+      '.homeDesc{font-size:13px;line-height:1.75;color:#cfd8d3}' +
+      '.homeGo{font-size:13px;color:var(--gold);margin-top:2px}' +
+      '.homeStat{margin-top:18px;font-size:12.5px;color:#cfd8d3}' +
+      '.homeRule{margin-top:8px;font-size:11.5px;color:#8fa79a;line-height:1.7}';
+    document.head.appendChild(s);
+  }
+  function showHome() {
+    injectHomeCss();
+    var el = $('home');
+    if (!el) { el = document.createElement('div'); el.id = 'home'; document.body.appendChild(el); }
+    var sum = null;
+    try { sum = ZMJ.statsSummary(STATS || ZMJ.newStats()); } catch (e) { sum = null; }
+    var stat = sum
+      ? ('已练 ' + sum.hands + ' 局 · 和了率 ' + pct(sum.winRate) + ' · 放铳率 ' + pct(sum.paoRate) +
+         ' · 每局 ' + (sum.perHand >= 0 ? '+' : '') + sum.perHand.toFixed(1) + ' 元')
+      : '还没有练习记录：打几局之后这里会显示你的和了率、放铳率和收支';
+    el.innerHTML =
+      '<div class="homeWrap">' +
+        '<div class="homeBrand">🀄 转转麻将 · 练牌室</div>' +
+        '<div class="homeSub">选一种玩法开始</div>' +
+        '<div class="homeCards">' +
+          '<button class="homeCard" id="homeSolo">' +
+            '<span class="homeTag">单机练习</span>' +
+            '<span class="homeDesc">和三个电脑打。每次出牌都有牌效推荐和放铳风险，打错会告诉你差在哪；还有防守道场、牌谱回放和长期统计。</span>' +
+            '<span class="homeGo">开始练习 →</span>' +
+          '</button>' +
+          '<button class="homeCard" id="homeOnline">' +
+            '<span class="homeTag">联机打牌</span>' +
+            '<span class="homeDesc">开一间房和朋友一起打，人不够由电脑补位。转转轮换，谁胡了谁下桌；掉线了电脑先替你打，重连接着玩。</span>' +
+            '<span class="homeGo">进入房间 →</span>' +
+          '</button>' +
+        '</div>' +
+        '<div class="homeStat">' + stat + '</div>' +
+        '<div class="homeRule">108 张（万/条/筒 1-9，无字牌）· 不能吃，可碰可杠 · 小七对和平胡同价 · 收炮 5+鸟钱，自摸每家 10+鸟钱</div>' +
+      '</div>';
+    el.classList.remove('hidden');
+    clearTimeout(timer);                      // 菜单期间不推进牌局
+    $('homeSolo').onclick = function () {
+      hideHome();
+      if (game && game.online) netLeave(true);  // 从联机切回单机
+      cfg.seed = (Math.random() * 0xffffffff) >>> 0;
+      newGame();
+    };
+    $('homeOnline').onclick = function () { hideHome(); showNet(); };
+  }
+  function hideHome() { var el = $('home'); if (el) el.classList.add('hidden'); }
+
   $('btnExport').onclick = showExport;
   $('btnStats').onclick = showStats;
   $('btnDojo').onclick = function () { dojoNew(); };
@@ -4109,10 +4176,19 @@ window.onerror = function (msg, src, line, col) {
       b.id = 'btnNet'; b.className = 'mini'; b.textContent = '联机';
       b.onclick = showNet;
       tools.insertBefore(b, tools.firstChild);
+      var hb = document.createElement('button');
+      hb.id = 'btnHome'; hb.className = 'mini'; hb.textContent = '主界面';
+      hb.onclick = function () {
+        if (game && game.online && !window.confirm('正在联机，回主界面会离开房间。确定吗？')) return;
+        if (game && game.online) { netLeave(); $('modal').classList.add('hidden'); return; }
+        showHome();
+      };
+      tools.insertBefore(hb, b.nextSibling);
     }
     try {
       var q = new URLSearchParams(location.search).get('room');
-      if (q) { NET.wantRoom = q; setTimeout(showNet, 500); }   // 朋友发来的邀请链接
+      // 朋友发来的邀请链接：跳过主界面，直接进联机面板
+      if (q) { NET.wantRoom = q; setTimeout(function () { hideHome(); showNet(); }, 400); }
     } catch (e) {}
   })();
   $('btnNew').onclick = function () { cfg.seed = (Math.random() * 0xffffffff) >>> 0; newGame(); };
@@ -4120,7 +4196,7 @@ window.onerror = function (msg, src, line, col) {
   // 启动提示：JS 跑起来就把它收掉；跑不起来它会留在页面正中告诉用户原因
   if ($('boot')) $('boot').classList.add('hidden');
   updateRotate();
-  newGame();
+  showHome();          // 先出主界面，由用户选单机还是联机
 })();
 </script>
 <script>
