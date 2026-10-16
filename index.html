@@ -544,7 +544,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 <div id="scrim"></div>
 <div id="modal" class="hidden" role="dialog" aria-modal="true" aria-label="练牌面板"><div class="modalBox" id="modalBox" tabindex="-1"></div><button id="modalDismiss" class="mini" aria-label="关闭面板">关闭 ×</button></div>
 
-<script>
+<script id="mahjongCore">
 /* ============================================================
  * 转转麻将 · 核心引擎 (mahjong-core.js)
  * 规则（按牌桌确认版）：
@@ -2822,6 +2822,109 @@ window.onerror = function (msg, src, line, col) {
     if (!decisionCache || decisionCache.key !== key) decisionCache = { key: key, report: ZMJ.decisionReport(game.hand, hs) };
     return decisionCache.report.candidates;
   }
+  // Worker 使用同一份内联引擎；消息只包含自己的暗牌与公开信息。
+  function riskWorkerMain() {
+    self.onmessage = function (event) {
+      var job = event.data;
+      try {
+        job.hand.players.forEach(function (p, seat) {
+          if (seat !== job.seat) Object.defineProperty(p, 'concealed', { get: function () { throw new Error('hidden opponent tiles'); } });
+        });
+        var started = performance.now();
+        var result = self.ZMJ.analyzeSituation(job.hand, job.seat, job.options);
+        self.postMessage({ id: job.id, ms: performance.now() - started, worlds: result.worlds,
+          opponents: result.opponents, visiblePool: result.visiblePool, bucket: result.bucket,
+          fallback: result.fallback, realized: result.realized,
+          deals: Array.from({ length: 27 }, function (_, k) { return result.dealIn(k); }) });
+      } catch (error) { self.postMessage({ id: job.id, error: String(error.message || error) }); }
+    };
+  }
+  var riskWorker = null, riskWorkerBusy = null, riskWorkerQueued = null, riskWorkerSequence = 0;
+  var riskWorkerError = '', riskWorkerTimeout = 0, riskWorkerWanted = '';
+  function stopRiskWorker() {
+    if (riskWorker) riskWorker.terminate();
+    riskWorker = null; riskWorkerBusy = null; riskWorkerQueued = null; riskWorkerWanted = '';
+    clearTimeout(riskWorkerTimeout);
+  }
+  function riskJobCurrent(job) {
+    return job.key === riskWorkerWanted && game === job.game && game.online && game.hand && game.awaiting &&
+      game.awaiting.seat === job.seat && !game.hand.over && NET.status === 'on' && !NET.pendingAction &&
+      liveHints() && cfg.analyze && situationKey() === job.key;
+  }
+  function startRiskJob(job) {
+    riskWorkerBusy = job;
+    riskWorker.postMessage({ id: job.id, hand: job.hand, seat: job.seat, options: job.options });
+    riskWorkerTimeout = setTimeout(function () {
+      riskWorkerError = '本次后台采样超时，可继续使用基础牌效。'; stopRiskWorker();
+      if (game && game.online && game.hand) renderSituation();
+    }, 10000);
+  }
+  function createRiskWorker() {
+    if (riskWorker) return true;
+    if (riskWorkerError) return false;
+    var blobURL;
+    try {
+      if (!window.Worker) throw new Error('Worker unavailable');
+      var source = $('mahjongCore').textContent;
+      blobURL = URL.createObjectURL(new Blob([source, '\n(', riskWorkerMain.toString(), ')();'], { type: 'text/javascript' }));
+      riskWorker = new Worker(blobURL);
+      URL.revokeObjectURL(blobURL); blobURL = null;
+      riskWorker.onmessage = function (event) {
+        var value = event.data, job = riskWorkerBusy;
+        if (!job || value.id !== job.id) return;
+        clearTimeout(riskWorkerTimeout); riskWorkerBusy = null;
+        if (value.error) {
+          riskWorkerError = '后台采样暂不可用，可继续使用基础牌效。';
+          stopRiskWorker(); if (game && game.online && game.hand) renderSituation(); return;
+        }
+        if (riskJobCurrent(job)) {
+          var result = { worlds: value.worlds, opponents: value.opponents, visiblePool: value.visiblePool,
+            bucket: value.bucket, fallback: value.fallback, realized: value.realized,
+            dealIn: function (kind) { return value.deals[kind]; } };
+          cacheSituation(job.key, result, Math.round(value.ms));
+          renderSituation(); centerRiskPending = true; renderCenterTile();
+        }
+        var next = riskWorkerQueued; riskWorkerQueued = null;
+        if (next && riskJobCurrent(next)) startRiskJob(next);
+      };
+      riskWorker.onerror = function (event) {
+        event.preventDefault(); riskWorkerError = '当前浏览器无法后台采样，可继续使用基础牌效。';
+        stopRiskWorker(); if (game && game.online && game.hand) renderSituation();
+      };
+      return true;
+    } catch (_) {
+      if (blobURL) URL.revokeObjectURL(blobURL);
+      riskWorkerError = '当前浏览器无法后台采样，可继续使用基础牌效。'; stopRiskWorker(); return false;
+    }
+  }
+  function requestRiskJob(key, H, seat) {
+    riskWorkerWanted = key;
+    if (riskWorkerBusy && riskWorkerBusy.key === key || riskWorkerQueued && riskWorkerQueued.key === key) return;
+    if (!createRiskWorker()) return;
+    var hand = { turn: H.turn, turnCount: H.turnCount, wall: { length: H.wall.length },
+      players: H.players.map(function (p, s) {
+        var publicPlayer = { melds: p.melds.map(function (m) { return { type:m.type, kind:m.kind, from:m.from, ming:m.ming, bu:m.bu }; }),
+          discards: p.discards.slice(), passedWin: s === seat ? !!p.passedWin : false };
+        if (s === seat) publicPlayer.concealed = p.concealed.slice();
+        return publicPlayer;
+      }) };
+    var job = { id: ++riskWorkerSequence, key:key, game:game, seat:seat, hand:hand,
+      options: { worlds:cfg.worlds, seed:(game.handNo * 977 + H.turnCount * 31 + 7) >>> 0 } };
+    if (riskWorkerBusy) riskWorkerQueued = job;
+    else startRiskJob(job);
+  }
+  function cacheSituation(key, res, ms) {
+    var hs = game.humanSeat(), a = game.awaiting, H = game.hand;
+    var cands = (a && a.type === 'turn' ? getDiscardOptions() : []).slice(0, 5).map(function (c) {
+      var d = res.dealIn(c.kind);
+      return { kind:c.kind, shanten:c.shanten, ukeire:c.ukeire, danger:c.danger, prob:d.prob, killers:d.killers };
+    });
+    sitCache = { key:key, data:{ res:res, cands:cands, ms:ms, seat:hs }, cands:cands };
+    if (handExtra && cands.length && cands[0].shanten === 0 && handExtra.tenpaiTurn == null) {
+      var u = game.ukeireFor(hs); handExtra.tenpaiTurn = H.turnCount; handExtra.tenpaiOuts = u.total;
+    }
+    return sitCache.data;
+  }
   function getSituation() {
     var hs = game.humanSeat();
     if (hs < 0) return null;
@@ -2831,20 +2934,13 @@ window.onerror = function (msg, src, line, col) {
     var relevant = !!(a && a.seat === hs);          // 只有轮到我操作时才值得重算
     if (!relevant) return null;
     var H = game.hand;
+    if (game.online) {
+      if (!NET.pendingAction && NET.status === 'on' && cfg.analyze && liveHints()) requestRiskJob(key, H, hs);
+      return null;
+    }
     var t0 = Date.now();
     var res = ZMJ.analyzeSituation(H, hs, { worlds: cfg.worlds, seed: (game.handNo * 977 + H.turnCount * 31 + 7) >>> 0 });
-    var cands = (a && a.type === 'turn' ? getDiscardOptions() : []).slice(0, 5).map(function (c) {
-      var d = res.dealIn(c.kind);
-      return { kind: c.kind, shanten: c.shanten, ukeire: c.ukeire, danger: c.danger, prob: d.prob, killers: d.killers };
-    });
-    sitCache = { key: key, data: { res: res, cands: cands, ms: Date.now() - t0, seat: hs }, cands: cands };
-    // 采集训练数据：首次听牌时全桌的摸牌序号与未见有效张数
-    if (handExtra && cands.length && cands[0].shanten === 0 && handExtra.tenpaiTurn == null) {
-      var u = game.ukeireFor(hs);
-      handExtra.tenpaiTurn = H.turnCount;
-      handExtra.tenpaiOuts = u.total;
-    }
-    return sitCache.data;
+    return cacheSituation(key, res, Date.now() - t0);
   }
   function getTrainingGuide(kind, includePaths) {
     var hs = game.humanSeat();
@@ -2872,7 +2968,14 @@ window.onerror = function (msg, src, line, col) {
     var H = game.hand, a = game.awaiting;
     var myTurn = !!(a && a.type === 'turn' && a.seat === hs);
     var sit = getSituation();
-    if (!sit) { el.innerHTML = ''; return; }
+    if (!sit) {
+      el.textContent = game.online && a && a.seat === hs ? (riskWorkerError || (NET.pendingAction ? '操作确认后再更新风险估计。' : '正在后台采样；可以先按基础牌效判断。')) : '';
+      if (game.online && a && a.seat === hs && riskWorkerError) {
+        var retry = btn('重试后台分析', 'pass', function () { stopRiskWorker(); riskWorkerError = ''; renderSituation(); });
+        retry.id = 'retryRiskWorker'; el.appendChild(retry);
+      }
+      return;
+    }
     var res = sit.data ? sit.data : sit;
     var r = sit.res || res;
     var cands = sit.cands;
@@ -4334,6 +4437,7 @@ window.onerror = function (msg, src, line, col) {
   function renderPendingAction() {
     if (!game || !game.online || !NET.pendingAction) return;
     cancelOnlineAnalysis();
+    riskWorkerQueued = null; riskWorkerWanted = '';
     document.querySelectorAll('.handRow .tile[role="button"]').forEach(function (tile) {
       tile.setAttribute('aria-disabled', 'true'); tile.setAttribute('aria-pressed', 'false');
       tile.classList.remove('chosen');
@@ -4478,6 +4582,7 @@ window.onerror = function (msg, src, line, col) {
       if (NET.ws !== ws) return;
       NET.ws = null;
       clearPendingAction(); clearTimeout(NET.probeTimer); NET.probe = null; cancelOnlineAnalysis();
+      stopRiskWorker();
       NET.pendingReviews = {};
       if (NET.status === 'error') { netBar(); return; }
       NET.status = 'error';
@@ -4506,6 +4611,7 @@ window.onerror = function (msg, src, line, col) {
     if (NET.ws && NET.ws.readyState === 1) netSend({ t: 'leave' });
     NET.room = ''; NET.token = ''; NET.state = null; proxyGame = null;
     clearPendingAction(); cancelOnlineAnalysis(); NET.pendingReviews = {};
+    stopRiskWorker();
     try { sessionStorage.removeItem('zmj_seat_v1'); } catch (e) {}
     NET.status = NET.ws ? 'on' : 'off';
     netBar();

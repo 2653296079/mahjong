@@ -4,7 +4,7 @@ const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
 const jobs = [
-  ['--test', 'tests/core.test.js', 'tests/multi.test.js', 'tests/training.test.js', 'tests/decision.test.js', 'tests/progress.test.js', 'tests/lessons.test.js', 'tests/settlement.test.js', 'tests/server-limits.test.js', 'tests/evaluation.test.js', 'tests/offline.test.js'],
+  ['--test', 'tests/core.test.js', 'tests/multi.test.js', 'tests/training.test.js', 'tests/decision.test.js', 'tests/progress.test.js', 'tests/lessons.test.js', 'tests/settlement.test.js', 'tests/server-limits.test.js', 'tests/evaluation.test.js', 'tests/connection-check.test.js', 'tests/offline.test.js'],
   ['server/test-ws.js'], ['server/test-rooms.js'], ['server/test-online.js'],
   ['tests/no-build-check.js'], ['tests/smoke-server.js']
 ];
@@ -13,6 +13,7 @@ if (process.argv.includes('--browser')) jobs.push(
   ['tests/pages-compat.js', 'lesson-ui'],
   ['tests/pages-compat.js', 'settlement-ui'],
   ['tests/pages-compat.js', 'selection-ui'], ['tests/pages-compat.js', 'online-response', '--hub'],
+  ['tests/pages-compat.js', 'worker-ui', '--hub'],
   ['tests/pages-compat.js', 'coach-advice'], ['tests/pages-compat.js', 'reconnect', '--hub'],
   ['tests/pages-compat.js'], ['tests/browser-online.js']
 );

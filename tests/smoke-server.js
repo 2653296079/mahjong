@@ -11,12 +11,12 @@ child.stdout.on('data', (d) => { out += d; });
 child.stderr.on('data', (d) => { out += d; });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-function get(url) {
+function get(url, headers, method) {
   return new Promise((resolve, reject) => {
-    http.get(url, (res) => {
+    http.get(url, {headers, method:method || 'GET'}, (res) => {
       const chunks = [];
       res.on('data', (c) => chunks.push(c));
-      res.on('end', () => resolve({ code: res.statusCode, body: Buffer.concat(chunks), type: res.headers['content-type'] }));
+      res.on('end', () => resolve({ code: res.statusCode, body: Buffer.concat(chunks), type: res.headers['content-type'], headers:res.headers }));
     }).on('error', reject);
   });
 }
@@ -27,6 +27,17 @@ function get(url) {
     const page = await get('http://127.0.0.1:' + PORT + '/');
     if (page.code !== 200) problems.push('首页状态码 ' + page.code);
     if (!/转转麻将/.test(page.body.toString('utf8'))) problems.push('首页内容不对');
+    const packed=await get('http://127.0.0.1:'+PORT+'/',{'Accept-Encoding':'gzip'});
+    if(packed.headers['content-encoding']!=='gzip'||packed.headers.vary!=='Accept-Encoding')problems.push('首页压缩协商头不正确');
+    else if(!require('node:zlib').gunzipSync(packed.body).equals(page.body))problems.push('压缩解码后页面内容变化');
+    if(packed.body.length>=page.body.length*.4)problems.push('首页压缩后未达到体积预算');
+    const noGzip=await get('http://127.0.0.1:'+PORT+'/',{'Accept-Encoding':'gzip;q=0, *;q=1'});
+    if(noGzip.headers['content-encoding']||!noGzip.body.equals(page.body))problems.push('显式禁止 gzip 没有被遵守');
+    const head=await get('http://127.0.0.1:'+PORT+'/',{'Accept-Encoding':'gzip'},'HEAD');
+    if(head.body.length||Number(head.headers['content-length'])!==packed.body.length||head.headers['content-encoding']!=='gzip')problems.push('HEAD 的压缩元数据与 GET 不一致');
+    const icon=await get('http://127.0.0.1:'+PORT+'/icon-512.png',{'Accept-Encoding':'gzip'});
+    if(icon.headers['content-encoding'])problems.push('已压缩图片不应再次压缩');
+    console.log('首页压缩体积：'+page.body.length+' → '+packed.body.length+' 字节');
     const js = await get('http://127.0.0.1:' + PORT + '/server/rooms.js');
     if (js.code !== 404) problems.push('服务端源码不该被公开访问，实际 ' + js.code);
     const sw = await get('http://127.0.0.1:' + PORT + '/sw.js');

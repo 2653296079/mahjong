@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const online = require('./server/mjs-server');   // 联机房间（WebSocket）
+const { gzip } = require('node:zlib');
 const { loadCore } = require('./server/rooms');
 
 const port = Number(process.argv[2] || 8000);
@@ -34,6 +35,16 @@ function localIPs() {
   return out;
 }
 
+function acceptsGzip(header) {
+  const choices = String(header || '').split(',').map(item => {
+    const parts = item.trim().toLowerCase().split(';'), q = parts.slice(1).find(p => /^\s*q\s*=/.test(p));
+    const quality = q == null ? 1 : Number(q.split('=')[1].trim());
+    return { coding:parts[0].trim(), quality:Number.isFinite(quality) && quality >= 0 && quality <= 1 ? quality : 0 };
+  });
+  const explicit = choices.find(c => c.coding === 'gzip'), wildcard = choices.find(c => c.coding === '*');
+  return (explicit || wildcard || {quality:0}).quality > 0;
+}
+
 const server = http.createServer((req, res) => {
   let urlPath;
   try {
@@ -59,12 +70,17 @@ const server = http.createServer((req, res) => {
       res.end('404 Not Found: ' + urlPath);
       return;
     }
-    res.writeHead(200, {
-      'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream',
-      'Content-Length': data.length,
-      'Cache-Control': 'no-cache'
-    });
-    res.end(req.method === 'HEAD' ? undefined : data);
+    const extension = path.extname(file).toLowerCase(), compressible = ['.html','.js','.webmanifest'].includes(extension);
+    const headers = { 'Content-Type':MIME[extension] || 'application/octet-stream', 'Cache-Control':'no-cache' };
+    if (compressible) headers.Vary = 'Accept-Encoding';
+    function reply(body, compressed) {
+      if (compressed) headers['Content-Encoding'] = 'gzip';
+      headers['Content-Length'] = body.length;
+      res.writeHead(200, headers); res.end(req.method === 'HEAD' ? undefined : body);
+    }
+    if (compressible && data.length >= 1024 && acceptsGzip(req.headers['accept-encoding'])) {
+      gzip(data, {level:6}, (error, packed) => reply(!error && packed.length < data.length ? packed : data, !error && packed.length < data.length));
+    } else reply(data, false);
   });
 });
 
