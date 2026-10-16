@@ -12,7 +12,7 @@
  *     {t:'join', room?, name, token?, create?} 进房间（给 token = 重连；不给 room = 新开一间）
  *     {t:'start'}                              开局（空座位自动补电脑）
  *     {t:'next'}                               下一局
- *     {t:'act', act, kind}                     出牌/碰/杠/胡/过
+ *     {t:'act', act, kind, rev, requestId}      基于 rev 操作，requestId 防重复
  *     {t:'chat', text}                         聊天
  *     {t:'ping'}                               保活
  *   服务器 → 客户端
@@ -87,7 +87,7 @@ function attach(server, opts) {
     try { msg = JSON.parse(raw); } catch (e) { return send(session, { t: 'err', msg: '消息不是合法 JSON' }); }
     if (!msg || typeof msg !== 'object') return;
     try { handle(session, msg); }
-    catch (e) { send(session, { t: 'err', msg: String((e && e.message) || e) }); }
+    catch (e) { send(session, { t: 'err', msg: String((e && e.message) || e), requestId: typeof msg.requestId === 'string' ? msg.requestId : undefined }); }
   }
 
   function needRoom(session) {
@@ -107,7 +107,28 @@ function attach(server, opts) {
       }
       case 'start': { const r = needRoom(session); r.start(); broadcast(r); return; }
       case 'next': { const r = needRoom(session); r.next(); broadcast(r); return; }
-      case 'act': { const r = needRoom(session); r.act(session.member, msg); broadcast(r); return; }
+      case 'act': {
+        const r = needRoom(session), member = session.member;
+        if (!Number.isInteger(msg.rev) || typeof msg.requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(msg.requestId)) {
+          throw new Error('操作缺少局面版本或请求编号，请刷新页面后重试');
+        }
+        if (!member.actions) member.actions = new Map();
+        const signature = JSON.stringify([msg.act, msg.kind]);
+        if (member.actions.has(msg.requestId)) {
+          if (member.actions.get(msg.requestId) !== signature) throw new Error('同一请求编号不能用于不同操作');
+          send(session, { t: 'ack', requestId: msg.requestId, duplicate: true });
+          send(session, r.viewFor(member)); return;
+        }
+        if (msg.rev !== r.rev) {
+          send(session, { t: 'err', msg: '牌局已更新，请根据最新牌面重新确认操作', code: 'stale', requestId: msg.requestId });
+          send(session, r.viewFor(member)); return;
+        }
+        r.act(member, msg);
+        member.actions.set(msg.requestId, signature);
+        if (member.actions.size > 64) member.actions.delete(member.actions.keys().next().value);
+        send(session, { t: 'ack', requestId: msg.requestId, duplicate: false });
+        broadcast(r); return;
+      }
       case 'chat': {
         const r = needRoom(session);
         const c = r.pushChat(session.member, msg.text);
@@ -132,7 +153,7 @@ function attach(server, opts) {
     }
     // 同一连接重复点击进房只刷新状态；重连后旧连接不再拥有该座位。
     const sameMember = session.room === room && session.member && session.member.conn === session && !session.member.gone;
-    const previous = msg.token && room.memberByToken(msg.token);
+    const previous = sameMember ? session.member : msg.token && room.memberByToken(msg.token);
     const oldSession = previous && previous.conn;
     if (session.room && session.room !== room) doLeave(session);
     const member = sameMember ? session.member : room.join(msg.name, msg.token);

@@ -1,0 +1,69 @@
+<!doctype html><meta charset="utf-8"><title>推荐讲解与练习模式验收</title>
+<pre id="log"></pre><iframe id="game" style="width:390px;height:844px;border:0"></iframe>
+<script>
+var out = { ok: false, steps: [], errors: [] };
+function check(ok, msg) { if (!ok) throw new Error(msg); out.steps.push(msg); }
+function pause(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+async function load(mode) {
+  localStorage.setItem('zmj_cfg_v2', JSON.stringify({ sound: false, analyze: false, seed: 20261016, turnTime: 0, learningMode: mode }));
+  var f = document.getElementById('game');
+  await new Promise(function (r) { f.onload = r; f.src = '/index.html?mode=' + mode; });
+  var w = f.contentWindow, d = w.document; d.getElementById('homeSolo').click();
+  return { w: w, d: d, g: w.__zmjGame };
+}
+(async function () {
+  try {
+    var x = await load('exam'), w = x.w, d = x.d, g = x.g;
+    check(!/牌效推荐打/.test(d.getElementById('coach').textContent + d.getElementById('hint').textContent + d.getElementById('miniHint').textContent), '整局测验隐藏出牌前的答案');
+    check(/整局测验/.test(d.getElementById('situation').textContent + d.getElementById('myStat').textContent), '测验的侧栏也不泄漏进张与采样答案');
+    for (var i = 0; i < 1000 && !g.hand.over; i++) {
+      if (g.awaiting) {
+        var a = g.awaiting, buttons = Array.from(d.querySelectorAll('#actionBtns button'));
+        if (a.type === 'claim') buttons.find(function (b) { return /过/.test(b.textContent); }).click();
+        else if (a.options.canZimo) buttons.find(function (b) { return /自摸/.test(b.textContent); }).click();
+        else {
+          var tile = d.querySelector('[aria-label^="打出"]'); tile.click();
+          if (g.awaiting === a) tile.click();
+        }
+      } else if (g.hasPendingResolve()) g.resolvePending();
+      else g.aiStep();
+      w.dispatchEvent(new w.Event('resize'));
+    }
+    check(g.hand.over, '整局测验通过真实点击弃牌完成一局');
+    for (var n = 0; n < 30 && !/关键弃牌回顾/.test(d.getElementById('modalBox').textContent); n++) await pause(50);
+    check(/关键弃牌回顾/.test(d.getElementById('modalBox').textContent), '结算后展示当时信息生成的关键弃牌回顾');
+    x = await load('feedback'); w = x.w; d = x.d; g = x.g;
+    check(/先判断后反馈/.test(d.getElementById('hint').textContent), '先判断模式出牌前隐藏讲解');
+    var tile = d.querySelector('[aria-label^="打出"]'); tile.click();
+    if (d.getElementById('coachEyebrow').textContent !== '上一手复盘') tile.click();
+    check(/上一手复盘/.test(d.getElementById('coachEyebrow').textContent), '先判断模式出牌后显示比较');
+    x = await load('guided'); w = x.w; d = x.d; g = x.g;
+    function fixture(id) {
+      var H = w.ZMJ.practiceHand(id); H.wall = g.hand.wall; g.hand.players = H.players;
+      g.awaiting = { type: 'turn', seat: 0, options: { canZimo: false, anGang: [], buGang: [] } };
+      w.dispatchEvent(new w.Event('resize'));
+    }
+    fixture('shape-1');
+    check(/平均听/.test(d.getElementById('hint').textContent) && /其余/.test(d.getElementById('hint').textContent), '一向听讲解显示平均听口和全部路线入口');
+    var before = JSON.stringify(g.hand), choice = d.getElementById('guideChoice'); choice.value = '0'; choice.onchange();
+    check(/→/.test(d.getElementById('guideTrial').textContent), '试算其他弃牌也能查看下一摸的做牌路线');
+    check(JSON.stringify(g.hand) === before, '试算不会修改真实牌局');
+    fixture('pairs-1'); g.awaiting.options.anGang = [0]; w.dispatchEvent(new w.Event('resize'));
+    check(/放弃小七对/.test(d.getElementById('coachDetail').textContent) && !/建议暗杠/.test(d.getElementById('coachMain').textContent), '暗杠讲解明确七对代价，不因杠钱固定推荐');
+    fixture('visible-3');
+    check(/结构上已经听牌/.test(d.getElementById('hint').textContent) && /未见有效张为 0/.test(d.getElementById('hint').textContent), '枯听提示与零未见张数一致');
+    for (var width of [360, 390, 430]) {
+      document.getElementById('game').style.width = width + 'px'; await pause(30);
+      check(d.documentElement.scrollWidth <= width + 1, width + ' 像素牌桌没有页面横向溢出');
+    }
+    document.getElementById('game').style.width = '844px'; document.getElementById('game').style.height = '390px'; await pause(50);
+    var scores = d.getElementById('scorebar').getBoundingClientRect(), tools = d.querySelector('.tools').getBoundingClientRect();
+    check(scores.bottom <= tools.top + 1, '横屏时分数与工具栏各占一行，不互相遮盖');
+    var firstChip = d.querySelector('.scoreChip'), chipBox = firstChip.getBoundingClientRect();
+    check(chipBox.width <= scores.width && d.documentElement.scrollWidth <= 845, '横屏分数可辨认且页面没有横向溢出');
+    out.ok = true;
+  } catch (e) { out.errors.push(e.message); }
+  document.getElementById('log').textContent = JSON.stringify(out, null, 2);
+  fetch('/__result?d=' + encodeURIComponent(JSON.stringify(out)));
+})();
+</script>

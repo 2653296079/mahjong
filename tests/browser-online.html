@@ -83,6 +83,11 @@ function clickTile(w) {
     await sleep(800);
 
     // 甲开始对局
+    var originalSave = A.Storage.prototype.setItem;
+    A.Storage.prototype.setItem = function (key, value) {
+      if (key === 'zmj_stats_v1') out.savedStatsA = JSON.parse(value);
+      return originalSave.call(this, key, value);
+    };
     var startBtn = await until(function () { return doc(A).getElementById('netStart') || null; }, 10000, '出现开始按钮');
     startBtn.click();
     say('甲 点开始对局');
@@ -96,6 +101,11 @@ function clickTile(w) {
       if (!doc(w).getElementById('table').textContent.includes('<b>乙</b>')) throw new Error('昵称未按纯文本显示');
     });
     say('两位真人同桌、各自手牌可见、对手牌背隐藏、昵称按文本显示');
+    // 同一旧画面连续点击会发出多个请求，但服务器只接受其中一次。
+    var rapidTile = doc(A).querySelector('.handRow .clickable');
+    if (!rapidTile) throw new Error('甲开局没有可打牌');
+    rapidTile.click(); rapidTile.click(); rapidTile.click(); rapidTile.click();
+    await sleep(300);
     // 打出至少一手，直到出现「继续下一局」
     var acts = 0, tiles = 0, done = false;
     var t0 = Date.now();
@@ -129,6 +139,11 @@ function clickTile(w) {
     } else { out.netBarOverlaps = null; say('联机状态条没显示（跳过重叠检查）'); }
     var resA = doc(A).getElementById('modalBox');
     out.resultShown = !!(resA && /继续下一局/.test(resA.textContent));
+    var record = A.__zmjGame.records[A.__zmjGame.records.length - 1];
+    var acceptedDiscards = record.events.filter(function (e) { return e.t === 'x' && e.s === A.__zmjGame.humanSeat(); }).length;
+    if (!out.savedStatsA || out.savedStatsA.recTotal !== acceptedDiscards) throw new Error('训练成绩计入了未被服务器接受的出牌');
+    say('快速连点被拒绝的操作不计成绩：记录 ' + out.savedStatsA.recTotal + ' 次，牌谱实际 ' + acceptedDiscards + ' 次');
+    delete out.savedStatsA;
     out.ok = done && out.errors.length === 0 && out.netBarOverlaps !== true;
     say('结论：' + (out.ok ? '通过' : '未通过'));
   } catch (e) {

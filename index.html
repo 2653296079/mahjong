@@ -385,6 +385,12 @@ main{flex:1;display:flex;min-height:0}
 }
 
 /* 训练工作台与可访问弹窗 */
+@media(max-width:1120px){
+  #topbar{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 8px}
+  .tools{grid-column:1/-1;min-width:0;overflow-x:auto;scrollbar-width:none}
+  #scorebar{min-width:0;overflow-x:auto;scrollbar-width:none}
+  .scoreChip{flex:0 0 auto}
+}
 #modal{z-index:90;padding:48px 12px 14px}
 #modalDismiss{position:absolute;right:max(14px,env(safe-area-inset-right));top:max(8px,env(safe-area-inset-top));min-height:36px}
 #modalBox{max-height:calc(100dvh - 72px);overscroll-behavior:contain}
@@ -555,6 +561,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
   var SUITS = ['万', '条', '筒'];
   var NUM_CN = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
   var KINDS = 27;
+  var RULES_VERSION = 'zhuanzhuan-108-v1';
+  var ANALYSIS_VERSION = 'paixiao-v2';
 
   var RULES = {
     discardBase: 5,      // 收炮基础：叠加在鸟钱之上（放炮者付 基础 + 鸟钱）
@@ -567,8 +575,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
     birdZero: 30,        // 0 只鸟 = 6 番
     birdSix: 60,         // 6 只鸟 = 12 番
     sevenPairsAllowQuad: true,
-    winGain: 43,        // 和了一局的期望收益（自摸 68 / 收炮 17.7 的混合）
-    riskWeight: 17.67   // 放铳一次的期望损失（可标定：与 winGain 的比值决定攻守倾向）
+    winGain: 43,        // 实验性进攻分权重；不是当前局面的精确收益
+    riskWeight: 17.67   // 实验性风险分权重；待独立校准
   };
 
   // ---------- 基础工具 ----------
@@ -788,6 +796,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
   function waitTiles(counts, meldCount) {
     var res = [];
     for (var k = 0; k < KINDS; k++) {
+      if (counts[k] >= 4) continue;
       counts[k]++;
       var ok = isWin(counts, meldCount);
       counts[k]--;
@@ -1065,8 +1074,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
     };
   }
 
-  /* 单步决策质量评估（NAGA/Mortal 式「每手 EV 损失」）
-   * 给定局面与座位，用校准后的模型给每张候选牌打分，返回 {best, scores:{kind->ev}, byKind}
+  /* 单步攻守启发式：进张推进分与采样风险的加权值，未校准为真实收益。
+   * 返回 {best, scores:{kind->score}}；旧 API 名保留兼容。
    * allowFold=true 时把"最安全的几张"也纳入候选（与 v3 一致） */
   function discardEVs(hand, seat, opts) {
     opts = opts || {};
@@ -1214,7 +1223,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
     for (r = 0; r < 13; r++) { for (s = 0; s < 4; s++) players[s].concealed[wall.shift()]++; }
     var birds = wall.splice(wall.length - RULES.birdCount, RULES.birdCount);
     var rec = {
-      no: 0, dealer: dealer,
+      no: 0, dealer: dealer, rulesVersion: RULES_VERSION, analysisVersion: ANALYSIS_VERSION,
       initial: players.map(function (p) { return p.concealed.slice(); }),
       events: [], birds: null, result: null
     };
@@ -1249,21 +1258,18 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
   function evaluateDiscards(hand, seat) {
     var p = hand.players[seat], mc = meldCountOf(p);
     var unseen = unseenCounts(hand, seat);
-    var out = [], minsh = 99;
+    var out = [];
     for (var k = 0; k < KINDS; k++) {
       if (p.concealed[k] === 0) continue;
       p.concealed[k]--;
       var s = shanten(p.concealed, mc);
       p.concealed[k]++;
-      if (s < minsh) minsh = s;
       out.push({ kind: k, shanten: s, ukeire: 0, danger: 0 });
     }
     out.forEach(function (o) {
-      {
-        p.concealed[o.kind]--;
-        o.ukeire = ukeire(p.concealed, mc, unseen).total;
-        p.concealed[o.kind]++;
-      }
+      p.concealed[o.kind]--;
+      o.ukeire = ukeire(p.concealed, mc, unseen).total;
+      p.concealed[o.kind]++;
       o.danger = dangerOf(hand, seat, o.kind);
     });
     out.sort(function (a, b) {
@@ -1323,7 +1329,11 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
       });
     }
     var weightedWait = paths.reduce(function (sum, path) { return sum + path.drawCount * path.waitTotal; }, 0);
-    return { kind: discard, shanten: sh, draws: draws, total: total,
+    return { rulesVersion: RULES_VERSION, analysisVersion: ANALYSIS_VERSION,
+      kind: discard, shanten: sh, standardShanten: shantenStandard(counts, mc),
+      sevenPairsShanten: mc ? null : shantenSevenPairs(counts),
+      deadWait: sh === 0 && total === 0, structuralWaits: sh === 0 ? waitTiles(counts, mc) : [],
+      draws: draws, total: total,
       unknown: unknown, chanceNext: unknown ? total / unknown : 0, paths: paths,
       averageWait: total && paths.length ? weightedWait / total : null,
       twoDrawWin: unknown > 1 && paths.length ? weightedWait / (unknown * (unknown - 1)) : null };
@@ -1343,6 +1353,57 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
     return !!(a && b && a.shanten === b.shanten && a.ukeire === b.ukeire);
   }
 
+  // 键只包含本座位已知信息；公开牌内容变化时，提示和采样都必须失效。
+  function publicDecisionKey(hand, seat) {
+    var p = hand.players[seat];
+    return JSON.stringify([RULES_VERSION, ANALYSIS_VERSION, RULES.sevenPairsAllowQuad,
+      seat, p.concealed, p.melds, visiblePool(hand, seat),
+      hand.players.map(function (q) { return [q.discards, q.melds]; }),
+      !!p.passedWin, hand.turn, hand.turnCount, hand.wall.length]);
+  }
+  function decisionReport(hand, seat) {
+    var candidates = evaluateDiscards(hand, seat);
+    return { rulesVersion: RULES_VERSION, analysisVersion: ANALYSIS_VERSION,
+      stateKey: publicDecisionKey(hand, seat), candidates: candidates,
+      equivalentKinds: candidates.filter(function (o) { return sameEfficiency(o, candidates[0]); }).map(function (o) { return o.kind; }) };
+  }
+
+  // 枚举随机补摸后可达到的最低结构向听。它是牌形比较，不是杠牌总收益。
+  function kongAdvice(hand, seat, kind, type, from) {
+    var p = hand.players[seat], counts = p.concealed.slice(), melds = p.melds.length;
+    if (hand.wall.length === 0) return null;
+    if (type === 'an') { if (counts[kind] !== 4) return null; counts[kind] -= 4; melds++; }
+    else if (type === 'ming') { if (counts[kind] < 3) return null; counts[kind] -= 3; melds++; }
+    else if (type === 'bu') {
+      if (!counts[kind] || !p.melds.some(function (m) { return m.type === 'peng' && m.kind === kind; })) return null;
+      counts[kind]--;
+    } else return null;
+    var pool = visiblePool(hand, seat), unknown = sumCounts(pool);
+    var before = type === 'ming' ? shanten(p.concealed, p.melds.length) : evaluateDiscards(hand, seat)[0].shanten;
+    var keep = 0, ready = 0, weighted = 0;
+    for (var k = 0; k < KINDS; k++) {
+      if (!pool[k] || counts[k] >= 4) continue;
+      counts[k]++;
+      var after = shanten(counts, melds);
+      // 补摸已和牌时不再强制弃牌；否则枚举合法弃牌。
+      if (after !== -1) {
+        after = 99;
+        for (var d = 0; d < KINDS; d++) if (counts[d]) {
+          counts[d]--; after = Math.min(after, shanten(counts, melds)); counts[d]++;
+        }
+      }
+      counts[k]--;
+      weighted += pool[k] * after;
+      if (after <= before) keep += pool[k];
+      if (after <= 0) ready += pool[k];
+    }
+    return { kind: kind, type: type, beforeShanten: before, unknown: unknown,
+      keepChance: unknown ? keep / unknown : 0, readyChance: unknown ? ready / unknown : 0,
+      averageShanten: unknown ? weighted / unknown : null,
+      gain: type === 'an' ? RULES.gangAn * 3 : type === 'bu' ? RULES.gangBu * 3 : RULES.gangMing,
+      losesSevenPairs: type !== 'bu' && p.melds.length === 0 && shantenSevenPairs(p.concealed) <= before };
+  }
+
   // 固定可复现题库；题目只展示自己的 14 张牌，不虚构牌河或对手信息。
   var PRACTICE_CASES = [
     { id: 'wide-1', topic: '听得更宽', tiles: '12345m12366s1239p', lesson: '比较实际未见和牌张数：两面通常比单钓宽，但自己已经拿着的同种牌也要扣除。' },
@@ -1353,8 +1414,22 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
     { id: 'shape-3', topic: '先降向听', tiles: '124569m345s22678p', lesson: '已经成形的顺子和对子有价值；多余搭子之间，再比较接纳有效牌的能力。' },
     { id: 'pairs-1', topic: '小七对', tiles: '111144m88s337789p', lesson: '本桌四张相同牌可以作两对。小七对和普通牌型同时计算，选向听更低的路线。' },
     { id: 'pairs-2', topic: '小七对', tiles: '113355m2277s5688p', lesson: '六对加两张单牌时，保留哪张单牌决定听口。小七对的单钓也要数未见张数。' },
-    { id: 'pairs-3', topic: '小七对', tiles: '1111m335577s2899p', lesson: '四张计两对是本练习器的规则。拆四张可能损失一对，要先看向听是否倒退。' }
+    { id: 'pairs-3', topic: '小七对', tiles: '1111m335577s2899p', lesson: '四张计两对是本练习器的规则。拆四张可能损失一对，要先看向听是否倒退。' },
+    { id: 'visible-1', topic: '数未见牌', tiles: '12367m12355s1239p', visible: [4,4,4,4], lesson: '牌河里四张五万已经全见。六七万虽然结构上听五八万，现在只剩八万的四张未见和牌张。' },
+    { id: 'visible-2', topic: '数未见牌', tiles: '113355m2277s5688p', visible: [22,22,22], lesson: '五筒已经在牌河出现三张，自己还有一张。保留五筒单钓是枯听；打五筒、保留六筒才能有未见和牌张。' },
+    { id: 'visible-3', topic: '数未见牌', tiles: '12367m12355s1239p', visible: [4,4,4,4,7,7,7,7], lesson: '所有五万、八万已经全见。打九筒结构上听牌，却没有未见和牌张；基础排序仍先看向听，实战需要继续改良，不能把听牌当作必然能胡。' }
   ];
+  // 变式只供迁移小测：换花色并反转序数。它们属于同一牌形家族，不冒充独立题型。
+  var basePracticeCases = PRACTICE_CASES.slice();
+  basePracticeCases.forEach(function (q) {
+    for (var v = 1; v <= 2; v++) {
+      var mapKind = function (k) { return ((Math.floor(k / 9) + v) % 3) * 9 + (8 - k % 9); };
+      PRACTICE_CASES.push({ id: q.id + '-transfer-' + v, family: q.id, topic: q.topic, assessment: true,
+        tiles: q.tiles.replace(/([1-9]+)([msp])/g, function (_, digits, suit) {
+          return digits.split('').map(function (n) { return 10 - Number(n); }).join('') + 'msp'[('msp'.indexOf(suit) + v) % 3];
+        }), visible: (q.visible || []).map(mapKind), lesson: '先比较向听，再按自己的牌与牌河扣除未见张数；同等牌效的答案均可接受。这是同类牌形的变式。' });
+    }
+  });
   function practiceHand(id) {
     var spec = PRACTICE_CASES.filter(function (q) { return q.id === id; })[0];
     if (!spec) return null;
@@ -1365,7 +1440,49 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
       digits.split('').forEach(function (n) { H.players[0].concealed[offset + Number(n) - 1]++; });
       return '';
     });
+    H.players[1].discards = (spec.visible || []).slice();
     return H;
+  }
+
+  function readPracticeProgress(raw) {
+    var clean = { version: 2, rulesVersion: RULES_VERSION, attempts: 0, correct: 0, wrong: [], cards: {}, assessment: { attempts: 0, correct: 0 } };
+    if (raw && raw.version != null && raw.version !== 2) return clean;
+    if (!raw || !Number.isSafeInteger(raw.attempts) || raw.attempts < 0 ||
+        !Number.isSafeInteger(raw.correct) || raw.correct < 0 || raw.correct > raw.attempts || !Array.isArray(raw.wrong)) return clean;
+    if (raw.rulesVersion && raw.rulesVersion !== RULES_VERSION) return clean;
+    clean.attempts = raw.attempts; clean.correct = raw.correct;
+    clean.wrong = raw.wrong.filter(function (id, i, all) { return all.indexOf(id) === i && PRACTICE_CASES.some(function (q) { return q.id === id; }); });
+    PRACTICE_CASES.forEach(function (q) {
+      var card = raw.cards && raw.cards[q.id];
+      if (card && Number.isInteger(card.stage) && card.stage >= 0 && card.stage <= 3 &&
+          Number.isFinite(card.dueAt) && card.dueAt >= 0 && Number.isFinite(card.lastAt) && card.lastAt >= 0 &&
+          ['向听增加', '进张损失', '同优'].indexOf(card.reason) >= 0) {
+        clean.cards[q.id] = { stage: card.stage, dueAt: card.dueAt, lastAt: card.lastAt, reason: card.reason };
+      }
+    });
+    if (raw.assessment && Number.isSafeInteger(raw.assessment.attempts) && raw.assessment.attempts >= 0 &&
+        Number.isSafeInteger(raw.assessment.correct) && raw.assessment.correct >= 0 && raw.assessment.correct <= raw.assessment.attempts) {
+      clean.assessment = { attempts: raw.assessment.attempts, correct: raw.assessment.correct };
+    }
+    return clean;
+  }
+  function recordPracticeAttempt(progress, id, kind, now) {
+    if (!Number.isFinite(now) || now < 0) return null;
+    var H = practiceHand(id);
+    if (!H) return null;
+    var opts = evaluateDiscards(H, 0), mine = opts.filter(function (o) { return o.kind === kind; })[0];
+    if (!mine) return null;
+    var next = readPracticeProgress(progress), good = sameEfficiency(mine, opts[0]);
+    next.attempts++;
+    if (good) { next.correct++; next.wrong = next.wrong.filter(function (k) { return k !== id; }); }
+    else if (next.wrong.indexOf(id) < 0) next.wrong.push(id);
+    var previous = next.cards[id], stage = good ? Math.min(3, previous ? previous.stage + 1 : 1) : 0;
+    next.cards[id] = { stage: stage, lastAt: now,
+      dueAt: now + [0, 1, 3, 7][stage] * 86400000,
+      reason: good ? '同优' : mine.shanten > opts[0].shanten ? '向听增加' : '进张损失' };
+    var q = PRACTICE_CASES.filter(function (q) { return q.id === id; })[0];
+    if (q.assessment && !previous) { next.assessment.attempts++; if (good) next.assessment.correct++; }
+    return next;
   }
 
   // 碰牌必须比较“碰完并弃牌”的 13-3m 张状态，且不能修改实时牌局。
@@ -1399,7 +1516,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
     var seed = (opts.seed == null ? ((Math.random() * 0xffffffff) >>> 0) : opts.seed) >>> 0;
     var rng = mulberry32(seed);
     var rotate = opts.rotate !== false;
-    var aiStyle = opts.aiStyle || 'ev';   // 'ev' = 按期望值打（会放过炮等自摸）; 'greedy' = 见炮就胡
+    var aiStyle = opts.aiStyle || 'greedy';   // 'ev' 为实验性过胡策略；默认有胡就收。
     var npcNames = ['阿湘', '老陈', '小满', '胖哥', '梅姨', '铁头', '阿莲', '老周', '小郭'];
     var G = {
       seed: seed, rotate: rotate, handNo: 0, dealer: 0,
@@ -1805,7 +1922,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
     }
 
     // ---- AI ----
-    // 收炮决策：按 EV（自摸值 6 倍收炮）决定是否放过
+    // 实验性过胡启发式；不是经校准的收益模型，默认关闭。
     function aiWinDecision(seat, kind) {
       if (aiStyle === 'greedy') return 'hu';
       var H = G.hand, p = H.players[seat];
@@ -1816,7 +1933,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
       // 别人明显在提速（副露 2 组以上）时提高收炮倾向
       var threat = 0;
       for (var t = 0; t < 4; t++) if (t !== seat && H.players[t].melds.length >= 2) threat++;
-      // 速查表门槛：自摸值 6 倍收炮，宽听且巡目足够才放过等自摸
+      // 宽听、巡目充足时尝试过胡；这些门槛未覆盖对手提前胡牌等整局竞争。
       var need = outs >= 8 ? 2 : outs >= 6 ? 3 : outs >= 4 ? 4 : outs >= 3 ? 5 : 8;
       if (threat >= 2) need += 2;
       if (outs >= 2 && left >= need) return 'pass';
@@ -1824,27 +1941,14 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
     }
 
     function aiPengDecision(seat, kind) {
-      var H = G.hand, p = H.players[seat];
-      var mc = meldCountOf(p);
-      var before = shanten(p.concealed, mc);
-      p.concealed[kind] -= 2;
-      var after = shanten(p.concealed, mc + 1);
-      p.concealed[kind] += 2;
-      // 碰后必须严格推进向听，且不能破坏七对
-      if (after >= before) return false;
-      var sp = shantenSevenPairs(p.concealed);
-      if (mc === 0 && sp <= before) return false; // 七对不差时不碰
-      return true;
+      var H = G.hand;
+      var advice = pengAdvice(H, seat, kind, H.lastDiscard ? H.lastDiscard.seat : -1);
+      return !!(advice && advice.better);
     }
 
-    /* v2：用「对手手牌采样得到的放铳概率」做期望值打分。
-     * EV(打 k) = P(最终和了) × 和了收益 − P(立即放铳) × 放铳损失
-     *   P(和了) 由进张数与剩余巡目估算：P ≈ (1 − e^(−u·d/W))^max(1,向听)
-     *   收益取值：自摸 +68 / 收炮 +17.7 → 综合约 43 元；放铳 −17.7 元
-     */
-    /* 期望值打分（v2 / v3 共用）
-     * EV(打 k) = P(最终和了) × 43 元 − P(立即放铳) × 17.7 元
-     *   P(和了) ≈ (1 − e^(−进张·剩余巡目/牌墙))^max(1,向听)
+    /* 攻守启发式打分（v2 / v3 共用）。
+     * 将固定有效牌的抽中基准按向听衰减，再减去采样风险分。
+     * 它不是完整和牌概率或真实金额 EV，权重需要独立校准。
      * allowFold=true（v3）时，候选集额外纳入【手牌里最安全的几张】，
      *   即使它们会牺牲向听 —— 这才是真正意义上的弃和（ベタオリ）。
      */
@@ -2049,7 +2153,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
       var legend = [];
       for (var k = 0; k < KINDS; k++) legend.push(tileName(k));
       return {
-        game: '转转麻将', version: 3, exportedAt: new Date().toISOString(),
+        game: '转转麻将', version: 3, rulesVersion: RULES_VERSION, analysisVersion: ANALYSIS_VERSION, exportedAt: new Date().toISOString(),
         rules: RULES, tileLegend: legend, hands: G.records
       };
     };
@@ -2089,9 +2193,12 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
     newCounts: newCounts, sumCounts: sumCounts,
     isWin: isWin, isSevenPairs: isSevenPairs,
     shanten: shanten, shantenStandard: shantenStandard, shantenSevenPairs: shantenSevenPairs,
+    rulesVersion: RULES_VERSION, analysisVersion: ANALYSIS_VERSION,
     ukeire: ukeire, evaluateDiscards: evaluateDiscards, trainingGuide: trainingGuide,
+    publicDecisionKey: publicDecisionKey, decisionReport: decisionReport, kongAdvice: kongAdvice,
     drawChance: drawChance, sameEfficiency: sameEfficiency, pengAdvice: pengAdvice,
     practiceCases: PRACTICE_CASES, practiceHand: practiceHand,
+    readPracticeProgress: readPracticeProgress, recordPracticeAttempt: recordPracticeAttempt,
     birdFan: birdFan, birdMoney: birdMoney, countBirds: countBirds,
     analyzeSituation: analyzeSituation, visiblePool: visiblePool, waitTiles: waitTiles,
     newStats: newStats, accumulateStats: accumulateStats, statsSummary: statsSummary,
@@ -2123,7 +2230,7 @@ window.onerror = function (msg, src, line, col) {
   var POS_NAME = ['你', '下家', '对家', '上家'];
 
   var game = null, timer = null;
-  var cfg = { rotate: true, claimStyle: 'ev', aiStyle: 'v2', hint: true, seed: null, analyze: true,
+  var cfg = { rotate: true, claimStyle: 'greedy', aiStyle: 'v2', hint: true, learningMode: 'guided', seed: null, analyze: true,
               worlds: 150, turnTime: 0, aiThink: 1, sound: true };
   try {
     var savedCfg = JSON.parse(localStorage.getItem('zmj_cfg_v2') || 'null');
@@ -2132,6 +2239,7 @@ window.onerror = function (msg, src, line, col) {
         if (typeof savedCfg[key] === 'boolean') cfg[key] = savedCfg[key];
       });
       if (['ev', 'greedy'].indexOf(savedCfg.claimStyle) >= 0) cfg.claimStyle = savedCfg.claimStyle;
+      if (['guided', 'feedback', 'exam'].indexOf(savedCfg.learningMode) >= 0) cfg.learningMode = savedCfg.learningMode;
       if (['v1', 'v2', 'v3'].indexOf(savedCfg.aiStyle) >= 0) cfg.aiStyle = savedCfg.aiStyle;
       if ([80, 150, 300].indexOf(savedCfg.worlds) >= 0) cfg.worlds = savedCfg.worlds;
       if ([0, 15, 30, 60].indexOf(savedCfg.turnTime) >= 0) cfg.turnTime = savedCfg.turnTime;
@@ -2140,8 +2248,11 @@ window.onerror = function (msg, src, line, col) {
     }
   } catch (e) {}
   function saveConfig() { try { localStorage.setItem('zmj_cfg_v2', JSON.stringify(cfg)); } catch (e) {} }
+  function liveHints() { return cfg.hint && cfg.learningMode === 'guided'; }
+  function hiddenHintText() { return cfg.learningMode === 'exam' ? '整局测验中：先独立判断，结算后查看关键弃牌回顾。' : cfg.learningMode === 'feedback' ? '先判断后反馈：出牌前隐藏建议，出牌后显示比较。' : '提示已关闭'; }
   var turnDeadline = 0, pauseStarted = 0, lastAwaiting = null, lastPopKind = -1, feedback = null;
   var guideCache = { key: '', entries: {} };
+  var decisionCache = null;
   // ---------- 训练统计（跨会话持久化） ----------
   var STAT_KEY = 'zmj_stats_v1';
   var STATS = null, handExtra = null, settledHandNo = 0;
@@ -2151,7 +2262,7 @@ window.onerror = function (msg, src, line, col) {
     return STATS;
   }
   function saveStats() { try { localStorage.setItem(STAT_KEY, JSON.stringify(STATS)); } catch (e) {} }
-  function resetHandExtra() { handExtra = { tenpaiTurn: null, tenpaiOuts: null, recFollow: 0, recTotal: 0 }; }
+  function resetHandExtra() { handExtra = { tenpaiTurn: null, tenpaiOuts: null, recFollow: 0, recTotal: 0, reviews: [] }; }
   // 每局结算时并入统计（幂等：同一局只记一次）
   function recordHandStats() {
     var r = game.lastResult;
@@ -2606,9 +2717,16 @@ window.onerror = function (msg, src, line, col) {
   }
   // ---------- 局势分析（对手手牌采样 + 放铳概率） ----------
   function situationKey() {
-    var H = game.hand, a = game.awaiting;
-    var sig = H.players.map(function (p) { return p.discards.length + '.' + p.melds.length; }).join(',');
-    return game.handNo + '|' + H.turnCount + '|' + sig + '|' + (a ? a.type + (a.options && a.options.kind != null ? a.options.kind : '') : '-');
+    var hs = game.humanSeat();
+    return game.handNo + '|' + (hs < 0 ? 'observer' : ZMJ.publicDecisionKey(game.hand, hs)) +
+      '|' + JSON.stringify(game.awaiting) + '|' + cfg.worlds;
+  }
+  function getDiscardOptions() {
+    var hs = game.humanSeat();
+    if (hs < 0) return [];
+    var key = situationKey();
+    if (!decisionCache || decisionCache.key !== key) decisionCache = { key: key, report: ZMJ.decisionReport(game.hand, hs) };
+    return decisionCache.report.candidates;
   }
   function getSituation() {
     var hs = game.humanSeat();
@@ -2617,11 +2735,11 @@ window.onerror = function (msg, src, line, col) {
     if (sitCache.key === key && sitCache.data) return sitCache.data;
     var a = game.awaiting;
     var relevant = !!(a && a.seat === hs);          // 只有轮到我操作时才值得重算
-    if (!relevant && sitCache.data) return sitCache.data;
+    if (!relevant) return null;
     var H = game.hand;
     var t0 = Date.now();
     var res = ZMJ.analyzeSituation(H, hs, { worlds: cfg.worlds, seed: (game.handNo * 977 + H.turnCount * 31 + 7) >>> 0 });
-    var cands = game.evaluateDiscards(hs).slice(0, 5).map(function (c) {
+    var cands = (a && a.type === 'turn' ? getDiscardOptions() : []).slice(0, 5).map(function (c) {
       var d = res.dealIn(c.kind);
       return { kind: c.kind, shanten: c.shanten, ukeire: c.ukeire, danger: c.danger, prob: d.prob, killers: d.killers };
     });
@@ -2637,7 +2755,7 @@ window.onerror = function (msg, src, line, col) {
   function getTrainingGuide(kind, includePaths) {
     var hs = game.humanSeat();
     if (hs < 0) return null;
-    var key = situationKey() + '|' + game.hand.players[hs].concealed.join('');
+    var key = situationKey();
     if (guideCache.key !== key) guideCache = { key: key, entries: {} };
     var entry = guideCache.entries[kind];
     if (!entry || (includePaths && !entry.withPaths)) {
@@ -2651,6 +2769,7 @@ window.onerror = function (msg, src, line, col) {
   function barColor(p) { return p >= 0.45 ? '#ff9a8b' : (p >= 0.2 ? '#ffcf7a' : '#7ee2a8'); }
 
   function renderSituation() {
+    if (!liveHints()) { $('situation').textContent = hiddenHintText(); return; }
     var el = $('situation');
     if (!el) return;
     var hs = game.humanSeat();
@@ -2719,9 +2838,11 @@ window.onerror = function (msg, src, line, col) {
     if (!el) return;
     var hs = game.humanSeat();
     if (hs < 0) { el.textContent = '你在等待区，快进中…'; return; }
-    if (!cfg.hint) { el.textContent = '提示已关闭'; return; }
+    if (!liveHints()) { el.textContent = hiddenHintText(); return; }
     var H = game.hand, p = H.players[hs];
     var a = game.awaiting;
+    var special = claimAdvice();
+    if (special) { el.textContent = special.main + ' · ' + special.detail; return; }
     if (a && a.type === 'claim' && a.options.hu) {
       el.textContent = '可以收炮：建议胡牌落袋。自摸收益较高，但不能只凭听口和剩余巡数推断等待更划算。';
       return;
@@ -2730,7 +2851,7 @@ window.onerror = function (msg, src, line, col) {
       el.textContent = '等待你的回合；摸牌后会按实际可打的牌重新计算';
       return;
     }
-    var opts = game.evaluateDiscards(hs);
+    var opts = getDiscardOptions();
     var guide = opts.length ? getTrainingGuide(opts[0].kind, false) : null;
     if (!guide) { el.textContent = '等待出牌建议…'; return; }
     el.textContent = '牌效推荐打 ' + ZMJ.tileName(guide.kind) + ' · ' +
@@ -2872,6 +2993,7 @@ window.onerror = function (msg, src, line, col) {
   }
 
   function renderMyStat() {
+    if (!liveHints()) { $('myStat').textContent = hiddenHintText(); return; }
     var el = $('myStat');
     var hs = game.humanSeat();
     if (hs < 0) { el.innerHTML = '<div class="row"><span>状态</span><b>等待区</b></div>'; return; }
@@ -2991,7 +3113,16 @@ window.onerror = function (msg, src, line, col) {
   }
 
   // 碰 / 杠 / 胡 / 自摸 的推荐：只用公开信息推算，和出牌推荐同一套口径
-  function shantenWords(s) { return s <= 0 ? '已听牌' : (s + ' 向听'); }
+  function shantenWords(s) { return s < 0 ? '已和牌' : s === 0 ? '已听牌' : (s + ' 向听'); }
+  function kongWords(kind, type, from) {
+    var k = ZMJ.kongAdvice(game.hand, game.humanSeat(), kind, type, from);
+    if (!k) return { main: '先比较弃牌', detail: '当前没有可分析的补摸牌。', cls: '' };
+    return { main: '可' + (type === 'an' ? '暗杠 ' : type === 'bu' ? '补杠 ' : '明杠 ') + ZMJ.tileName(kind),
+      detail: '即时杠分 +' + k.gain + ' 元；不杠可保留 ' + shantenWords(k.beforeShanten) +
+        '。随机补摸后，有 ' + (k.keepChance * 100).toFixed(1) + '% 可保持该距离或更近。' +
+        (k.losesSevenPairs ? '杠牌将放弃小七对路线。' : '') +
+        '这是牌形基准，未计对手提前胡牌与弃牌风险；可继续比较打牌。', cls: '' };
+  }
   function claimAdvice() {
     var a = game.awaiting;
     if (!a || !game.hand) return null;
@@ -3003,12 +3134,10 @@ window.onerror = function (msg, src, line, col) {
         return { main: '自摸胡！', detail: '三家各付 基础 10 元 + 鸟钱，直接收下', cls: 'good' };
       }
       if (o.anGang && o.anGang.length) {
-        return { main: '建议暗杠 ' + ZMJ.tileName(o.anGang[0]),
-                 detail: '三家各付 10 元，杠完从牌尾摸一张，还有杠上开花的机会', cls: 'good' };
+        return kongWords(o.anGang[0], 'an');
       }
       if (o.buGang && o.buGang.length) {
-        return { main: '建议补杠 ' + ZMJ.tileName(o.buGang[0]),
-                 detail: '三家各付 5 元，杠完从牌尾摸一张；本规则不能抢杠', cls: 'good' };
+        return kongWords(o.buGang[0], 'bu');
       }
       return null;   // 没有特殊动作，交给原来的弃牌推荐
     }
@@ -3019,8 +3148,7 @@ window.onerror = function (msg, src, line, col) {
                detail: game.nameOf(c.from) + ' 放炮，他一个人付 基础 5 元 + 鸟钱', cls: 'good' };
     }
     if (c.gang) {
-      return { main: '杠 ' + ZMJ.tileName(c.kind),
-               detail: game.nameOf(c.from) + ' 付 15 元，杠完从牌尾摸一张', cls: 'good' };
+      return kongWords(c.kind, 'ming', c.from);
     }
     if (c.peng) {
       var advice = ZMJ.pengAdvice(H, seat, c.kind, c.from);
@@ -3041,6 +3169,11 @@ window.onerror = function (msg, src, line, col) {
       eyebrow.textContent = '本局结束'; main.textContent = H.result.title;
       detail.textContent = '查看结算，然后继续下一局';
     } else if (a && a.seat === game.humanSeat()) {
+      if (!liveHints()) {
+        eyebrow.textContent = cfg.learningMode === 'exam' ? '整局测验' : '先独立判断';
+        main.textContent = a.type === 'turn' ? '这手你会怎么打？' : '选择碰、杠、胡或过';
+        detail.textContent = hiddenHintText(); return;
+      }
       // 轮到你做决定时，推荐必须压过「上一手复盘」：
       // 否则你刚打完牌、别人打出的牌正好能碰/杠/胡，中间却还在显示上一手的复盘。
       if (a.type === 'claim') {
@@ -3060,8 +3193,8 @@ window.onerror = function (msg, src, line, col) {
           main.textContent = tAdv.main; detail.textContent = tAdv.detail;
           if (tAdv.cls) box.classList.add(tAdv.cls);
         } else {
-          var opts = game.evaluateDiscards(a.seat);
-          var guide = cfg.hint && opts.length ? getTrainingGuide(opts[0].kind, false) : null;
+          var opts = getDiscardOptions();
+          var guide = opts.length ? getTrainingGuide(opts[0].kind, false) : null;
           main.textContent = guide ? '牌效推荐打 ' + ZMJ.tileName(guide.kind) : '观察牌形，选一张弃牌';
           detail.textContent = guide ?
             ('打后' + (guide.shanten === 0 ? '听牌' : guide.shanten + ' 向听') +
@@ -3069,7 +3202,7 @@ window.onerror = function (msg, src, line, col) {
             '每次摸牌后重新比较向听和有效进张';
         }
       }
-    } else if (feedback && feedback.handNo === game.handNo) {
+    } else if (feedback && feedback.handNo === game.handNo && cfg.learningMode !== 'exam') {
       eyebrow.textContent = '上一手复盘'; main.textContent = feedback.main;
       detail.textContent = feedback.detail;
       box.classList.add(feedback.grade);
@@ -3151,28 +3284,44 @@ window.onerror = function (msg, src, line, col) {
         if (res) detail += '；该张采样放铳风险约 ' + (res.dealIn(kind).prob * 100).toFixed(1) + '%';
       } catch (e) {}
     }
-    return { handNo: game.handNo, main: main, detail: detail, grade: same ? 'good' : 'warn' };
+    return { handNo: game.handNo, main: main, detail: detail, grade: same ? 'good' : 'warn',
+      turn: game.hand.turnCount, picked: kind, best: best.kind,
+      shantenLoss: picked.shanten - best.shanten,
+      outsLoss: picked.shanten === best.shanten ? best.ukeire - picked.ukeire : 0 };
   }
   function onDiscardClick(kind) {
     if (!game.awaiting || game.awaiting.type !== 'turn') return;
     // 触屏：第一次点选、再点同一张才打出，避免误触
     if (isTouch && selectedKind !== kind) { selectedKind = kind; render(); return; }
-    var opts = game.evaluateDiscards(game.awaiting.seat);
+    var opts = getDiscardOptions();
     var review = discardReview(kind, opts);
     selectedKind = null;
     if (act(function () { return game.humanDiscard(kind); })) {
-      if (handExtra && opts.length) {
-        handExtra.recTotal++;
-        if (ZMJ.sameEfficiency(opts[0], opts.filter(function (o) { return o.kind === kind; })[0])) handExtra.recFollow++;
-      }
-      feedback = review;
-      renderCoach();
+      // 联机发出操作不等于操作被接受；过期或连点被拒绝时不能计入成绩。
+      if (game.online) NET.pendingReviews[NET.lastActionId] = review;
+      else acceptDiscardReview(review);
     }
   }
+  function acceptDiscardReview(review) {
+    if (!review || !game || review.handNo !== game.handNo) return;
+    if (handExtra) {
+      handExtra.recTotal++;
+      if (review.grade === 'good') handExtra.recFollow++;
+      handExtra.reviews.push(review);
+    }
+    feedback = review; renderCoach();
+  }
 
+  function guidePathsHTML(guide, start) {
+    return guide.paths.slice(start || 0).map(function (p) {
+      return '<div class="guidePath">摸 ' + ZMJ.tileName(p.draw) + '（未见 ' + p.drawCount + ' 张）→ 打 ' +
+        ZMJ.tileName(p.discard) + ' → 听 ' + p.waits.map(function (k, i) { return ZMJ.tileName(k) + '×' + p.waitCounts[i]; }).join('、') +
+        '，合计未见 ' + p.waitTotal + ' 张。</div>';
+    }).join('');
+  }
   function renderHint() {
     var el = $('hint');
-    if (!cfg.hint) { el.innerHTML = '<span style="color:#9fb3a8">提示已关闭</span>'; return; }
+    if (!liveHints()) { el.textContent = hiddenHintText(); return; }
     var hs = game.humanSeat();
     if (hs < 0) { el.innerHTML = '<span style="color:#9fb3a8">你在等待区，先看看别人怎么打。</span>'; return; }
     var H = game.hand, p = H.players[hs], a = game.awaiting;
@@ -3189,15 +3338,19 @@ window.onerror = function (msg, src, line, col) {
       el.innerHTML = rows.join('<br>'); return;
     }
     if (!a || a.type !== 'turn' || a.seat !== hs) {
-      el.innerHTML = '<span style="color:#c7d8cd">摸到牌、轮到你出牌时，这里会按每个弃牌选择重新计算。</span>';
+      var claim = claimAdvice();
+      el.textContent = claim ? claim.main + '：' + claim.detail : '摸到牌、轮到你出牌时，这里会按每个弃牌选择重新计算。';
       return;
     }
-    var opts = game.evaluateDiscards(hs);
+    var opts = getDiscardOptions();
     var guide = opts.length ? getTrainingGuide(opts[0].kind, true) : null;
     if (!guide) { el.textContent = '当前没有可计算的弃牌。'; return; }
-    var stateName = guide.shanten === 0 ? '听牌' : guide.shanten + ' 向听';
+    var stateName = shantenWords(guide.shanten);
     var hitName = guide.shanten === 0 ? '和牌张' : '有效进张';
     rows.push('<div class="guideLead">牌效推荐打 ' + ZMJ.tileName(guide.kind) + ' → ' + stateName + '</div>');
+    if (guide.deadWait) rows.push('<div class="guideMath">结构上已经听牌，但和牌张全部可见：未见有效张为 0。需要改良听口。</div>');
+    var special = claimAdvice();
+    if (special) rows.push('<div class="guideNote">' + netEsc(special.main + '：' + special.detail) + '</div>');
     rows.push('<div class="guideNote">向听是离听牌的牌形距离，0 向听就是已听牌；有效进张是下一摸能降低向听的牌。推荐先比较向听，再比较未见有效张数；放铳风险另列。</div>');
     rows.push('<div class="guideStep">① 打后会等哪些牌？</div>');
     rows.push('<div>共 <b>' + guide.draws.length + '</b> 种' + hitName + '，未见 <b>' + guide.total + '</b> 张：</div>');
@@ -3210,10 +3363,11 @@ window.onerror = function (msg, src, line, col) {
     rows.push('<div class="guideStep">② 为什么比其他弃牌好？</div>');
     rows.push('<div class="guideCompare"><b>弃牌</b><b>打后</b><b>未见' + hitName + '</b>');
     opts.slice(0, 3).forEach(function (o) {
-      var g = getTrainingGuide(o.kind, false);
+      var g = getTrainingGuide(o.kind, true);
       rows.push('<span>' + ZMJ.tileName(o.kind) + (o.kind === guide.kind ? ' ★' : '') +
         '</span><span>' + (g.shanten === 0 ? '听牌' : g.shanten + ' 向听') +
-        '</span><span>' + (g.shanten === guide.shanten ? g.total + ' 张' : '不同阶段') + '</span>');
+        '</span><span>' + (g.shanten === guide.shanten ? g.total + ' 张' : '不同阶段') +
+        (g.averageWait !== null ? '<br><small>进张后平均听 ' + g.averageWait.toFixed(1) + ' 张</small>' : '') + '</span>');
     });
     rows.push('</div>');
     if (opts.length > 1) {
@@ -3231,7 +3385,8 @@ window.onerror = function (msg, src, line, col) {
     }
     rows.push('<div class="guideStep">③ 接下来怎么做牌？</div>');
     if (guide.shanten === 0) {
-      rows.push('<div>这 13 张已经听牌。等上方列出的牌即可和牌；听口越宽，通常下次摸中的机会越大。</div>');
+      rows.push('<div>' + (guide.deadWait ? '结构已听，但目前没有未见和牌张，继续观察可改良的牌。' :
+        '打后的暗牌与副露已经构成听牌形。上方列出仍未见的和牌张；同一未见总数下，张数越多，下一摸的基准命中率越高。') + '</div>');
     } else if (guide.shanten === 1 && guide.paths.length) {
       rows.push('<div>下面是摸到有效牌后的较宽听口路线，实际摸牌后可再调整：</div>');
       rows.push('<div class="guideMath">进入听牌后，按各有效摸牌的未见张数加权，平均听 <b>' + guide.averageWait.toFixed(1) +
@@ -3244,17 +3399,17 @@ window.onerror = function (msg, src, line, col) {
           '</b>（合计未见 ' + path.waitTotal + ' 张；静态模型下再摸中约 ' +
           (guide.unknown > 1 ? (path.waitTotal / (guide.unknown - 1) * 100).toFixed(1) : '0.0') + '%）</div>');
       });
+      if (guide.paths.length > 3) rows.push('<details><summary>展开其余 ' + (guide.paths.length - 3) + ' 条有效摸牌路线</summary>' + guidePathsHTML(guide, 3) + '</details>');
       rows.push('<div class="guideNote">这里为每种示例摸牌寻找能保持听牌且未见听张最多的下一张弃牌；不含放铳风险。</div>');
     } else {
       rows.push('<div>先争取摸到上方的有效牌，把 ' + guide.shanten + ' 向听推进到 ' +
         (guide.shanten - 1) + ' 向听。每次摸牌后重新比较弃牌，优先保留能接纳更多未见牌的搭子和对子。</div>');
     }
-    var after = p.concealed.slice(); after[guide.kind]--;
     rows.push('<details><summary>向听、进张与概率怎么算？</summary>' +
       '<div>0 向听表示再来一张和牌张就能胡；1 向听表示先摸到有效牌、调整弃牌后可以听牌。' +
       '普通牌型按四组面子加一对将，小七对单独计算，取较近的路线。</div>' +
-      '<div>本选择：普通牌型 ' + ZMJ.shantenStandard(after, p.melds.length) + ' 向听' +
-      (p.melds.length ? '' : '；小七对 ' + ZMJ.shantenSevenPairs(after) + ' 向听') + '。</div>' +
+      '<div>本选择：普通牌型 ' + shantenWords(guide.standardShanten) +
+      (guide.sevenPairsShanten === null ? '；已有副露，小七对不适用' : '；小七对 ' + shantenWords(guide.sevenPairsShanten)) + '。</div>' +
       '<div>有效进张是下一摸能降低向听的牌；听牌时则是能直接和牌的牌。每种牌原有四张，减去自己手牌与公开牌，得到“未见张数”。</div>' +
       '<div>上面的概率按未见牌均匀分布计算，只描述下一次自摸；未见牌也可能在对手暗牌或预留鸟牌里，牌河变化后要重算。</div>' +
       '<div>术语参考：<a href="https://arxiv.org/abs/2108.06832" target="_blank" rel="noopener noreferrer">向听数的研究论文</a>、' +
@@ -3269,6 +3424,7 @@ window.onerror = function (msg, src, line, col) {
         ' 张。下一摸基准命中率 ' + (trial.chanceNext * 100).toFixed(1) + '%。有效牌：' +
         trial.draws.map(function (d) { return ZMJ.tileName(d.kind) + '×' + d.count; }).join('、') +
         (trial.averageWait !== null ? '。进张后平均听 ' + trial.averageWait.toFixed(1) + ' 张。' : '');
+      $('guideTrial').innerHTML += guidePathsHTML(trial, 0);
     };
     $('guideChoice').onchange();
   }
@@ -3315,6 +3471,12 @@ window.onerror = function (msg, src, line, col) {
       html += '<tr><td>' + netEsc(game.nameOf(pm.from)) + ' → ' + netEsc(game.nameOf(pm.to)) + '<span style="color:#9fb3a8">（' + pm.reason + '）</span></td><td class="' + amtCls(-pm.amount) + '">' + pm.amount + ' 元</td></tr>';
     });
     html += '</table>';
+    if (handExtra && handExtra.reviews.length) {
+      var keyReviews = handExtra.reviews.slice().sort(function (a, b) { return b.shantenLoss - a.shantenLoss || b.outsLoss - a.outsLoss; }).slice(0, 3);
+      html += '<h3>关键弃牌回顾</h3><p class="practiceNote">依据出牌当时的已知信息比较基础牌效；不使用结算后揭晓的他家暗牌。</p>' + keyReviews.map(function (review) {
+        return '<div class="guidePath"><b>全桌第 ' + review.turn + ' 摸：' + netEsc(review.main) + '</b><br>' + netEsc(review.detail) + '</div>';
+      }).join('');
+    }
     html += '<table><tr><th>玩家</th><th>本局</th><th>累计</th></tr>';
     for (var p = 0; p < 4; p++) {
       var s = visSeat(p);
@@ -3348,7 +3510,7 @@ window.onerror = function (msg, src, line, col) {
     box.innerHTML = '<h2>转转麻将 · 规则与赔率</h2>' +
       '<ul>' +
       '<li><b>牌</b>：108 张（万/条/筒 1-9 各 4 张），无字牌。<b>不能吃</b>，可碰、可杠。</li>' +
-      '<li><b>胡牌</b>：4 组 + 1 对（乱将），或 小七对（与平胡同价）。</li>' +
+      '<li><b>胡牌</b>：4 组 + 1 对（乱将），或 小七对（与平胡同价）；四张相同牌可作两对。规则版本 ' + ZMJ.rulesVersion + '。</li>' +
       '<li><b>杠</b>：暗杠 每家 10 元；大明杠 放杠者 15 元；补杠（碰后自摸第 4 张）三家各 5 元。<b>补杠不可被抢杠</b>。</li>' +
       '<li><b>鸟</b>：胡牌后翻 6 张，摸到 1/5/9 各算一只。</li>' +
       '<li><b>鸟钱</b>：0 只 = 30 元（大满贯），1~5 只 = 只数 × 5 元，6 只 = 60 元。</li>' +
@@ -3358,14 +3520,11 @@ window.onerror = function (msg, src, line, col) {
       '<li><b>荒庄</b>：无赔付，庄给下家。<b>一炮多响</b>：各赔各的。</li>' +
       '<li><b>转转</b>：<b>电脑</b>胡牌才下桌，等待区的人补位；等待区有真人时真人优先上桌。真人赢牌一直坐在桌上，不会因为赢了被换下去。转转时庄位顺延给下家。</li>' +
       '</ul>' +
-      '<h2 style="font-size:16px;margin-top:14px">核心赔率（期望值）</h2>' +
-      '<table><tr><th>事件</th><th>期望</th><th>相对</th></tr>' +
-      '<tr><td>我自摸</td><td>+68 元</td><td>3.85</td></tr>' +
-      '<tr><td>别人自摸（我付）</td><td>−22.7 元</td><td>1.28</td></tr>' +
-      '<tr><td>我收炮 / 我点炮</td><td>±17.7 元</td><td>1</td></tr>' +
-      '<tr><td>暗杠 / 大明杠 / 补杠</td><td>+30 / +15 / +15 元</td><td>2.4 / 1.2 / 1.2</td></tr>' +
+      '<h2 style="font-size:16px;margin-top:14px">按实际鸟数核算</h2>' +
+      '<table><tr><th>中鸟</th><th>鸟钱</th><th>收炮</th><th>自摸合计</th></tr>' +
+      [0,1,2,3,4,5,6].map(function (n) { var b = ZMJ.birdMoney(n); return '<tr><td>' + n + ' 只</td><td>' + b + '</td><td>' + (5 + b) + '</td><td>' + ((10 + b) * 3) + '</td></tr>'; }).join('') +
       '</table>' +
-      '<div style="font-size:13px;color:#9fb3a8">收炮与自摸翻的是同一批鸟牌，差别在"基础"：收炮 +5 元、自摸每家 +10 元 ⇒ <b style="color:#f2c14e">自摸 ≈ 3.85 倍收炮</b>（收炮 +17.7 元，自摸 +68 元）。</div>' +
+      '<div style="font-size:13px;color:#9fb3a8">金额单位为元，杠钱另计。自摸收益较高，但放过当前和牌是否划算，还取决于后续摸牌与对手竞争；上表不能直接决定过胡。</div>' +
       '<div class="center"><button class="act" id="btnClose">知道了</button></div>';
     $('btnClose').onclick = function () { closeModal(); };
     openModal();
@@ -3375,15 +3534,16 @@ window.onerror = function (msg, src, line, col) {
     var box = $('modalBox');
     box.innerHTML = '<h2>设置</h2>' +
       '<div class="setRow"><span>转转模式（电脑胡牌换人）</span><select id="setRotate"><option value="1">开启</option><option value="0">关闭（固定四人）</option></select></div>' +
-      '<div class="setRow"><span>对手风格</span><select id="setStyle"><option value="ev">按 EV 打（会放过炮等自摸）</option><option value="greedy">见炮就胡（像牌桌真人）</option></select></div>' +
+      '<div class="setRow"><span>对手风格</span><select id="setStyle"><option value="ev">实验策略（可能过胡等自摸）</option><option value="greedy">有胡就收</option></select></div>' +
       '<div class="setRow"><span>决策提示</span><select id="setHint"><option value="1">开启</option><option value="0">关闭</option></select></div>' +
+      '<div class="setRow"><span>练习方式</span><select id="setLearningMode"><option value="guided">带讲解练牌</option><option value="feedback">先判断后反馈</option><option value="exam">整局测验（结算后回顾）</option></select></div>' +
       '<div class="setRow"><span>电脑打牌算法</span><select id="setAiStyle">' +
-        '<option value="v2">v2 概率驱动（默认，已证明决策显著更优）</option>' +
-        '<option value="v3">v3 概率驱动 + 会弃和（实验性，未见额外收益）</option>' +
+        '<option value="v2">v2 采样风险与进张权衡（默认）</option>' +
+        '<option value="v3">v3 加入弃和候选（实验性）</option>' +
         '<option value="v1">v1 启发式（手写危险度）</option></select></div>' +
       '<div class="setRow"><span>音效（程序合成，无外部文件）</span><select id="setSound"><option value="1">开启</option><option value="0">关闭</option></select></div>' +
       '<div class="setRow"><span>局势分析（对手采样 + 放铳概率）</span><select id="setAnalyze"><option value="1">开启</option><option value="0">关闭</option></select></div>' +
-      '<div class="setRow"><span>采样组数（越大越准越慢）</span><select id="setWorlds"><option value="80">80（快）</option><option value="150">150（推荐）</option><option value="300">300（准）</option></select></div>' +
+      '<div class="setRow"><span>采样组数（越大波动越小、越慢）</span><select id="setWorlds"><option value="80">80（快）</option><option value="150">150（默认）</option><option value="300">300（波动较小）</option></select></div>' +
       '<div class="setRow"><span>手机竖屏时的横屏引导</span><select id="setRotateHint"><option value="1">开启</option><option value="0">关闭</option></select></div>' +
       '<div class="setRow"><span>我的每步时限</span><select id="setTurnTime"><option value="0">不限时（练习默认）</option><option value="15">15 秒</option><option value="30">30 秒</option><option value="60">60 秒</option></select></div>' +
       '<div class="setRow"><span>电脑思考时间</span><select id="setAiThink"><option value="1">1 秒（快）</option><option value="3">3 秒</option><option value="5">5 秒</option></select></div>' +
@@ -3392,6 +3552,7 @@ window.onerror = function (msg, src, line, col) {
     $('setRotate').value = cfg.rotate ? '1' : '0';
     $('setStyle').value = cfg.claimStyle;
     $('setHint').value = cfg.hint ? '1' : '0';
+    $('setLearningMode').value = cfg.learningMode;
     $('setRotateHint').value = rotateDismissed ? '0' : '1';
     $('setAiStyle').value = cfg.aiStyle;
     $('setSound').value = cfg.sound ? '1' : '0';
@@ -3405,6 +3566,7 @@ window.onerror = function (msg, src, line, col) {
       cfg.rotate = $('setRotate').value === '1';
       cfg.claimStyle = $('setStyle').value;
       cfg.hint = $('setHint').value === '1';
+      cfg.learningMode = $('setLearningMode').value;
       cfg.aiStyle = $('setAiStyle').value;
       cfg.sound = $('setSound').value === '1';
       cfg.analyze = $('setAnalyze').value === '1';
@@ -3543,18 +3705,19 @@ window.onerror = function (msg, src, line, col) {
       var pre = rp.states[rp.i - 1];
       try {
         var hd = ZMJ.stateAsHand(pre, hs);
-        var cands = ZMJ.evaluateDiscards(hd, hs).slice(0, 5);
+          var allCands = ZMJ.evaluateDiscards(hd, hs);
+          var cands = allCands.slice(0, 5);
         if (cands.length) {
           var sit = ZMJ.analyzeSituation(hd, hs, { worlds: 150, seed: (r.no * 977 + rp.i * 31) >>> 0 });
           var rec0 = cands[0].kind;
           var mineP = sit.dealIn(st.kind).prob;
           var recP = sit.dealIn(rec0).prob;
-          var same = st.kind === rec0;
+          var same = ZMJ.sameEfficiency(allCands.filter(function (o) { return o.kind === st.kind; })[0], cands[0]);
           var v = document.createElement('div');
           v.style.cssText = 'margin-top:10px;padding:8px 10px;border-radius:8px;font-size:13px;line-height:1.8;background:' +
             (same ? 'rgba(76,196,124,.15)' : 'rgba(255,154,139,.13)') + ';color:' + (same ? '#7ee2a8' : '#ff9a8b');
           v.innerHTML = (same ? '✅ 与推荐一致' : '⚠️ 当时推荐打 ' + ZMJ.tileName(rec0) + '，你打了 ' + ZMJ.tileName(st.kind)) +
-            '<br>你那张的放铳概率 ' + (mineP * 100).toFixed(1) + '%　推荐那张 ' + (recP * 100).toFixed(1) + '%' +
+            '<br>你那张的采样放铳风险 ' + (mineP * 100).toFixed(1) + '%　推荐那张 ' + (recP * 100).toFixed(1) + '%' +
             (mineP > recP + 0.005 ? '　（多担 ' + ((mineP - recP) * 100).toFixed(1) + ' 个百分点）' : '');
           box.appendChild(v);
         }
@@ -3571,26 +3734,28 @@ window.onerror = function (msg, src, line, col) {
     openModal();
   }
   // ---------- 牌效训练：先作答，再比较；错题保存在本机 ----------
-  var practice = { index: 0, topic: '全部', review: false, picked: null, answered: false };
+  var practice = { index: 0, topic: '全部', review: false, due: false, assessment: false, picked: null, answered: false };
   var PRACTICE_KEY = 'zmj_practice_v1';
-  var practiceRecord = { attempts: 0, correct: 0, wrong: [] };
+  var practiceRecord = ZMJ.readPracticeProgress(null);
   try {
     var savedPractice = JSON.parse(localStorage.getItem(PRACTICE_KEY) || 'null');
-    if (savedPractice && Number.isInteger(savedPractice.attempts) && savedPractice.attempts >= 0 &&
-        Number.isInteger(savedPractice.correct) && savedPractice.correct >= 0 && savedPractice.correct <= savedPractice.attempts && Array.isArray(savedPractice.wrong)) {
-      practiceRecord = { attempts: savedPractice.attempts, correct: savedPractice.correct,
-        wrong: savedPractice.wrong.filter(function (id, i, all) {
-          return all.indexOf(id) === i && ZMJ.practiceCases.some(function (q) { return q.id === id; });
-        }) };
-    }
+    practiceRecord = ZMJ.readPracticeProgress(savedPractice);
   } catch (e) {}
+  function savePractice() {
+    try { localStorage.setItem(PRACTICE_KEY, JSON.stringify(practiceRecord)); return true; }
+    catch (e) { if ($('practiceMsg')) $('practiceMsg').textContent = '浏览器未能保存记录，请导出备份。'; return false; }
+  }
   function practiceList() {
     return ZMJ.practiceCases.filter(function (q) {
-      return (practice.topic === '全部' || q.topic === practice.topic) && (!practice.review || practiceRecord.wrong.indexOf(q.id) >= 0);
+      var card = practiceRecord.cards[q.id];
+      return (practice.topic === '全部' || q.topic === practice.topic) &&
+        (practice.review || practice.due || !!q.assessment === practice.assessment) &&
+        (!practice.review || practiceRecord.wrong.indexOf(q.id) >= 0) &&
+        (!practice.due || card && card.dueAt <= Date.now());
     });
   }
   function startPractice() {
-    practice.review = false; practice.index = 0; practice.answered = false; practice.picked = null;
+    practice.review = false; practice.due = false; practice.assessment = false; practice.index = 0; practice.answered = false; practice.picked = null;
     renderPractice();
   }
   function renderPractice() {
@@ -3599,18 +3764,52 @@ window.onerror = function (msg, src, line, col) {
     // 作答后即便移出错题本，仍保留当前题的讲解直到点下一题。
     var spec = practice.answered ? practice.spec : list[practice.index];
     if (!practice.answered) practice.spec = spec;
-    box.innerHTML = '<h2>牌效训练</h2><div class="practiceNote">先选你会打的一张，再看计算。按向听最少、有效进张最多评分；同等牌效的答案都算对。</div>' +
+    var dueCount = Object.keys(practiceRecord.cards).filter(function (id) { return practiceRecord.cards[id].dueAt <= Date.now(); }).length;
+    box.innerHTML = '<h2>' + (practice.assessment ? '变式小测' : '牌效训练') + '</h2><div class="practiceNote">先选你会打的一张，再看计算。按向听最少、有效进张最多评分；同等牌效的答案都算对。</div>' +
+      '<details class="practiceNote"><summary>第一次练？先看三个概念</summary><p>面子是三张顺子或刻子，将是一对；搭子还需要补牌。和牌为 −1 向听，听牌为 0，一向听表示先有效进张并调整弃牌后可听牌。</p><p>进张只数能降低向听的牌；听牌时数能胡的牌。每种最多四张，扣去自己已知的牌和公开牌。未见张数越多，同一随机分布模型下下一摸机会越大。</p><p>建议按“先降向听 → 听得更宽 → 小七对 → 数未见牌”练习，再用变式小测检查判断。风险与整局策略需要另外比较。</p></details>' +
       '<div class="practiceKpi"><span><b>' + practiceRecord.attempts + '</b>次作答</span><span><b>' + practiceRecord.correct + '</b>次同优选择</span><span><b>' + practiceRecord.wrong.length + '</b>道待复习</span></div>' +
       '<div class="practiceTop"><label for="practiceTopic">练什么</label><select id="practiceTopic">' +
-      ['全部', '先降向听', '听得更宽', '小七对'].map(function (topic) {
+      ['全部', '先降向听', '听得更宽', '小七对', '数未见牌'].map(function (topic) {
         return '<option' + (topic === practice.topic ? ' selected' : '') + '>' + topic + '</option>';
       }).join('') + '</select><button class="mini" id="practiceReview" aria-pressed="' + practice.review + '">' +
-      (practice.review ? '返回全部题目' : '复习错题') + '</button></div>';
+      (practice.review ? '返回全部题目' : '复习错题') + '</button>' +
+      '<button class="mini" id="practiceDue" aria-pressed="' + practice.due + '">到期复习 ' + dueCount + '</button>' +
+      '<button class="mini" id="practiceAssessment">' + (practice.assessment ? '返回主题练习' : '变式小测') + '</button></div>' +
+      '<div class="practiceNote">变式首次作答：' + practiceRecord.assessment.correct + ' / ' + practiceRecord.assessment.attempts +
+      ' 同优。小测使用同类牌形的换色与反转变式，重复作答不累计首次成绩。</div>' +
+      '<details class="practiceNote"><summary>备份与恢复记录</summary><div class="practiceTop"><button class="mini" id="practiceExport">导出记录</button><label>恢复记录 <input id="practiceImport" type="file" accept="application/json,.json" style="max-width:190px"></label></div></details><div id="practiceMsg" role="status" class="practiceNote"></div>';
     $('practiceTopic').onchange = function () { practice.topic = this.value; practice.index = 0; practice.answered = false; renderPractice(); };
-    $('practiceReview').onclick = function () { practice.review = !practice.review; practice.topic = '全部'; practice.index = 0; practice.answered = false; renderPractice(); };
+    $('practiceReview').onclick = function () { practice.review = !practice.review; practice.due = false; practice.topic = '全部'; practice.index = 0; practice.answered = false; renderPractice(); };
+    $('practiceDue').onclick = function () { practice.due = !practice.due; practice.review = false; practice.topic = '全部'; practice.index = 0; practice.answered = false; renderPractice(); };
+    $('practiceAssessment').onclick = function () { practice.assessment = !practice.assessment; practice.review = false; practice.due = false; practice.index = 0; practice.answered = false; renderPractice(); };
+    $('practiceExport').onclick = function () {
+      var ok = download('mahjong-practice.json', JSON.stringify({ format: 'zmj-practice', version: 2, exportedAt: new Date().toISOString(), progress: practiceRecord }, null, 2), 'application/json');
+      $('practiceMsg').textContent = ok ? '记录已导出，请保管好备份文件。' : '浏览器未能下载，请检查下载权限。';
+    };
+    $('practiceImport').onchange = function () {
+      var file = this.files[0];
+      if (!file) return;
+      if (file.size > 500000) { $('practiceMsg').textContent = '文件过大，请选择本工具导出的记录文件。'; return; }
+      var reader = new FileReader();
+      reader.onload = function () {
+        if (!$('practiceMsg')) return;
+        try {
+          var data = JSON.parse(reader.result);
+          if (data.format !== 'zmj-practice' || data.version !== 2 || !data.progress ||
+              data.progress.rulesVersion !== ZMJ.rulesVersion || !Number.isSafeInteger(data.progress.attempts) ||
+              !Number.isSafeInteger(data.progress.correct) || data.progress.correct < 0 ||
+              data.progress.correct > data.progress.attempts || data.progress.attempts < 0 || !Array.isArray(data.progress.wrong)) throw new Error('记录格式或规则版本不兼容');
+          if (!window.confirm('恢复将替换本机的牌效训练记录，建议先导出当前记录。继续吗？')) return;
+          practiceRecord = ZMJ.readPracticeProgress(data.progress); practice.answered = false; practice.index = 0;
+          renderPractice(); if (savePractice()) $('practiceMsg').textContent = '记录已恢复。';
+        } catch (e) { $('practiceMsg').textContent = '恢复失败：' + e.message; }
+      };
+      reader.onerror = function () { $('practiceMsg').textContent = '读取文件失败，请重试。'; };
+      reader.readAsText(file);
+    };
     if (!spec) {
       var empty = document.createElement('p'); empty.className = 'practiceNote';
-      empty.textContent = practice.review ? '当前没有待复习错题。可以返回全部题目继续练习。' : '这个分类暂时没有题目。';
+      empty.textContent = practice.due ? '当前没有到期题目。答对后按 1、3、7 天安排复习，之后可再来检查。' : practice.review ? '当前没有待复习错题。可以返回全部题目继续练习。' : '这个分类暂时没有题目。';
       box.appendChild(empty); openModal(); return;
     }
     var H = ZMJ.practiceHand(spec.id), opts = ZMJ.evaluateDiscards(H, 0), best = opts[0];
@@ -3620,12 +3819,18 @@ window.onerror = function (msg, src, line, col) {
     var handBox = document.createElement('div'); handBox.className = 'practiceHand';
     handBox.appendChild(tilesRow(H.players[0].concealed, practice.answered ? '' : 'clickable', practice.answered ? null : answerPractice));
     box.appendChild(handBox);
+    if (spec.visible && spec.visible.length) {
+      var publicTiles = document.createElement('div'); publicTiles.className = 'practiceNote';
+      publicTiles.textContent = '公开牌河（已知牌，也要扣除）：' + spec.visible.map(ZMJ.tileName).join('、');
+      box.appendChild(publicTiles);
+    }
     if (practice.answered) {
       var mine = opts.filter(function (o) { return o.kind === practice.picked; })[0];
       var good = ZMJ.sameEfficiency(mine, best), guide = ZMJ.trainingGuide(H, 0, best.kind, true);
       var ties = opts.filter(function (o) { return ZMJ.sameEfficiency(o, best); });
       var explanation = document.createElement('section'); explanation.className = 'practiceFeedback' + (good ? '' : ' warn');
       explanation.innerHTML = '<h3 tabindex="-1" id="practiceVerdict">' + (good ? '这张也是牌效最优解' : '这一手还有更好的牌效选择') + '</h3>' +
+        '<div>本次记录：' + practiceRecord.cards[spec.id].reason + '；' + (good ? '已安排下次间隔复习。' : '已加入错题，可立即纠错。') + '</div>' +
         '<div>你选 ' + ZMJ.tileName(practice.picked) + '：' + shantenWords(mine.shanten) + '，未见有效牌 ' + mine.ukeire + ' 张。</div>' +
         '<div>本题最优：' + ties.map(function (o) { return ZMJ.tileName(o.kind); }).join(' / ') + '；' + shantenWords(best.shanten) + '，未见有效牌 ' + best.ukeire + ' 张。</div>' +
         '<p class="practiceNote">' + (good ? '同样的向听和进张，均予认可。' : mine.shanten > best.shanten ? '先比较向听。这里多了 ' + (mine.shanten - best.shanten) + ' 向听，进张数量属于不同阶段。' :
@@ -3633,11 +3838,14 @@ window.onerror = function (msg, src, line, col) {
         '<div class="guideStep">以打 ' + ZMJ.tileName(best.kind) + ' 为例，下一摸的有效牌</div>' +
         '<div class="guideTiles">' + guide.draws.map(function (d) { return '<span>' + ZMJ.tileName(d.kind) + ' × ' + d.count + '</span>'; }).join('') + '</div>' +
         '<div class="guideMath">' + guide.total + ' ÷ ' + guide.unknown + ' = <b>' + (guide.chanceNext * 100).toFixed(1) + '%</b> 下一摸基准命中率</div>';
+      explanation.innerHTML += '<p class="practiceNote">普通牌型：' + shantenWords(guide.standardShanten) + '；小七对：' + shantenWords(guide.sevenPairsShanten) +
+        (guide.deadWait ? '。结构上听牌，但未见和牌张为 0，需要改良听口。' : '。') + '</p>';
       if (guide.paths.length) {
         explanation.innerHTML += '<div class="guideStep">进张之后，怎样听得更宽？</div>' + guide.paths.slice(0, 3).map(function (p) {
           return '<div class="guidePath">摸 ' + ZMJ.tileName(p.draw) + ' → 打 ' + ZMJ.tileName(p.discard) + ' → 听 ' +
             p.waits.map(function (k, i) { return ZMJ.tileName(k) + '×' + p.waitCounts[i]; }).join('、') + '，共 ' + p.waitTotal + ' 张。</div>';
         }).join('') + '<p class="practiceNote">按各有效摸牌的未见张数加权，进入听牌后平均听 ' + guide.averageWait.toFixed(1) + ' 张；示例不含对手行动与弃牌风险。</p>';
+        if (guide.paths.length > 3) explanation.innerHTML += '<details><summary>展开全部其余路线</summary>' + guidePathsHTML(guide, 3) + '</details>';
       }
       box.appendChild(explanation);
       var table = document.createElement('div'); table.className = 'practiceTableWrap';
@@ -3648,7 +3856,7 @@ window.onerror = function (msg, src, line, col) {
       box.appendChild(table);
     }
     var note = document.createElement('div'); note.className = 'practiceNote';
-    note.textContent = '本题未展示牌河，未见数只扣除自己已知的 14 张牌；打出的牌仍是已知牌。未见牌包含对手暗牌与鸟牌。概率按随机分布计算，不等于整局胜率。';
+    note.textContent = '未见数扣除自己的 14 张已知牌和题目列出的公开牌；打出的牌仍是已知牌。未见牌包含对手暗牌与鸟牌。概率按随机分布计算，不等于整局胜率。';
     box.appendChild(note);
     var footer = document.createElement('div'); footer.className = 'practiceFooter';
     var next = document.createElement('button'); next.className = 'act'; next.id = 'practiceNext'; next.textContent = practice.answered ? '下一题' : '换一题';
@@ -3664,12 +3872,9 @@ window.onerror = function (msg, src, line, col) {
     var opts = ZMJ.evaluateDiscards(ZMJ.practiceHand(practice.spec.id), 0);
     var mine = opts.filter(function (o) { return o.kind === kind; })[0];
     if (!mine) return;
-    practice.answered = true; practice.picked = kind; practiceRecord.attempts++;
-    var good = ZMJ.sameEfficiency(mine, opts[0]);
-    if (good) { practiceRecord.correct++; practiceRecord.wrong = practiceRecord.wrong.filter(function (id) { return id !== practice.spec.id; }); }
-    else if (practiceRecord.wrong.indexOf(practice.spec.id) < 0) practiceRecord.wrong.push(practice.spec.id);
-    try { localStorage.setItem(PRACTICE_KEY, JSON.stringify(practiceRecord)); } catch (e) {}
-    renderPractice(); $('practiceVerdict').focus();
+    practice.answered = true; practice.picked = kind;
+    practiceRecord = ZMJ.recordPracticeAttempt(practiceRecord, practice.spec.id, kind, Date.now());
+    renderPractice(); savePractice(); $('practiceVerdict').focus();
   }
   // ---------- 防守练习：比较采样风险与启发式进攻分值 ----------
   var dojo = { sc: null, answered: false, picked: -1 };
@@ -3759,7 +3964,7 @@ window.onerror = function (msg, src, line, col) {
       var tbl = document.createElement('table');
       tbl.style.cssText = 'width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px';
       var head = document.createElement('tr');
-      head.innerHTML = '<th style="text-align:left;color:#f2c14e">候选（按期望值排序）</th><th>进张</th><th>放铳</th><th>危险来源</th>';
+      head.innerHTML = '<th style="text-align:left;color:#f2c14e">候选（按启发式分排序）</th><th>进张</th><th>采样风险</th><th>危险来源</th>';
       tbl.appendChild(head);
       sc.candidates.slice(0, 6).forEach(function (c) {
         var tr = document.createElement('tr');
@@ -3913,7 +4118,7 @@ window.onerror = function (msg, src, line, col) {
   // 但谁都拿不到别人的手牌（连网络流量里也没有）。
   var NET_KEY = 'zmj_net_v1';
   var NET = { ws: null, status: 'off', err: '', note: '', state: null, lobby: null,
-              room: '', name: '', server: '', token: '', pid: '', wantRoom: '', retry: 0 };
+              room: '', name: '', server: '', token: '', pid: '', wantRoom: '', retry: 0, pendingReviews: {}, lastActionId: '' };
   try {
     var savedNet = JSON.parse(localStorage.getItem(NET_KEY) || 'null');
     if (savedNet) { NET.name = savedNet.name || ''; NET.server = savedNet.server || ''; }
@@ -3997,10 +4202,16 @@ window.onerror = function (msg, src, line, col) {
   }
 
   function netSend(obj) {
+    if (obj.t === 'act') {
+      if (!NET.state || !Number.isInteger(NET.state.rev)) return false;
+      obj.rev = NET.state.rev;
+      obj.requestId = 'a_' + Date.now().toString(36) + '_' + (++netRequestSeq);
+    }
     if (!NET.ws || NET.ws.readyState !== 1) { netToast('还没连上服务器'); return false; }
-    try { NET.ws.send(JSON.stringify(obj)); return true; }
+    try { NET.ws.send(JSON.stringify(obj)); if (obj.t === 'act') NET.lastActionId = obj.requestId; return true; }
     catch (e) { netToast('发送失败：' + e.message); return false; }
   }
+  var netRequestSeq = 0;
 
   function netConnect(done) {
     if (NET.ws && (NET.ws.readyState === 0 || NET.ws.readyState === 1)) { if (done) done(); return; }
@@ -4030,6 +4241,7 @@ window.onerror = function (msg, src, line, col) {
     ws.onclose = function () {
       if (NET.ws !== ws) return;
       NET.ws = null;
+      NET.pendingReviews = {};
       if (NET.status === 'error') { netBar(); return; }
       NET.status = 'error';
       // 从没连上过 = 地址不对或没有服务；连上过又断 = 掉线。两种提示不能混。
@@ -4106,7 +4318,7 @@ window.onerror = function (msg, src, line, col) {
       try { return ZMJ.shantenSevenPairs(P.hand.players[P.mySeat].concealed); } catch (e) { return 99; }
     };
     P.exportRecords = function () {
-      return { game: '转转麻将（联机）', version: 3, exportedAt: new Date().toISOString(),
+      return { game: '转转麻将（联机）', version: 3, rulesVersion: ZMJ.rulesVersion, analysisVersion: ZMJ.analysisVersion, exportedAt: new Date().toISOString(),
                rules: ZMJ.RULES || null, hands: P.records };
     };
     P.exportText = function () {
@@ -4136,7 +4348,9 @@ window.onerror = function (msg, src, line, col) {
       P.queue = [];
       var q = (v.room && v.room.queue) ? v.room.queue : [];
       for (var j = 0; j < q.length; j++) P.queue.push({ name: q[j].name, isHuman: !!q[j].isHuman });
+      var previousHandNo = P.handNo;
       P.handNo = v.room ? v.room.handNo : 0;
+      if (P.handNo !== previousHandNo) { resetHandExtra(); feedback = null; }
       if (!v.hand) { P.hand = null; P.awaiting = null; P.lastResult = null; return; }
       var h = v.hand;
       P.dealer = h.dealer;
@@ -4207,11 +4421,18 @@ window.onerror = function (msg, src, line, col) {
     }
     if (m.t === 'replaced') {
       NET.room = ''; NET.token = ''; NET.status = 'error'; NET.err = m.msg;
+      NET.state = null; proxyGame = null;
+      if (game && game.online) { game = null; clearTimeout(timer); }
       try { sessionStorage.removeItem('zmj_seat_v1'); } catch (e) {}
-      netToast(m.msg); if ($('netBox')) renderNet(); return;
+      netBar(); closeModal(); showHome(); netToast(m.msg); return;
     }
     if (m.t === 'left') { NET.room = ''; NET.state = null; netBar(); if ($('netBox')) renderNet(); return; }
-    if (m.t === 'err') { netToast(m.msg); NET.err = m.msg; if ($('netBox')) renderNet(); return; }
+    if (m.t === 'err') { if (m.requestId) delete NET.pendingReviews[m.requestId]; netToast(m.msg); NET.err = m.msg; if ($('netBox')) renderNet(); return; }
+    if (m.t === 'ack') {
+      var accepted = NET.pendingReviews[m.requestId]; delete NET.pendingReviews[m.requestId];
+      if (accepted) acceptDiscardReview(accepted);
+      return;
+    }
     if (m.t === 'pong') return;
     if (m.t === 'chat') { netToast(m.from + '：' + m.text); return; }
     if (m.t === 'state') {
@@ -4351,8 +4572,10 @@ window.onerror = function (msg, src, line, col) {
     if ($('netStart')) $('netStart').onclick = function () { netSend({ t: 'start' }); };
     if ($('netNext')) $('netNext').onclick = function () { netSend({ t: 'next' }); };
     $('netCopyLink').onclick = function () {
-      var url = location.origin + location.pathname + '?room=' + encodeURIComponent(NET.room);
-      if (NET.server) url += '&server=' + encodeURIComponent(netURL());
+      var invite = new URL(location.protocol === 'file:' ? netURL().replace(/^ws/, 'http').replace(/\/ws$/, '/') : location.href);
+      invite.search = ''; invite.hash = ''; invite.searchParams.set('room', NET.room);
+      if (NET.server) invite.searchParams.set('server', netURL());
+      var url = invite.href;
       var done = function (ok) { netToast(ok ? '邀请链接已复制，发给朋友即可' : '复制被浏览器拒绝，链接是：' + url); };
       try {
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(function () { done(true); }, function () { done(false); });
@@ -4434,7 +4657,6 @@ window.onerror = function (msg, src, line, col) {
       hideHome();
       if (game && game.online) netLeave(true);  // 从联机切回单机
       if (game && !game.online && game.hand && !game.hand.over) { render(); timer = setTimeout(tick, 200); return; }
-      cfg.seed = (Math.random() * 0xffffffff) >>> 0;
       newGame();
     };
     $('homeOnline').onclick = function () { hideHome(); showNet(); };
@@ -4480,7 +4702,12 @@ window.onerror = function (msg, src, line, col) {
     try {
       var inviteParams = new URLSearchParams(location.search);
       var q = inviteParams.get('room');
-      if (q && inviteParams.get('server')) { NET.server = inviteParams.get('server'); NET.room = ''; NET.token = ''; }
+      if (q && inviteParams.get('server')) {
+        var inviteServer = inviteParams.get('server');
+        if (NET.server !== inviteServer || NET.room && NET.room !== q) { NET.room = ''; NET.token = ''; }
+        NET.server = inviteServer;
+      }
+      if (q && NET.room && NET.room !== q) { NET.room = ''; NET.token = ''; }
       // 朋友发来的邀请链接：跳过主界面，直接进联机面板
       if (q) { NET.wantRoom = q; setTimeout(function () { hideHome(); showNet(); }, 400); }
     } catch (e) {}

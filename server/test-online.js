@@ -22,14 +22,18 @@ function connect(port, name) {
   const ws = new WebSocket('ws://127.0.0.1:' + port + '/ws');
   const c = {
     ws: ws, name: name, last: null, states: [], errors: [], joined: null,
-    revs: 0, actedRev: -1,
-    send(obj) { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+    revs: 0, actedRev: -1, seq: 0, acks: [],
+    send(obj) {
+      if (obj.t === 'act') obj = Object.assign({ rev: c.last && c.last.rev, requestId: 'test_' + (++c.seq) }, obj);
+      if (ws.readyState === 1) ws.send(JSON.stringify(obj));
+    }
   };
   ws.addEventListener('message', (e) => {
     const m = JSON.parse(e.data);
     if (m.t === 'joined') c.joined = m;
     else if (m.t === 'state') { c.last = m; c.revs++; }
     else if (m.t === 'err') c.errors.push(m.msg);
+    else if (m.t === 'ack') c.acks.push(m);
   });
   return new Promise((resolve, reject) => {
     ws.addEventListener('open', () => resolve(c), { once: true });
@@ -244,6 +248,36 @@ test('错误类型的牌编号不能悄悄转换为另一张牌', async () => {
     await waitFor(() => a.errors.length === 5, 2000, '拒绝所有错误类型');
     assert.ok(a.errors.every(e => /牌编号/.test(e)));
     assert.equal(JSON.stringify(room.game.hand.players[0].concealed), before);
+  } finally { s.hub.close(); s.server.close(); }
+});
+
+test('过期局面操作被拒绝，重发成功请求不会重复出牌', async () => {
+  const s = await startServer();
+  try {
+    const a = await connect(s.port, '甲');
+    a.send({ t: 'join', room: '2012', name: '甲' });
+    await waitFor(() => a.joined, 2000, '进房');
+    a.send({ t: 'start' });
+    await waitFor(() => a.last && a.last.hand && a.last.hand.awaiting, 2000, '待决');
+    const room = s.hub.store.get('2012'), rev = a.last.rev;
+    const awaiting = a.last.hand.awaiting;
+    const move = awaiting.type === 'claim' ? { act: 'pass' } : { act: 'discard', kind: a.last.hand.mine.concealed.findIndex(n => n > 0) };
+    a.send(Object.assign({ t: 'act', requestId: 'stale', rev: rev - 1 }, move));
+    await waitFor(() => a.errors.length, 2000, '拒绝过期操作');
+    assert.match(a.errors[0], /牌局已更新/);
+    assert.equal(room.rev, rev);
+    const request = Object.assign({ t: 'act', requestId: 'once', rev }, move);
+    a.send(request);
+    await waitFor(() => a.acks.length === 1, 2000, '操作确认');
+    const after = JSON.stringify(room.game.hand.record.events), nextRev = room.rev;
+    a.send(request);
+    await waitFor(() => a.acks.length === 2, 2000, '重发确认');
+    assert.equal(a.acks[1].duplicate, true);
+    assert.equal(room.rev, nextRev);
+    assert.equal(JSON.stringify(room.game.hand.record.events), after);
+    a.send(Object.assign({}, request, { act: move.act === 'pass' ? 'peng' : 'zimo' }));
+    await waitFor(() => a.errors.length === 2, 2000, '拒绝编号复用');
+    assert.match(a.errors[1], /不同操作/);
   } finally { s.hub.close(); s.server.close(); }
 });
 

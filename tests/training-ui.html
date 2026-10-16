@@ -32,8 +32,34 @@ function load(frame, url) { return new Promise(function (resolve) { frame.onload
     d.querySelector('[aria-label="选择九筒"]').click();
     check(/最优解/.test(d.getElementById('practiceVerdict').textContent), '复习答对后予以认可');
     check(JSON.parse(localStorage.getItem('zmj_practice_v1')).wrong.length === 0, '答对的错题移出待复习列表');
+    var saved = JSON.parse(localStorage.getItem('zmj_practice_v1'));
+    check(saved.cards['wide-1'].dueAt > Date.now() && saved.cards['wide-1'].reason === '同优', '纠错后安排间隔复习并保留错因结果');
     d.getElementById('practiceNext').click();
     check(/没有待复习/.test(d.getElementById('modalBox').textContent), '错题练完有明确完成状态');
+    d.getElementById('practiceAssessment').click();
+    check(/-transfer-/.test(d.getElementById('modalBox').textContent), '变式小测使用预留变式题');
+    var attemptBefore = JSON.parse(localStorage.getItem('zmj_practice_v1')).assessment.attempts;
+    d.querySelector('.practiceHand [role="button"]').click();
+    check(JSON.parse(localStorage.getItem('zmj_practice_v1')).assessment.attempts === attemptBefore + 1, '首次变式成绩独立记录');
+    // 用真实 Blob 验证导出内容，再通过 FileReader 恢复，避免只验证按钮存在。
+    var exported = null, originalURL = w.URL.createObjectURL, originalClick = w.HTMLAnchorElement.prototype.click;
+    w.URL.createObjectURL = function (blob) { exported = blob; return 'blob:test'; };
+    w.HTMLAnchorElement.prototype.click = function () {};
+    d.getElementById('practiceExport').click();
+    w.URL.createObjectURL = originalURL; w.HTMLAnchorElement.prototype.click = originalClick;
+    var backupText = await exported.text(), backup = JSON.parse(backupText);
+    check(backup.format === 'zmj-practice' && backup.progress.version === 2, '导出包含版本和完整训练记录');
+    var restoredAttempts = backup.progress.attempts;
+    var transfer = new w.DataTransfer(); transfer.items.add(new w.File([backupText], 'practice.json', { type: 'application/json' }));
+    var restoreInput = d.getElementById('practiceImport'); restoreInput.files = transfer.files;
+    w.confirm = function () { return true; }; restoreInput.dispatchEvent(new w.Event('change'));
+    await new Promise(function (resolve, reject) {
+      var until = Date.now() + 3000, poll = setInterval(function () {
+        if (/记录已恢复/.test(d.getElementById('practiceMsg').textContent)) { clearInterval(poll); resolve(); }
+        else if (Date.now() > until) { clearInterval(poll); reject(new Error('恢复超时')); }
+      }, 20);
+    });
+    check(JSON.parse(localStorage.getItem('zmj_practice_v1')).attempts === restoredAttempts, '恢复成功且成绩未丢失');
     d.getElementById('modalDismiss').click(); d.getElementById('homeSolo').click();
     var original = w.__zmjGame;
     d.getElementById('btnHome').click(); d.getElementById('homeSolo').click();

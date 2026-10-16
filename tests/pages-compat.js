@@ -7,6 +7,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { execFile } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
@@ -14,6 +15,7 @@ const PORT = Number(process.env.PORT || 8171);
 // 可指定要跑的测试页：node tests/pages-compat.js coach-advice
 const ARGS = process.argv.slice(2);
 const PAGE = (ARGS.filter((a) => a.indexOf('--') !== 0)[0] || 'pages-compat').replace(/\.html$/, '');
+const PROFILE = fs.mkdtempSync(path.join(os.tmpdir(), 'zmj-pages-test-'));
 const WITH_HUB = ARGS.indexOf('--hub') >= 0;   // 需要联机时才接上 WebSocket 服务
 const EDGE = ['C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
               'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
@@ -56,7 +58,7 @@ server.listen(PORT, '127.0.0.1', () => {
     console.log('已造废弃房 9999（开局后无人）');
   }
   const child = execFile(EDGE, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
-    '--user-data-dir=' + path.join(__dirname, '_edgeprofile'),
+    '--user-data-dir=' + PROFILE,
     base + '/tests/' + PAGE + '.html'], { timeout: 120000 }, () => {});
   const t0 = Date.now();
   const poll = setInterval(() => {
