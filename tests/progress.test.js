@@ -43,22 +43,36 @@ test('first attempts on transfer questions are counted once, independently of re
   assert.equal(p.correct, 1);
 });
 
-test('36 questions cover 12 families with physically legal public tiles and consistent transformed answers', () => {
+test('108 questions cover 36 base situations with legal public tiles and consistent transformed answers', () => {
   const bases = Z.practiceCases.filter(q => !q.assessment);
-  assert.equal(bases.length, 12);
-  assert.equal(Z.practiceCases.length, 36);
+  assert.equal(bases.length, 36);
+  assert.equal(Z.practiceCases.length, 108);
+  assert.equal(bases.filter(q=>q.action==='peng').length,6);
   for (const q of bases) {
-    const base = Z.evaluateDiscards(Z.practiceHand(q.id), 0);
+    const base = Z.practiceChoices(q.id);
     for (let v = 1; v <= 2; v++) {
       const H = Z.practiceHand(q.id + '-transfer-' + v), own = H.players[0].concealed;
       const seen = own.slice(); H.players[1].discards.forEach(k => seen[k]++);
+      H.players[0].melds.forEach(m=>seen[m.kind]+=(m.type==='gang'?4:3)-(m.from>=0?1:0));
       assert.ok(seen.every(n => n <= 4), q.id);
-      const choices = Z.evaluateDiscards(H, 0);
+      const choices = Z.practiceChoices(q.id + '-transfer-' + v);
       assert.equal(choices[0].shanten, base[0].shanten);
       assert.equal(choices[0].ukeire, base[0].ukeire);
-      const map = k => ((Math.floor(k / 9) + v) % 3) * 9 + 8 - k % 9;
-      assert.deepEqual(choices.filter(o => Z.sameEfficiency(o, choices[0])).map(o => o.kind).sort((a,b) => a-b),
-        base.filter(o => Z.sameEfficiency(o, base[0])).map(o => map(o.kind)).sort((a,b) => a-b));
+      const map = k => typeof k==='string'?k:((Math.floor(k / 9) + v) % 3) * 9 + 8 - k % 9;
+      assert.deepEqual(choices.filter(o => Z.sameEfficiency(o, choices[0])).map(o => o.kind).sort(),
+        base.filter(o => Z.sameEfficiency(o, base[0])).map(o => map(o.kind)).sort());
     }
+  }
+});
+
+test('pung choices grade mandatory discards, accept equivalent actions, and persist mistakes', () => {
+  let p = Z.readPracticeProgress(null);
+  p = Z.recordPracticeAttempt(p,'peng-2','peng',100);
+  assert.equal(p.cards['peng-2'].reason,'向听增加');
+  p = Z.recordPracticeAttempt(p,'peng-2','pass',200);
+  assert.deepEqual(p.wrong,[]);
+  for(const choice of ['peng','pass']) {
+    const next=Z.recordPracticeAttempt(p,'peng-3',choice,300);
+    assert.equal(next.correct,p.correct+1);
   }
 });

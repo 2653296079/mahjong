@@ -1,0 +1,44 @@
+<!doctype html><meta charset="utf-8"><title>副露与碰牌专项验收</title>
+<pre id="log"></pre><iframe id="game" style="width:390px;height:844px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]};
+function check(ok,msg){if(!ok)throw new Error(msg);out.steps.push(msg);}
+(async function(){try{
+  localStorage.removeItem('zmj_practice_v1');
+  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html';});
+  var w=f.contentWindow,d=w.document;
+  d.getElementById('homePractice').click();
+  function topic(name){var s=d.getElementById('practiceTopic');s.value=name;s.onchange();}
+  topic('副露做牌');
+  check(d.querySelectorAll('.practiceHand .meld .tile').length===3,'副露题单独显示固定碰牌');
+  check(d.querySelectorAll('.practiceHand [role="button"]').length===11,'一组副露后只从 11 张暗牌作答');
+  d.querySelector('[aria-label="选择九筒"]').click();
+  check(/最优解/.test(d.getElementById('practiceVerdict').textContent),'副露题可正常评分');
+  check(/小七对：已有副露，不适用/.test(d.getElementById('modalBox').textContent),'副露讲解不把七对误显示为零向听');
+  for(var i=0;i<3;i++)d.getElementById('practiceNext').click();
+  check(/暗杠/.test(d.querySelector('.practiceHand .melds').textContent)&&d.querySelectorAll('.practiceHand .melds .tile').length===7,'副露例题正确区分暗杠与碰牌');
+  topic('碰牌取舍');
+  check(d.querySelectorAll('.practiceHand .tile').length===13,'碰牌题显示真实 13 张暗牌');
+  check(d.querySelectorAll('.practiceHand [role="button"]').length===0,'碰牌题先选择动作，不误当成弃牌题');
+  d.getElementById('practice-pass').click();
+  check(/更好的/.test(d.getElementById('practiceVerdict').textContent),'错过提速后解释牌效差异');
+  check(/碰后必须打出/.test(d.getElementById('modalBox').textContent),'碰牌反馈明确必须再打哪张');
+  check(JSON.parse(localStorage.getItem('zmj_practice_v1')).wrong.includes('peng-1'),'动作题错题能够保存');
+  topic('碰牌取舍');d.getElementById('practice-peng').click();
+  check(!JSON.parse(localStorage.getItem('zmj_practice_v1')).wrong.includes('peng-1'),'改正动作后移出待纠错列表');
+  d.getElementById('practiceNext').click();d.getElementById('practice-pass').click();
+  check(/最优解/.test(d.getElementById('practiceVerdict').textContent),'七对更快时认可不碰');
+  d.getElementById('practiceNext').click();d.getElementById('practice-pass').click();
+  check(d.querySelectorAll('.practiceTable tbody tr.best').length===2,'碰与过同优时均显示认可');
+  d.getElementById('practiceAssessment').click();
+  check(/-transfer-/.test(d.getElementById('modalBox').textContent)&&d.getElementById('practice-peng'),'碰牌题也有预留变式');
+  for(var width of [360,390,430]){
+    f.style.width=width+'px';await new Promise(function(r){setTimeout(r,30);});
+    check(d.getElementById('modalBox').scrollWidth<=d.getElementById('modalBox').clientWidth+1,width+' 像素动作题无横向溢出');
+  }
+  check(/lessons-v3/.test(d.getElementById('modalBox').textContent),'题库版本显示正确');
+  out.ok=true;
+}catch(e){out.errors.push(e.message);}
+document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));
+})();
+</script>

@@ -31,6 +31,10 @@ function get(url) {
     if (js.code !== 404) problems.push('服务端源码不该被公开访问，实际 ' + js.code);
     const sw = await get('http://127.0.0.1:' + PORT + '/sw.js');
     if (sw.code !== 200) problems.push('sw.js 应该可访问');
+    const health=await get('http://127.0.0.1:'+PORT+'/healthz');
+    const healthBody=JSON.parse(health.body);
+    if(health.code!==200||healthBody.status!=='ok'||healthBody.questionVersion!=='lessons-v3')problems.push('健康检查缺少正确版本');
+    if(/token|concealed|birds/.test(health.body.toString()))problems.push('健康检查包含私密字段');
 
     // 联机：真 WebSocket 客户端
     const ws = new WebSocket('ws://127.0.0.1:' + PORT + '/ws');

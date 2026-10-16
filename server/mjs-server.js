@@ -24,6 +24,7 @@
  */
 const { upgrade } = require('./ws-lite');
 const { RoomStore } = require('./rooms');
+const { readLimits, TokenBucket } = require('./limits');
 
 const HEARTBEAT_MS = 25000;
 const TICK_MS = 500;
@@ -32,7 +33,8 @@ const SWEEP_MS = 30000;
 function attach(server, opts) {
   opts = opts || {};
   const wsPath = opts.path || '/ws';
-  const store = new RoomStore(opts.room);
+  const limits = readLimits(opts.limits);
+  const store = new RoomStore(Object.assign({},opts.room,{maxRooms:limits.maxRooms}));
   const sessions = new Set();
 
   function send(session, msg) {
@@ -64,11 +66,16 @@ function attach(server, opts) {
       try { socket.destroy(); } catch (e) {}
       return;
     }
-    const conn = upgrade(req, socket, head, { path: wsPath });
+    if(sessions.size>=limits.maxSessions){
+      socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nRetry-After: 5\r\nContent-Length: 0\r\n\r\n');return;
+    }
+    const conn = upgrade(req, socket, head, { path: wsPath, maxMessageBytes:limits.maxMessageBytes, maxPendingBytes:limits.maxPendingBytes });
     if (!conn) return;
     const session = { conn: conn, member: null, room: null, alive: true, joinedAt: Date.now() };
+    session.budget = new TokenBucket(limits.messageRate,limits.messageBurst,Date.now());
     sessions.add(session);
     conn.on('message', (raw) => onMessage(session, raw));
+    conn.on('binary',()=>conn.close(1003,'text messages only'));
     conn.on('pong', () => { session.alive = true; });
     conn.on('close', () => { sessions.delete(session); onClose(session); });
     send(session, { t: 'welcome', rooms: store.list(), server: '转转麻将联机' });
@@ -83,9 +90,11 @@ function attach(server, opts) {
   }
 
   function onMessage(session, raw) {
+    if(!session.budget.take(Date.now())){session.conn.close(1008,'too many messages');return;}
+    if(Buffer.byteLength(raw,'utf8')>limits.maxMessageBytes){session.conn.close(1009,'message too large');return;}
     let msg = null;
     try { msg = JSON.parse(raw); } catch (e) { return send(session, { t: 'err', msg: '消息不是合法 JSON' }); }
-    if (!msg || typeof msg !== 'object') return;
+    if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return send(session,{t:'err',msg:'消息必须是一个指令对象'});
     try { handle(session, msg); }
     catch (e) { send(session, { t: 'err', msg: String((e && e.message) || e), requestId: typeof msg.requestId === 'string' ? msg.requestId : undefined }); }
   }
@@ -141,6 +150,9 @@ function attach(server, opts) {
 
   function doJoin(session, msg) {
     const wanted = msg.room == null ? '' : String(msg.room).trim();
+    if(wanted&&!/^\d{4,8}$/.test(wanted))throw new Error('房间号应为 4–8 位数字');
+    if(msg.name!=null&&typeof msg.name!=='string')throw new Error('名字必须是文字');
+    if(msg.token&& (typeof msg.token!=='string'||!/^[a-f0-9]{48}$/.test(msg.token)))throw new Error('重连令牌格式不正确');
     let room = null;
     if (wanted) {
       room = store.get(wanted);
@@ -155,8 +167,9 @@ function attach(server, opts) {
     const sameMember = session.room === room && session.member && session.member.conn === session && !session.member.gone;
     const previous = sameMember ? session.member : msg.token && room.memberByToken(msg.token);
     const oldSession = previous && previous.conn;
-    if (session.room && session.room !== room) doLeave(session);
     const member = sameMember ? session.member : room.join(msg.name, msg.token);
+    // 目标房间满员时保留原房间，不能先退房再发现加入失败。
+    if (session.room && session.room !== room) doLeave(session);
     member.conn = session;
     member.gone = false;
     session.member = member;
@@ -211,6 +224,7 @@ function attach(server, opts) {
   for (const t of [heartbeat, ticker, sweeper]) if (t.unref) t.unref();
 
   return {
+    limits: limits,
     store: store,
     sessions: sessions,
     broadcast: broadcast,

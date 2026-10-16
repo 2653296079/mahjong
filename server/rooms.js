@@ -39,7 +39,7 @@ function newId(prefix) {
 
 const DEFAULTS = {
   turnTimeout: 60000,   // 一个座位挂机多久后由电脑代打一手（毫秒）
-  nextHandDelay: 12000, // 一局结束后多久自动开下一局
+  nextHandDelay: 30000, // 留出查看其他三家手牌的时间；也可手动开始下一局
   queuedBots: 2,        // 等待区里放几个电脑，保证转转轮换有人上桌
   botStyle: 'v2',       // 电脑用哪个强度（v2 = 按期望值打）
   maxMembers: 12
@@ -304,7 +304,7 @@ class Room {
   /**
    * 发给某个玩家的状态。
    * 只包含：他自己的暗牌 + 所有人公开的牌（副露、牌河）+ 别人的暗牌张数。
-   * 别人的暗牌具体是什么、牌墙顺序、鸟牌，一律不发。
+   * 局中不发别人的暗牌、牌墙顺序及鸟牌；终局才额外发送四家剩余手牌与完整牌谱。
    */
   viewFor(m) {
     const G = this.game;
@@ -354,6 +354,7 @@ class Room {
     out.result = (H.over && G.lastResult) ? publicResult(G.lastResult) : null;
     out.logs = G.logs.slice(-60);
     if (H.over) {
+      out.hand.revealed = loadCore().settlementHands(H);
       const rec = G.records[G.records.length - 1];
       out.record = rec || null;                    // 牌谱只在本局结束后才发
     }
@@ -389,6 +390,7 @@ function publicResult(res) {
 class RoomStore {
   constructor(opts) { this.opts = opts || {}; this.rooms = new Map(); }
   create(id, opts) {
+    if(this.rooms.size >= (this.opts.maxRooms || 64))throw new Error('房间数量已达上限，请稍后重试');
     let rid = id;
     if (!rid) { do { rid = String(1000 + Math.floor(Math.random() * 9000)); } while (this.rooms.has(rid)); }
     if (this.rooms.has(rid)) throw new Error('房间号已被占用');

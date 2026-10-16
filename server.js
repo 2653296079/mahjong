@@ -6,8 +6,10 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const online = require('./server/mjs-server');   // 联机房间（WebSocket）
+const { loadCore } = require('./server/rooms');
 
 const port = Number(process.argv[2] || 8000);
+const bindHost=process.env.MAHJONG_HOST||'0.0.0.0';
 const root = __dirname;
 const GAME = 'index.html';
 const PUBLIC_FILES = new Set([GAME, 'sw.js', 'manifest.webmanifest', 'icon-512.png']);
@@ -38,6 +40,12 @@ const server = http.createServer((req, res) => {
     urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
   } catch (e) {
     urlPath = '/';
+  }
+  if(urlPath==='/healthz' && (req.method==='GET'||req.method==='HEAD')){
+    const core=loadCore();
+    const body=JSON.stringify({status:'ok',rulesVersion:core.rulesVersion,analysisVersion:core.analysisVersion,questionVersion:core.questionVersion,...hub.stats()});
+    res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Content-Length':Buffer.byteLength(body)});
+    res.end(req.method==='HEAD'?undefined:body);return;
   }
   if (urlPath === '/' || urlPath === '/game' || urlPath === '/index.html') urlPath = '/' + GAME;
   const file = path.resolve(root, '.' + urlPath);
@@ -72,9 +80,13 @@ server.on('error', (e) => {
 });
 
 // 联机：同一个端口上同时提供页面和 WebSocket，大家用浏览器打开同一个地址就能一起打
-const hub = online.attach(server);
+const limits={};
+for(const [key,envName]of Object.entries({maxSessions:'MAHJONG_MAX_SESSIONS',maxRooms:'MAHJONG_MAX_ROOMS',messageRate:'MAHJONG_MESSAGE_RATE',messageBurst:'MAHJONG_MESSAGE_BURST'})){
+  if(process.env[envName]!==undefined)limits[key]=Number(process.env[envName]);
+}
+const hub = online.attach(server,{limits});
 
-server.listen(port, '0.0.0.0', () => {
+server.listen(port, bindHost, () => {
   const ips = localIPs();
   console.log('');
   console.log('=========================================================');
@@ -83,7 +95,9 @@ server.listen(port, '0.0.0.0', () => {
   console.log('');
   console.log('  On your phone (same Wi-Fi), open Safari/Chrome and go to:');
   console.log('');
-  if (ips.length) {
+  if(bindHost==='127.0.0.1'||bindHost==='::1'){
+    console.log('      http://'+(bindHost==='::1'?'[::1]':bindHost)+':'+port+'/');
+  } else if (ips.length) {
     ips.forEach((i) => console.log('      http://' + i.ip + ':' + port + '/          <- ' + i.name));
     console.log('');
     console.log('  If the phone cannot open it:');
@@ -105,7 +119,12 @@ server.listen(port, '0.0.0.0', () => {
   console.log('');
 });
 
-process.on('SIGINT', () => {
+let stopping=false;
+function stop() {
+  if(stopping)return;stopping=true;
   try { hub.close(); } catch (e) {}
-  process.exit(0);
-});
+  server.close(()=>process.exit(0));
+  const deadline=setTimeout(()=>process.exit(1),5000);deadline.unref();
+}
+process.on('SIGINT',stop);
+process.on('SIGTERM',stop);

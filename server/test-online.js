@@ -141,6 +141,8 @@ test('网线上不泄漏对手暗牌：把服务器真手牌和服务端发出�
           if (seat === mySeat) continue;
           const secret = JSON.stringify(Array.from(G.hand.players[seat].concealed));
           for (const one of raw) {
+            const packet=JSON.parse(one);
+            if(packet.hand&&packet.hand.over)continue; // 结算亮牌是明确允许的公开信息。
             assert.ok(one.indexOf(secret) < 0,
               '服务器把座位 ' + seat + ' 的暗牌发给甲了！');
           }

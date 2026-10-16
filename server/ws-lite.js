@@ -63,16 +63,18 @@ function encode(opcode, payload) {
 
 /** 增量帧解析器：把 TCP 字节流拆成一个个 WebSocket 帧 */
 class FrameParser {
-  constructor(onFrame, onError) {
+  constructor(onFrame, onError, opts) {
     this.buf = Buffer.alloc(0);
     this.onFrame = onFrame;
     this.onError = onError || (() => {});
     this.dead = false;
+    this.maxFrame = opts && opts.maxMessageBytes || MAX_FRAME;
+    this.maxBuffer = opts && opts.maxMessageBytes ? Math.max(65536 + this.maxFrame, this.maxFrame * 2) : MAX_BUFFER;
   }
   push(chunk) {
     if (this.dead) return;
     this.buf = this.buf.length ? Buffer.concat([this.buf, chunk]) : chunk;
-    if (this.buf.length > MAX_BUFFER) { this.dead = true; this.onError(1009, 'buffer too large'); return; }
+    if (this.buf.length > this.maxBuffer) { this.dead = true; this.onError(1009, 'buffer too large'); return; }
     for (;;) {
       const b = this.buf;
       if (b.length < 2) return;
@@ -92,7 +94,8 @@ class FrameParser {
         if (hi !== 0) { this.dead = true; this.onError(1009, 'frame too large'); return; }
         len = lo; off += 8;
       }
-      if (len > MAX_FRAME) { this.dead = true; this.onError(1009, 'frame too large'); return; }
+      if (len > this.maxFrame) { this.dead = true; this.onError(1009, 'frame too large'); return; }
+      if (opcode >= 8 && (!fin || len > 125)) { this.dead = true; this.onError(1002, 'invalid control frame'); return; }
       // 客户端发来的帧必须掩码（RFC6455 §5.1）
       if (!masked) { this.dead = true; this.onError(1002, 'client frame must be masked'); return; }
       if (b.length < off + 4) return;
@@ -109,7 +112,7 @@ class FrameParser {
 
 /** 一条 WebSocket 连接 */
 class WSConn extends EventEmitter {
-  constructor(socket) {
+  constructor(socket, opts) {
     super();
     this.socket = socket;
     this.closed = false;
@@ -119,8 +122,10 @@ class WSConn extends EventEmitter {
     this.fragChunks = [];
     this.fragLen = 0;
     this.data = {};               // 业务侧挂载点
+    this.maxMessageBytes = opts && opts.maxMessageBytes || MAX_FRAME;
+    this.maxPendingBytes = opts && opts.maxPendingBytes || MAX_BUFFER;
     this.parser = new FrameParser((fin, opcode, payload) => this._onFrame(fin, opcode, payload),
-      (code, why) => this.close(code, why));
+      (code, why) => this.close(code, why), opts);
     socket.on('data', (chunk) => this.parser.push(chunk));
     socket.on('error', () => this._teardown());
     socket.on('close', () => this._teardown());
@@ -144,7 +149,7 @@ class WSConn extends EventEmitter {
       if (!this.fragOp) { this.close(1002, 'unexpected continuation'); return; }
       this.fragChunks.push(payload);
       this.fragLen += payload.length;
-      if (this.fragLen > MAX_FRAME) { this.close(1009, 'message too large'); return; }
+      if (this.fragLen > this.maxMessageBytes) { this.close(1009, 'message too large'); return; }
       if (!fin) return;
       const full = Buffer.concat(this.fragChunks, this.fragLen);
       const op = this.fragOp;
@@ -168,7 +173,9 @@ class WSConn extends EventEmitter {
 
   _sendRaw(opcode, payload) {
     if (this.closed || !this.socket.writable) return false;
-    try { this.socket.write(encode(opcode, payload)); return true; }
+    const frame=encode(opcode,payload);
+    if(opcode!==OP.CLOSE && this.socket.writableLength+frame.length>this.maxPendingBytes){this.close(1008,'client too slow');return false;}
+    try { this.socket.write(frame); return true; }
     catch (e) { this._teardown(); return false; }
   }
 
@@ -185,7 +192,8 @@ class WSConn extends EventEmitter {
   close(code, reason) {
     if (this.closed) return;
     this.readyState = 2;
-    const r = Buffer.from(String(reason || ''), 'utf8');
+    this.closeCode = code || 1000;
+    const r = Buffer.from(String(reason || ''), 'utf8').subarray(0,123);
     const body = Buffer.allocUnsafe(2 + r.length);
     body.writeUInt16BE(code || 1000, 0);
     r.copy(body, 2);
@@ -196,6 +204,8 @@ class WSConn extends EventEmitter {
   _teardown() {
     if (this.closed) return;
     this.closed = true;
+    this.parser.dead = true; this.parser.buf = Buffer.alloc(0);
+    this.fragChunks = []; this.fragLen = 0;
     this.readyState = 3;
     try { this.socket.destroy(); } catch (e) {}
     this.emit('close', this.closeCode || 1006);
@@ -232,8 +242,8 @@ function upgrade(req, socket, head, opts) {
     'Connection: Upgrade\r\n' +
     'Sec-WebSocket-Accept: ' + acceptKey(key) + '\r\n\r\n'
   );
-  const conn = new WSConn(socket);
-  if (head && head.length) conn.parser.push(head);
+  const conn = new WSConn(socket,opts);
+  if (head && head.length) queueMicrotask(()=>conn.parser.push(head));
   return conn;
 }
 

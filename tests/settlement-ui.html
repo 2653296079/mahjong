@@ -1,0 +1,58 @@
+<!doctype html><meta charset="utf-8"><title>终局手牌验收</title>
+<pre id="log"></pre><iframe id="game" style="width:390px;height:844px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]};
+function check(ok,msg){if(!ok)throw new Error(msg);out.steps.push(msg);}
+function pause(ms){return new Promise(function(r){setTimeout(r,ms);});}
+(async function(){try{
+  localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:71,sound:false,analyze:false,turnTime:0,aiStyle:'v1',rotate:false}));
+  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html';});
+  var w=f.contentWindow,d=w.document;d.getElementById('homeSolo').click();var g=w.__zmjGame,Z=w.ZMJ;
+  function counts(kinds){var c=Z.newCounts();kinds.forEach(function(k){c[k]++;});return c;}
+  function drawEnded(){
+    for(var i=0;!g.hand.over&&i<1000;i++){
+      if(g.hasPendingResolve())g.resolvePending();
+      else if(g.pendingAwaits().length)g.autoPlaySeat(g.pendingAwaits()[0].seat);
+      else g.aiStep();
+    }
+  }
+  function show(){w.dispatchEvent(new w.Event('resize'));d.getElementById('btnViewFinalHands').click();}
+  function verify(){
+    var cards=Array.from(d.querySelectorAll('#settlementHands .endHand'));
+    check(cards.length===4,'四家终局手牌均有独立区域');
+    check(cards.map(function(c){return +c.dataset.seat;}).join(',')==='1,2,3,0','其他三家优先，自己的手牌最后');
+    check(cards.every(function(card){
+      var p=g.hand.players[+card.dataset.seat],names=[];
+      p.concealed.forEach(function(n,k){for(var i=0;i<n;i++)names.push(Z.tileName(k));});
+      return JSON.stringify(names)===JSON.stringify(Array.from(card.querySelectorAll('.endConcealed .tile')).map(function(t){return t.getAttribute('aria-label');}));
+    }),'每家牌面与引擎的真实剩余暗牌逐张一致');
+  }
+  g.hand.wall.length=0;drawEnded();check(g.lastResult.type==='draw','通过真实终局流程生成荒庄');show();verify();
+  check(d.querySelectorAll('.winningTile').length===0,'荒庄不生成和牌张');
+  d.getElementById('modalDismiss').click();check(d.getElementById('modal').classList.contains('hidden'),'可以关闭结算');
+  d.getElementById('btnViewFinalHands').click();check(d.querySelectorAll('.endHand').length===4,'关闭后可重新查看本局四家手牌');
+  d.getElementById('btnNext').click();
+  check(!g.hand.over&&!d.getElementById('btnViewFinalHands'),'下一局不残留终局亮牌入口');
+  // 控制牌形验证一炮多响的显示；规则与牌守恒由引擎测试另行覆盖。
+  g.dealer=0;g.startHand();
+  g.hand.players[0].concealed=counts([0,1,2,3,4,5,9,10,11,18,19,20,25,26]);
+  g.hand.players[1].concealed=counts([26]);
+  g.hand.players[1].melds=[{type:'peng',kind:0,from:0},{type:'gang',kind:4,from:-1,ming:false},{type:'peng',kind:9,from:2},{type:'peng',kind:18,from:3}];
+  g.hand.players[2].concealed=counts([1,2,3,6,7,8,10,11,12,21,22,23,26]);
+  g.setAiStyle(1,'v1');g.setAiStyle(2,'v1');g.humanDiscard(26);if(g.hasPendingResolve())g.resolvePending();
+  check(g.hand.over&&g.lastResult.type==='discard'&&g.lastResult.winners.length>=2,'通过真实收炮流程生成一炮多响');show();verify();
+  check(d.querySelectorAll('.winningTile').length===g.lastResult.winners.length,'各收炮赢家单列同一张和牌张，不计入原手牌');
+  check(d.querySelector('[data-seat="1"] .melds').querySelectorAll('.tile').length===13&&/暗杠/.test(d.querySelector('[data-seat="1"]').textContent),'碰与暗杠分组显示，杠展示四张');
+  for(var width of [360,390,430]){
+    f.style.width=width+'px';await pause(40);
+    check(d.documentElement.scrollWidth<=width+1&&d.getElementById('modalBox').scrollWidth<=d.getElementById('modalBox').clientWidth+1,width+' 像素结算手牌能换行且无横向溢出');
+  }
+  d.getElementById('btnNext').click();
+  g.dealer=0;g.startHand();
+  g.hand.players[0].concealed=counts([0,1,2,3,4,5,9,10,11,18,19,20,26,26]);
+  g.awaiting.options.canZimo=true;g.humanZimo();show();verify();
+  check(d.querySelector('[data-seat="0"] .endConcealed').querySelectorAll('.tile').length===14&&d.querySelectorAll('.winningTile').length===0,'自摸手牌含和牌张，只显示一次');
+  out.ok=true;
+}catch(e){out.errors.push(e.message);}
+document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));})();
+</script>

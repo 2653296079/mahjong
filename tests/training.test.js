@@ -28,14 +28,23 @@ test('drawing without replacement agrees with exact combinations and boundaries'
   assert.ok(Math.abs(Z.drawChance(7, 94, 1) - 7 / 94) < 1e-12);
 });
 
-test('every lesson has 14 physical tiles, a real choice, and exact candidate counts', () => {
+test('every lesson has legal concealed tiles, a real task, and exact candidate counts', () => {
   assert.equal(new Set(Z.practiceCases.map(q => q.id)).size, Z.practiceCases.length);
   for (const q of Z.practiceCases) {
     const H = Z.practiceHand(q.id), c = H.players[0].concealed;
-    assert.equal(Z.sumCounts(c), 14, q.id);
+    const mc = H.players[0].melds.length;
+    assert.equal(Z.sumCounts(c), (q.action === 'peng' ? 13 : 14) - 3 * mc, q.id);
     assert.ok(c.every(n => n >= 0 && n <= 4), q.id);
-    assert.equal(Z.isWin(c, 0), false, q.id + ' must not ask to discard an already winning hand');
-    const before = JSON.stringify(H), opts = Z.evaluateDiscards(H, 0);
+    assert.equal(Z.isWin(c, mc), false, q.id + ' must not ask to discard an already winning hand');
+    const before = JSON.stringify(H), opts = Z.practiceChoices(q.id);
+    assert.ok(opts.length >= 2, q.id + ' needs at least two choices');
+    if (q.action === 'peng') {
+      c[q.claim]++; assert.equal(Z.isWin(c, mc), false, 'do not train giving up an available win'); c[q.claim]--;
+      const result = Z.pengAdvice(H,0,q.claim,1);
+      assert.deepEqual(opts.find(o=>o.kind==='pass'), {kind:'pass',...result.before});
+      assert.equal(opts.find(o=>o.kind==='peng').discard, result.after.kind);
+      continue;
+    }
     assert.ok(opts.some(o => !Z.sameEfficiency(o, opts[0])), q.id + ' needs a meaningful alternative');
     for (const o of opts) {
       const g = Z.trainingGuide(H, 0, o.kind, false);
