@@ -383,6 +383,31 @@ main{flex:1;display:flex;min-height:0}
 @media (max-width:680px){
   #side{width:100%;padding:10px 10px calc(12px + env(safe-area-inset-bottom))}
 }
+
+/* 训练工作台与可访问弹窗 */
+#modal{z-index:90;padding:48px 12px 14px}
+#modalDismiss{position:absolute;right:max(14px,env(safe-area-inset-right));top:max(8px,env(safe-area-inset-top));min-height:36px}
+#modalBox{max-height:calc(100dvh - 72px);overscroll-behavior:contain}
+button,input,select{font:inherit}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+.practiceTop{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:14px 0}
+.practiceTop select{background:#123f2e;color:#eef6f1;padding:9px;border:1px solid #557a68;border-radius:8px;max-width:100%}
+.practiceNote{color:#b5cbbd;font-size:13px;line-height:1.85;margin:10px 0}
+.practiceHand{padding:18px 6px 26px;background:rgba(0,0,0,.16);border-radius:12px;margin:12px 0}
+.practiceHand .tile{flex:0 0 auto}
+.practiceFeedback{border:1px solid #759d87;background:#123d2c;border-radius:10px;padding:14px;margin:12px 0}
+.practiceFeedback h3{margin:0 0 8px;color:#ffe3a1;font-size:16px}
+.practiceFeedback.warn{border-color:#d7a36d}
+.practiceTableWrap{overflow:auto}
+.practiceTable .best{color:#9de2b6;background:rgba(126,226,168,.08)}
+.practiceTable td:first-child{white-space:nowrap}
+.practiceKpi{display:flex;gap:14px;flex-wrap:wrap;color:#c1d6c9;font-size:13px}
+.practiceKpi b{font-size:19px;color:#f2c14e;margin-right:4px}
+.practiceFooter{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+.practiceFooter button,.practiceTop button{min-height:42px}
+.homePractice{background:linear-gradient(135deg,#1c4d38,#163e2c)!important}
+#home{align-items:safe center!important}
+@media(max-width:680px){.homeCard{padding:16px!important;flex-basis:100%!important;max-width:none!important}.homeBrand{font-size:23px!important}.practiceHand .tile.mid{width:32px;height:44px}.practiceTop{gap:6px}.practiceTop select{flex:1}#modalBox{width:100%;padding:15px}.practiceKpi{gap:10px}}
 </style>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-512.png">
@@ -430,7 +455,7 @@ main{flex:1;display:flex;min-height:0}
       <button id="btnPanel" class="mini">牌况 / 提示</button>
       <button id="btnExport" class="mini">牌谱</button>
       <button id="btnStats" class="mini">统计</button>
-      <button id="btnDojo" class="mini">道场</button>
+      <button id="btnPractice" class="mini">牌效训练</button><button id="btnDojo" class="mini">防守练习</button>
       <button id="btnReplay" class="mini">复盘</button>
       <button id="btnRules" class="mini">规则</button>
       <button id="btnSettings" class="mini">设置</button>
@@ -504,7 +529,7 @@ main{flex:1;display:flex;min-height:0}
 </div>
 
 <div id="scrim"></div>
-<div id="modal" class="hidden"><div class="modalBox" id="modalBox"></div></div>
+<div id="modal" class="hidden" role="dialog" aria-modal="true" aria-label="练牌面板"><div class="modalBox" id="modalBox" tabindex="-1"></div><button id="modalDismiss" class="mini" aria-label="关闭面板">关闭 ×</button></div>
 
 <script>
 /* ============================================================
@@ -629,7 +654,9 @@ main{flex:1;display:flex;min-height:0}
     var cap = need + 1;
     var best = { m: 0, p: 0, pair: false, score: -1e9 };
     function consider(m, p, pair) {
-      var sc = 2 * m + p + (pair ? 0.5 : 0);
+      // 按最终向听评价拆分：没有将时，超出面子槽位的搭子不能抵作一对将。
+      // 否则“4 面子 + 单张”会与“3 面子 + 2 搭子”打平，并被误报为 1 向听。
+      var sc = 2 * m + p - (m + p === need + 1 && !pair ? 1 : 0);
       if (sc > best.score) best = { m: m, p: p, pair: pair, score: sc };
     }
     function dfs(i, m, p, pair) {
@@ -670,13 +697,22 @@ main{flex:1;display:flex;min-height:0}
 
   function shantenSevenPairs(counts) {
     var pairs = 0, kinds = 0;
-    for (var i = 0; i < KINDS; i++) { if (counts[i] >= 2) pairs++; if (counts[i] > 0) kinds++; }
+    for (var i = 0; i < KINDS; i++) {
+      pairs += RULES.sevenPairsAllowQuad ? Math.floor(counts[i] / 2) : (counts[i] >= 2 ? 1 : 0);
+      if (counts[i] > 0) kinds++;
+    }
+    if (RULES.sevenPairsAllowQuad) return 6 - pairs;
     return 6 - pairs + Math.max(0, 7 - kinds);
   }
 
+  var shantenCache = new Map();
   function shanten(counts, meldCount) {
+    var key = meldCount + ':' + (RULES.sevenPairsAllowQuad ? '1' : '0') + ':' + counts.join('');
+    if (shantenCache.has(key)) return shantenCache.get(key);
     var s = shantenStandard(counts, meldCount);
     if (meldCount === 0) s = Math.min(s, shantenSevenPairs(counts));
+    if (shantenCache.size >= 24000) shantenCache.clear();
+    shantenCache.set(key, s);
     return s;
   }
 
@@ -685,7 +721,7 @@ main{flex:1;display:flex;min-height:0}
     var cur = shanten(counts, meldCount), kinds = [], total = 0;
     for (var k = 0; k < KINDS; k++) {
       var remain = unseen ? unseen[k] : (4 - counts[k]);
-      if (remain <= 0) continue;
+      if (remain <= 0 || counts[k] >= 4) continue;
       counts[k]++;
       var s2 = shanten(counts, meldCount);
       counts[k]--;
@@ -1048,8 +1084,8 @@ main{flex:1;display:flex;min-height:0}
     var GAIN = RULES.winGain, LOSS = RULES.riskWeight;
     var scores = {}, bestEv = -1e9, bestKind = -1;
     set.forEach(function (o) {
-      var pProg = 1 - Math.exp(-o.ukeire * d / W);
-      var pWin = Math.pow(pProg, Math.max(1, o.shanten));
+      var pProg = drawChance(o.ukeire, sumCounts(visiblePool(hand, seat)), d);
+      var pWin = Math.pow(pProg, Math.max(1, o.shanten + 1));
       var pDeal = sit.dealIn(o.kind).prob;
       var ev = pWin * GAIN - pDeal * LOSS;
       scores[o.kind] = ev;
@@ -1155,8 +1191,8 @@ main{flex:1;display:flex;min-height:0}
     var d = drawsLeft(found), W = Math.max(8, found.wall.length);
     var scored = cands.map(function (c) {
       var u = c.ukeire;
-      var pProg = 1 - Math.exp(-u * d / W);
-      var pWin = Math.pow(pProg, Math.max(1, c.shanten));
+      var pProg = drawChance(u, sumCounts(visiblePool(found, 0)), d);
+      var pWin = Math.pow(pProg, Math.max(1, c.shanten + 1));
       var deal = sits.dealIn(c.kind);
       return { kind: c.kind, shanten: c.shanten, ukeire: u, pDeal: deal.prob,
                killers: deal.killers, ev: pWin * 43 - deal.prob * 17.67 };
@@ -1223,7 +1259,7 @@ main{flex:1;display:flex;min-height:0}
       out.push({ kind: k, shanten: s, ukeire: 0, danger: 0 });
     }
     out.forEach(function (o) {
-      if (o.shanten === minsh) {
+      {
         p.concealed[o.kind]--;
         o.ukeire = ukeire(p.concealed, mc, unseen).total;
         p.concealed[o.kind]++;
@@ -1233,7 +1269,7 @@ main{flex:1;display:flex;min-height:0}
     out.sort(function (a, b) {
       if (a.shanten !== b.shanten) return a.shanten - b.shanten;
       if (b.ukeire !== a.ukeire) return b.ukeire - a.ukeire;
-      return a.danger - b.danger;
+      return a.kind - b.kind;
     });
     return out;
   }
@@ -1249,7 +1285,7 @@ main{flex:1;display:flex;min-height:0}
     counts[discard]--;
     var sh = shanten(counts, mc), draws = [], total = 0;
     for (var k = 0; k < KINDS; k++) {
-      if (!unseen[k]) continue;
+      if (!unseen[k] || counts[k] >= 4) continue;
       counts[k]++;
       var nextSh = shanten(counts, mc);
       counts[k]--;
@@ -1286,27 +1322,73 @@ main{flex:1;display:flex;min-height:0}
         return b.waitTotal - a.waitTotal || b.drawCount - a.drawCount || a.draw - b.draw;
       });
     }
+    var weightedWait = paths.reduce(function (sum, path) { return sum + path.drawCount * path.waitTotal; }, 0);
     return { kind: discard, shanten: sh, draws: draws, total: total,
-      unknown: unknown, chanceNext: unknown ? total / unknown : 0, paths: paths };
+      unknown: unknown, chanceNext: unknown ? total / unknown : 0, paths: paths,
+      averageWait: total && paths.length ? weightedWait / total : null,
+      twoDrawWin: unknown > 1 && paths.length ? weightedWait / (unknown * (unknown - 1)) : null };
+  }
+
+  // 从 N 张未见牌中不放回抽 n 张，至少遇到一张指定有效牌的概率。
+  // 这是固定听口、随机分布的基准，不计他家提前和牌、碰杠或后续改牌。
+  function drawChance(outs, unknown, draws) {
+    var n = Math.max(0, Math.min(Math.floor(draws), unknown)), miss = 1;
+    if (unknown <= 0 || outs <= 0 || n === 0) return 0;
+    outs = Math.min(outs, unknown);
+    for (var i = 0; i < n; i++) miss *= Math.max(0, unknown - outs - i) / (unknown - i);
+    return 1 - miss;
+  }
+
+  function sameEfficiency(a, b) {
+    return !!(a && b && a.shanten === b.shanten && a.ukeire === b.ukeire);
+  }
+
+  // 固定可复现题库；题目只展示自己的 14 张牌，不虚构牌河或对手信息。
+  var PRACTICE_CASES = [
+    { id: 'wide-1', topic: '听得更宽', tiles: '12345m12366s1239p', lesson: '比较实际未见和牌张数：两面通常比单钓宽，但自己已经拿着的同种牌也要扣除。' },
+    { id: 'wide-2', topic: '听得更宽', tiles: '12367m12355s1239p', lesson: '保留两面搭子时，两端都可能和牌；逐种计算剩余张数，比只数听几种更准确。' },
+    { id: 'wide-3', topic: '听得更宽', tiles: '12389m12355s1234p', lesson: '边张和两面要结合整手牌一起拆分，不能只看到 8、9 就机械拆掉。' },
+    { id: 'shape-1', topic: '先降向听', tiles: '12345m1236s12389p', lesson: '一向听先找所有可进张，再看进张后能保留什么听口。对子是做将的候选，不是面子。' },
+    { id: 'shape-2', topic: '先降向听', tiles: '11234m3456s56899p', lesson: '重叠搭子可以有多种拆法。不要只按某一种分组判断向听，逐一试打更可靠。' },
+    { id: 'shape-3', topic: '先降向听', tiles: '124569m345s22678p', lesson: '已经成形的顺子和对子有价值；多余搭子之间，再比较接纳有效牌的能力。' },
+    { id: 'pairs-1', topic: '小七对', tiles: '111144m88s337789p', lesson: '本桌四张相同牌可以作两对。小七对和普通牌型同时计算，选向听更低的路线。' },
+    { id: 'pairs-2', topic: '小七对', tiles: '113355m2277s5688p', lesson: '六对加两张单牌时，保留哪张单牌决定听口。小七对的单钓也要数未见张数。' },
+    { id: 'pairs-3', topic: '小七对', tiles: '1111m335577s2899p', lesson: '四张计两对是本练习器的规则。拆四张可能损失一对，要先看向听是否倒退。' }
+  ];
+  function practiceHand(id) {
+    var spec = PRACTICE_CASES.filter(function (q) { return q.id === id; })[0];
+    if (!spec) return null;
+    var H = { players: [], turnCount: 0, wall: [] };
+    for (var s = 0; s < 4; s++) H.players.push({ concealed: newCounts(), discards: [], melds: [] });
+    spec.tiles.replace(/([1-9]+)([msp])/g, function (_, digits, suit) {
+      var offset = { m: 0, s: 9, p: 18 }[suit];
+      digits.split('').forEach(function (n) { H.players[0].concealed[offset + Number(n) - 1]++; });
+      return '';
+    });
+    return H;
+  }
+
+  // 碰牌必须比较“碰完并弃牌”的 13-3m 张状态，且不能修改实时牌局。
+  function pengAdvice(hand, seat, kind, from) {
+    var p = hand.players[seat];
+    if (!p || p.concealed[kind] < 2) return null;
+    var pool = visiblePool(hand, seat);
+    var before = { shanten: shanten(p.concealed, p.melds.length), ukeire: ukeire(p.concealed, p.melds.length, pool).total };
+    var copy = { players: hand.players.map(function (q, i) {
+      return { concealed: i === seat ? q.concealed.slice() : newCounts(), discards: q.discards.slice(), melds: q.melds.slice() };
+    }) };
+    copy.players[seat].concealed[kind] -= 2;
+    copy.players[seat].melds.push({ type: 'peng', kind: kind, from: from });
+    var after = evaluateDiscards(copy, seat)[0];
+    return { before: before, after: after,
+      better: after.shanten < before.shanten || (after.shanten === before.shanten && after.ukeire > before.ukeire) };
   }
 
   // 危险度：0 最安全
   function dangerOf(hand, seat, kind) {
-    var base = [8, 4, 2, 1, 1, 1, 2, 4, 8][kind % 9]; // 边张安全，中张危险
-    var safeFromAll = true, anyDiscarded = false, meldedBy = 0, s, i;
-    for (s = 0; s < 4; s++) {
-      if (s === seat) continue;
-      var p = hand.players[s], isSafe = false;
-      if (p.discards.indexOf(kind) >= 0) { isSafe = true; anyDiscarded = true; }
-      for (i = 0; i < p.melds.length; i++) {
-        if (p.melds[i].kind === kind) { isSafe = true; meldedBy++; }   // 碰过这张的人无法再胡/杠它
-      }
-      if (!isSafe) safeFromAll = false;
-    }
-    if (safeFromAll) return 0;
-    if (anyDiscarded) return 1;
-    if (meldedBy > 0) return Math.max(1, base - 3);
-    return base;
+    // 仅供简易 AI 的牌形启发式。本桌没有日麻振听，打过/碰过的牌也可能再胡。
+    // 确切候选的风险另由 analyzeSituation 采样；这里不制造“绝对安全牌”。
+    return [1, 2, 3, 4, 4, 4, 3, 2, 1][kind % 9];
   }
 
   function drawsLeft(hand) { return Math.floor(hand.wall.length / 4); }
@@ -1789,8 +1871,8 @@ main{flex:1;display:flex;min-height:0}
       var GAIN = RULES.winGain, LOSS = RULES.riskWeight;   // 均可标定
       var best = null;
       set.forEach(function (o) {
-        var pProg = 1 - Math.exp(-o.ukeire * d / W);
-        var pWin = Math.pow(pProg, Math.max(1, o.shanten));
+        var pProg = drawChance(o.ukeire, sumCounts(visiblePool(H, seat)), d);
+        var pWin = Math.pow(pProg, Math.max(1, o.shanten + 1));
         var pDeal = sit.dealIn(o.kind).prob;
         var ev = pWin * GAIN - pDeal * LOSS;
         if (!best || ev > best.ev) best = { kind: o.kind, ev: ev, pWin: pWin, pDeal: pDeal, ukeire: o.ukeire, shanten: o.shanten };
@@ -2008,6 +2090,8 @@ main{flex:1;display:flex;min-height:0}
     isWin: isWin, isSevenPairs: isSevenPairs,
     shanten: shanten, shantenStandard: shantenStandard, shantenSevenPairs: shantenSevenPairs,
     ukeire: ukeire, evaluateDiscards: evaluateDiscards, trainingGuide: trainingGuide,
+    drawChance: drawChance, sameEfficiency: sameEfficiency, pengAdvice: pengAdvice,
+    practiceCases: PRACTICE_CASES, practiceHand: practiceHand,
     birdFan: birdFan, birdMoney: birdMoney, countBirds: countBirds,
     analyzeSituation: analyzeSituation, visiblePool: visiblePool, waitTiles: waitTiles,
     newStats: newStats, accumulateStats: accumulateStats, statsSummary: statsSummary,
@@ -2079,6 +2163,47 @@ window.onerror = function (msg, src, line, col) {
   }
   var sitCache = { key: '', data: null, cands: null };
   var $ = function (id) { return document.getElementById(id); };
+  var modalFocus = null;
+  function syncLayers() {
+    var modalOpen = !$('modal').classList.contains('hidden');
+    var homeOpen = $('home') && !$('home').classList.contains('hidden');
+    $('app').inert = !!(modalOpen || homeOpen);
+    if ($('home')) $('home').inert = modalOpen;
+  }
+  function openModal() {
+    var fresh = $('modal').classList.contains('hidden');
+    if (fresh) modalFocus = document.activeElement;
+    $('modal').classList.remove('hidden');
+    syncLayers();
+    if (fresh || !$('modal').contains(document.activeElement)) {
+      var heading = $('modalBox').querySelector('h2');
+      if (heading) { heading.tabIndex = -1; heading.focus(); }
+      else $('modalBox').focus();
+    }
+  }
+  function closeModal() {
+    $('modal').classList.add('hidden');
+    if (!game) showHome();
+    syncLayers();
+    if (modalFocus && modalFocus.isConnected && !modalFocus.closest('[inert],.hidden')) modalFocus.focus();
+    else if ($('home') && !$('home').classList.contains('hidden')) $('homeSolo').focus();
+    if (game && !game.online && game.hand && !game.hand.over && !($('home') && !$('home').classList.contains('hidden'))) {
+      clearTimeout(timer); timer = setTimeout(tick, 200);
+    }
+  }
+  $('modalDismiss').onclick = closeModal;
+  document.addEventListener('keydown', function (e) {
+    if ($('modal').classList.contains('hidden')) return;
+    if (e.key === 'Escape') { e.preventDefault(); closeModal(); return; }
+    if (e.key !== 'Tab') return;
+    var items = Array.prototype.slice.call($('modal').querySelectorAll('button:not(:disabled),input,select,textarea,a[href],[tabindex="0"]'))
+      .filter(function (el) { return el.getClientRects().length && !el.closest('[hidden]'); });
+    if (!items.length) { e.preventDefault(); $('modalBox').focus(); return; }
+    var i = items.indexOf(document.activeElement);
+    if (i < 0 || (!e.shiftKey && i === items.length - 1) || (e.shiftKey && i === 0)) {
+      e.preventDefault(); items[e.shiftKey ? items.length - 1 : 0].focus();
+    }
+  });
   // 触屏 & 窄屏适配
   var isTouch = !!(window.matchMedia && window.matchMedia('(hover: none)').matches) ||
     ('ontouchstart' in window) ||
@@ -2097,7 +2222,7 @@ window.onerror = function (msg, src, line, col) {
   function updateRotate() {
     var el = $('rotate');
     if (!el) return;
-    var show = isMobileDevice() && inPortrait() && !rotateDismissed;
+    var show = !!game && isMobileDevice() && inPortrait() && !rotateDismissed && !($('home') && !$('home').classList.contains('hidden'));
     if (show) el.classList.remove('hidden'); else el.classList.add('hidden');
   }
   // 触发全屏 + 方向锁定（安卓 Chrome 支持；iOS 不支持则只提示手动旋转）
@@ -2261,13 +2386,6 @@ window.onerror = function (msg, src, line, col) {
   function visSeat(pos) { var h = game.humanSeat(); if (h < 0) h = 0; return (h + pos) % 4; }
   function seatPos(seat) { var h = game.humanSeat(); if (h < 0) h = 0; return (seat - h + 4) % 4; }
 
-  // 自摸概率估算（用于提示）
-  function selfDrawProb(outs, left, wallLen) {
-    var q = 1;
-    for (var i = 0; i < left; i++) q *= (1 - outs / Math.max(wallLen - 4 * i, outs + 1));
-    return 1 - q;
-  }
-
   // ---------- 开局 ----------
   function newGame() {
     if (game && game.online) { netToast('联机中：想自己练牌，先点「离开房间」'); return; }
@@ -2294,6 +2412,7 @@ window.onerror = function (msg, src, line, col) {
   function tick() {
     clearTimeout(timer);
     if (!game) return;
+    if (!game.online && (($('home') && !$('home').classList.contains('hidden')) || !$('modal').classList.contains('hidden'))) { if (!pauseStarted) pauseStarted = Date.now(); timer = setTimeout(tick, 250); return; }
     if (game.online) {
       // 联机：牌局在服务器上跑，这里只把收到的状态画出来
       var Hnet = game.hand;
@@ -2336,7 +2455,7 @@ window.onerror = function (msg, src, line, col) {
     if (game.hasPendingResolve && game.hasPendingResolve()) {
       turnDeadline = 0; lastAwaiting = null;
       render();
-      timer = setTimeout(function () { game.resolvePending(); tick(); }, Math.max(0.2, cfg.aiThink) * 1000);
+      timer = setTimeout(function () { if (!$('modal').classList.contains('hidden') || ($('home') && !$('home').classList.contains('hidden'))) { tick(); return; } game.resolvePending(); tick(); }, Math.max(0.2, cfg.aiThink) * 1000);
       return;
     }
     // 练习默认不限时；限时模式在弹窗、抽屉或切到后台时暂停。
@@ -2367,7 +2486,7 @@ window.onerror = function (msg, src, line, col) {
     turnDeadline = 0; lastAwaiting = null;
     render();
     timer = setTimeout(function () {
-      if (!game || game.hand.over) { tick(); return; }
+      if (!game || game.hand.over || !$('modal').classList.contains('hidden') || ($('home') && !$('home').classList.contains('hidden'))) { tick(); return; }
       game.aiStep();
       tick();
     }, Math.max(0.2, cfg.aiThink) * 1000);
@@ -2549,7 +2668,7 @@ window.onerror = function (msg, src, line, col) {
     // 对手威胁
     out.push('<div class="sitSec">对手威胁（推断）</div>');
     r.opponents.forEach(function (o) {
-      var nm = game.nameOf(o.seat);
+      var nm = netEsc(game.nameOf(o.seat));
       out.push('<div class="opp"><span class="nm">' + nm + '</span>' +
         '<span class="bar"><i style="width:' + Math.round(o.tenpaiProb * 100) + '%;background:' + barColor(o.tenpaiProb) + '"></i></span>' +
         '<span class="pc ' + riskCls(o.tenpaiProb) + '">' + Math.round(o.tenpaiProb * 100) + '%</span></div>');
@@ -2567,7 +2686,7 @@ window.onerror = function (msg, src, line, col) {
       } else {
       out.push('<table class="sit">');
       cands.forEach(function (c, i) {
-        var kill = c.killers.length ? '<span class="kill">' + c.killers.map(function (k) { return game.nameOf(k.seat) + Math.round(k.prob * 100) + '%'; }).join(' ') + '</span>' : '';
+        var kill = c.killers.length ? '<span class="kill">' + c.killers.map(function (k) { return netEsc(game.nameOf(k.seat)) + Math.round(k.prob * 100) + '%'; }).join(' ') + '</span>' : '';
         out.push('<tr class="' + (i === 0 ? 'rec' : '') + '"><td>' + ZMJ.tileName(c.kind) + '</td>' +
           '<td style="color:#9fb3a8">向' + c.shanten + '</td>' +
           '<td style="color:#9fb3a8">进' + c.ukeire + '</td>' +
@@ -2604,14 +2723,7 @@ window.onerror = function (msg, src, line, col) {
     var H = game.hand, p = H.players[hs];
     var a = game.awaiting;
     if (a && a.type === 'claim' && a.options.hu) {
-      var outs = game.ukeireFor(hs).total, left = game.drawsLeft();
-      var prob = Math.round(selfDrawProb(outs + 1, left, Math.max(H.wall.length, 8)) * 100);
-      var threat = 0;
-      for (var t = 0; t < 4; t++) if (t !== hs && H.players[t].melds.length >= 2) threat++;
-      var need = outs >= 8 ? 2 : outs >= 6 ? 3 : outs >= 4 ? 4 : outs >= 3 ? 5 : 8;
-      if (threat >= 2) need += 2;
-      el.textContent = '收炮抉择：听 ' + outs + ' 种 · 还能摸 ' + left + ' 巡 · 自摸概率约 ' + prob + '% → ' +
-        (outs >= 2 && left >= need ? '建议放过等自摸（自摸 ≈ 3.85 倍收炮）' : '建议收炮落袋');
+      el.textContent = '可以收炮：建议胡牌落袋。自摸收益较高，但不能只凭听口和剩余巡数推断等待更划算。';
       return;
     }
     if (!a || a.type !== 'turn' || a.seat !== hs) {
@@ -2633,8 +2745,8 @@ window.onerror = function (msg, src, line, col) {
     for (var p = 0; p < 4; p++) {
       var s = visSeat(p), pl = game.seats[s];
       var chip = document.createElement('div');
-      chip.className = 'scoreChip' + (pl.isHuman ? ' me' : '');
-      chip.innerHTML = '<span>' + (h >= 0 ? POS_NAME[p] : pl.name) + '</span>' +
+      chip.className = 'scoreChip' + (s === h ? ' me' : '');
+      chip.innerHTML = '<span>' + (h >= 0 ? POS_NAME[p] : netEsc(pl.name)) + '</span>' +
         '<span class="amt ' + amtCls(pl.score) + '">' + money(pl.score) + '</span>';
       chip.title = pl.name + '：胡 ' + pl.handsWon + ' 局，自摸 ' + pl.zimoCount + ' 次，放炮 ' + pl.paoCount + ' 次';
       bar.appendChild(chip);
@@ -2654,7 +2766,7 @@ window.onerror = function (msg, src, line, col) {
     var pl = game.seats[seat];
     var H = game.hand;
     var hp = H.players[seat];
-    var isMe = pl.isHuman;
+    var isMe = seat === game.humanSeat();
     var narrow = isNarrow();
     var smallT = narrow ? 'xs' : 'small';
     var meldT = narrow ? 'xs' : 'meldTile';
@@ -2663,14 +2775,14 @@ window.onerror = function (msg, src, line, col) {
     if (narrow && !isMe && sideSeat) {
       // 手机端左右两家：只显示名字 + 分数（横排空间不够）
       var n1 = document.createElement('div'); n1.className = 'seatName';
-      n1.innerHTML = '<span class="dot"></span><span>' + pl.name + '</span>';
+      n1.innerHTML = '<span class="dot"></span><span>' + netEsc(pl.name) + '</span>';
       var n2 = document.createElement('div'); n2.className = 'seatName';
       n2.innerHTML = '<span class="' + amtCls(pl.score) + '">' + money(pl.score) + '</span>';
       el.appendChild(n1); el.appendChild(n2);
     } else {
       var nm = document.createElement('div');
       nm.className = 'seatName';
-      nm.innerHTML = '<span class="dot"></span><span>' + pl.name + '</span>' +
+      nm.innerHTML = '<span class="dot"></span><span>' + netEsc(pl.name) + '</span>' +
         '<span style="opacity:.7">' + (isMe || game.humanSeat() < 0 ? '' : '· ' + POS_NAME[pos]) + '</span>' +
         '<span style="opacity:.7">· ' + money(pl.score) + '</span>';
       el.appendChild(nm);
@@ -2847,7 +2959,7 @@ window.onerror = function (msg, src, line, col) {
     }
     if (game.humanSeat() >= 0) {
       el.className = 'ai';
-      el.innerHTML = '<span>' + game.nameOf(H.turn) + (game.hasPendingResolve && game.hasPendingResolve() ? ' 考虑要不要碰…' : ' 思考中…') + '</span>';
+      el.innerHTML = '<span>' + netEsc(game.nameOf(H.turn)) + (game.hasPendingResolve && game.hasPendingResolve() ? ' 考虑要不要碰…' : ' 思考中…') + '</span>';
       return;
     }
     el.className = 'hidden';
@@ -2911,26 +3023,12 @@ window.onerror = function (msg, src, line, col) {
                detail: game.nameOf(c.from) + ' 付 15 元，杠完从牌尾摸一张', cls: 'good' };
     }
     if (c.peng) {
-      // 碰之前 / 碰之后 各算一次向听和进张，再决定值不值得碰
-      var mc = p.melds.length, b4, u4, af, uf;
-      try {
-        b4 = ZMJ.shanten(p.concealed, mc);
-        u4 = ZMJ.ukeire(p.concealed, mc, ZMJ.visiblePool(H, seat)).total;
-        p.concealed[c.kind] -= 2;
-        p.melds.push({ type: 'peng', kind: c.kind, from: c.from });
-        af = ZMJ.shanten(p.concealed, mc + 1);
-        uf = ZMJ.ukeire(p.concealed, mc + 1, ZMJ.visiblePool(H, seat)).total;
-      } finally {
-        // 无论算成什么样都要把手牌还原，否则会把牌局改坏
-        if (p.melds.length > mc) p.melds.pop();
-        p.concealed[c.kind] += 2;
-      }
-      var better = af < b4 || (af === b4 && uf > u4);
-      return {
-        main: (better ? '建议碰 ' : '建议过 ') + ZMJ.tileName(c.kind),
-        detail: '不碰：' + shantenWords(b4) + ' · ' + u4 + ' 张进张　｜　碰了：' + shantenWords(af) + ' · ' + uf + ' 张进张',
-        cls: better ? 'good' : ''
-      };
+      var advice = ZMJ.pengAdvice(H, seat, c.kind, c.from);
+      if (!advice) return null;
+      return { main: (advice.better ? '建议碰 ' : '建议过 ') + ZMJ.tileName(c.kind),
+        detail: '不碰：' + shantenWords(advice.before.shanten) + ' · ' + advice.before.ukeire +
+          ' 张进张；碰后打 ' + ZMJ.tileName(advice.after.kind) + '：' + shantenWords(advice.after.shanten) +
+          ' · ' + advice.after.ukeire + ' 张进张。只比较牌效，另看弃牌风险。', cls: advice.better ? 'good' : '' };
     }
     return null;
   }
@@ -3013,7 +3111,7 @@ window.onerror = function (msg, src, line, col) {
       var o = a.options;
       var info = document.createElement('div');
       info.style.cssText = 'font-size:14px;margin-right:8px;align-self:center';
-      info.innerHTML = game.nameOf(o.from) + ' 打出 <b style="color:#f2c14e">' + ZMJ.tileName(o.kind) + '</b>';
+      info.innerHTML = netEsc(game.nameOf(o.from)) + ' 打出 <b style="color:#f2c14e">' + ZMJ.tileName(o.kind) + '</b>';
       bar.appendChild(info);
       if (o.hu) bar.appendChild(btn('胡（收炮）', 'hu', function () { act(function () { return game.humanClaim('hu'); }); }));
       if (o.gang) bar.appendChild(btn('杠', 'gang', function () { act(function () { return game.humanClaim('gang'); }); }));
@@ -3040,7 +3138,7 @@ window.onerror = function (msg, src, line, col) {
     var best = opts[0];
     var picked = opts.filter(function (o) { return o.kind === kind; })[0];
     if (!picked) return null;
-    var same = picked.kind === best.kind;
+    var same = ZMJ.sameEfficiency(picked, best);
     var main = same ? '与牌效推荐一致' :
       (picked.shanten > best.shanten ? '这手增加了 ' + (picked.shanten - best.shanten) + ' 向听' :
         picked.ukeire < best.ukeire ? '比推荐少 ' + (best.ukeire - picked.ukeire) + ' 张进张' : '牌效接近推荐');
@@ -3065,7 +3163,7 @@ window.onerror = function (msg, src, line, col) {
     if (act(function () { return game.humanDiscard(kind); })) {
       if (handExtra && opts.length) {
         handExtra.recTotal++;
-        if (opts[0].kind === kind) handExtra.recFollow++;
+        if (ZMJ.sameEfficiency(opts[0], opts.filter(function (o) { return o.kind === kind; })[0])) handExtra.recFollow++;
       }
       feedback = review;
       renderCoach();
@@ -3082,21 +3180,13 @@ window.onerror = function (msg, src, line, col) {
     // 胡牌抉择提示
     if (a && a.type === 'claim' && a.options.hu) {
       var outs = game.ukeireFor(hs).total;
-      var left = game.drawsLeft();
-      var prob = selfDrawProb(outs + 1, left, Math.max(H.wall.length, 8));
-      var threat = 0;
-      for (var t = 0; t < 4; t++) if (t !== hs && H.players[t].melds.length >= 2) threat++;
-      var need = outs >= 8 ? 2 : outs >= 6 ? 3 : outs >= 4 ? 4 : outs >= 3 ? 5 : 8;
-      if (threat >= 2) need += 2;
-      var shouldPass = outs >= 2 && left >= need;
-      rows.push('<b>该不该收炮？</b>');
-      rows.push('未见和牌张数：<b>' + outs + '</b> 张 · 还能摸约 <b>' + left + '</b> 次 · 自摸概率粗估 <b>' + Math.round(prob * 100) + '%</b>');
-      rows.push('收炮 = 基础 5 + 鸟钱（均 17.7 元）｜自摸 = 每家 10 + 鸟钱，三家共 <b>68 元 ≈ 3.85 倍</b>');
-      rows.push(shouldPass
-        ? '<span class="rec">建议：放过，等自摸。</span><span class="warn">（放过后本巡转完前不能再要炮）</span>'
-        : '<span class="rec">建议：收炮落袋。</span>（巡目不足或听牌太窄）');
-      el.innerHTML = rows.join('<br>');
-      return;
+      var unknown = ZMJ.visiblePool(H, hs).reduce(function (sum, n) { return sum + n; }, 0);
+      rows.push('<b>建议收炮落袋</b>');
+      rows.push('现在可以和牌。若放过，下一次自摸的基准命中率为 ' + outs + ' ÷ ' + unknown +
+        ' ≈ ' + (ZMJ.drawChance(outs, unknown, 1) * 100).toFixed(1) + '%。');
+      rows.push('这是固定听口、未见牌随机分布的模型；对手可能先胡，不能据此推导等待自摸的总收益。');
+      rows.push('放过后，直到自己下次摸牌前不能再胡炮。');
+      el.innerHTML = rows.join('<br>'); return;
     }
     if (!a || a.type !== 'turn' || a.seat !== hs) {
       el.innerHTML = '<span style="color:#c7d8cd">摸到牌、轮到你出牌时，这里会按每个弃牌选择重新计算。</span>';
@@ -3113,7 +3203,7 @@ window.onerror = function (msg, src, line, col) {
     rows.push('<div>共 <b>' + guide.draws.length + '</b> 种' + hitName + '，未见 <b>' + guide.total + '</b> 张：</div>');
     rows.push('<div class="guideTiles">' + (guide.draws.length ? guide.draws.map(function (d) {
       return '<span>' + ZMJ.tileName(d.kind) + ' × ' + d.count + '</span>';
-    }).join('') : '<span>暂无可见的有效张</span>') + '</div>');
+    }).join('') : '<span>当前没有未见有效牌</span>') + '</div>');
     rows.push('<div class="guideMath">下一次自己摸到' + hitName + '的基准概率：' +
       guide.total + ' ÷ ' + guide.unknown + ' 张未见牌 ≈ <b>' +
       (guide.chanceNext * 100).toFixed(1) + '%</b></div>');
@@ -3136,7 +3226,7 @@ window.onerror = function (msg, src, line, col) {
           ' 比打 ' + ZMJ.tileName(second.kind) + ' 多 ' + (guide.total - second.total) +
           ' 张未见' + hitName + '。</div>');
       } else {
-        rows.push('<div class="guideNote">前两种弃牌的向听和进张相同；排序还参考公开牌推断的弃牌危险度，不代表确定安全。</div>');
+        rows.push('<div class="guideNote">前两种弃牌的向听和进张相同，均属本轮牌效最优；排列先后不代表谁更安全。还可以比较未来听口和采样风险。</div>');
       }
     }
     rows.push('<div class="guideStep">③ 接下来怎么做牌？</div>');
@@ -3144,6 +3234,9 @@ window.onerror = function (msg, src, line, col) {
       rows.push('<div>这 13 张已经听牌。等上方列出的牌即可和牌；听口越宽，通常下次摸中的机会越大。</div>');
     } else if (guide.shanten === 1 && guide.paths.length) {
       rows.push('<div>下面是摸到有效牌后的较宽听口路线，实际摸牌后可再调整：</div>');
+      rows.push('<div class="guideMath">进入听牌后，按各有效摸牌的未见张数加权，平均听 <b>' + guide.averageWait.toFixed(1) +
+        '</b> 张。连续两次自己的摸牌按此路线和牌，静态基准约 <b>' + (guide.twoDrawWin * 100).toFixed(2) +
+        '%</b>；只涵盖先有效进张再和牌的路线。</div>');
       guide.paths.slice(0, 3).forEach(function (path) {
         rows.push('<div class="guidePath">摸 <b>' + ZMJ.tileName(path.draw) + '</b>（未见 ' + path.drawCount +
           ' 张）→ 再打 <b>' + ZMJ.tileName(path.discard) + '</b> → 听 <b>' +
@@ -3166,14 +3259,25 @@ window.onerror = function (msg, src, line, col) {
       '<div>上面的概率按未见牌均匀分布计算，只描述下一次自摸；未见牌也可能在对手暗牌或预留鸟牌里，牌河变化后要重算。</div>' +
       '<div>术语参考：<a href="https://arxiv.org/abs/2108.06832" target="_blank" rel="noopener noreferrer">向听数的研究论文</a>、' +
       '<a href="https://github.com/tomohxx/necessary-and-unnecessary-tiles" target="_blank" rel="noopener noreferrer">有效牌的开源计算示例</a>。</div></details>');
+    rows.push('<details class="guideInspect"><summary>试算手里任意一张牌</summary><label for="guideChoice">假如打出：</label><select id="guideChoice">' + opts.map(function (o) {
+      return '<option value="' + o.kind + '">' + ZMJ.tileName(o.kind) + '</option>';
+    }).join('') + '</select><div id="guideTrial" class="guideNote"></div></details>');
     el.innerHTML = rows.join('');
+    $('guideChoice').onchange = function () {
+      var trial = getTrainingGuide(Number(this.value), true);
+      $('guideTrial').textContent = shantenWords(trial.shanten) + '；有效 ' + trial.draws.length + ' 种 / 未见 ' + trial.total +
+        ' 张。下一摸基准命中率 ' + (trial.chanceNext * 100).toFixed(1) + '%。有效牌：' +
+        trial.draws.map(function (d) { return ZMJ.tileName(d.kind) + '×' + d.count; }).join('、') +
+        (trial.averageWait !== null ? '。进张后平均听 ' + trial.averageWait.toFixed(1) + ' 张。' : '');
+    };
+    $('guideChoice').onchange();
   }
 
   function renderLog() {
     var el = $('log');
     var logs = game.logs.slice(-70);
     var html = '';
-    logs.forEach(function (l) { html += '<div class="' + l.cls + '">' + l.text + '</div>'; });
+    logs.forEach(function (l) { html += '<div class="' + l.cls + '">' + netEsc(l.text) + '</div>'; });
     var atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 30;
     el.innerHTML = html;
     if (atBottom) el.scrollTop = el.scrollHeight;
@@ -3184,7 +3288,7 @@ window.onerror = function (msg, src, line, col) {
     var r = game.lastResult;
     if (!r) return;
     var box = $('modalBox');
-    var html = '<h2>' + (r.type === 'draw' ? '荒庄' : r.title) + '</h2>';
+    var html = '<h2>' + (r.type === 'draw' ? '荒庄' : netEsc(r.title)) + '</h2>';
     if (r.birds && r.birds.length) {
       html += '<div class="center"><div style="color:#f2c14e;font-size:12px;margin-bottom:4px">鸟牌（1/5/9 各算一只）</div><div class="tiles" id="mBird"></div></div>';
     }
@@ -3200,7 +3304,7 @@ window.onerror = function (msg, src, line, col) {
         rows += '<span>结算</span><span>自摸：每家 基础 ' + ZMJ.RULES.zimoBase + ' + 鸟钱 ' + per + ' = <b>' + each + ' 元</b>，三家共 +' + (3 * each) + ' 元</span>';
       } else {
         var each2 = ZMJ.RULES.discardBase + per;
-        rows += '<span>结算</span><span>收炮：' + game.nameOf(r.loser) + ' 付 <b>' + each2 + ' 元</b> × ' + r.winners.length + ' 家（基础 ' + ZMJ.RULES.discardBase + ' + 鸟钱 ' + per + '）</span>';
+        rows += '<span>结算</span><span>收炮：' + netEsc(game.nameOf(r.loser)) + ' 付 <b>' + each2 + ' 元</b> × ' + r.winners.length + ' 家（基础 ' + ZMJ.RULES.discardBase + ' + 鸟钱 ' + per + '）</span>';
       }
       rows += '</div>';
     }
@@ -3208,13 +3312,13 @@ window.onerror = function (msg, src, line, col) {
     html += '<table><tr><th>本局流水</th><th>金额</th></tr>';
     if (!r.payments.length) html += '<tr><td colspan="2" style="color:#9fb3a8">无金钱往来（杠钱之前已即时结算，见下方流水包含杠）</td></tr>';
     r.payments.forEach(function (pm) {
-      html += '<tr><td>' + game.nameOf(pm.from) + ' → ' + game.nameOf(pm.to) + '<span style="color:#9fb3a8">（' + pm.reason + '）</span></td><td class="' + amtCls(-pm.amount) + '">' + pm.amount + ' 元</td></tr>';
+      html += '<tr><td>' + netEsc(game.nameOf(pm.from)) + ' → ' + netEsc(game.nameOf(pm.to)) + '<span style="color:#9fb3a8">（' + pm.reason + '）</span></td><td class="' + amtCls(-pm.amount) + '">' + pm.amount + ' 元</td></tr>';
     });
     html += '</table>';
     html += '<table><tr><th>玩家</th><th>本局</th><th>累计</th></tr>';
     for (var p = 0; p < 4; p++) {
       var s = visSeat(p);
-      html += '<tr><td>' + game.nameOf(s) + (game.seats[s].isHuman ? '（你）' : '') + '</td><td class="' + amtCls(r.deltas[s]) + '">' + money(r.deltas[s]) + '</td><td class="' + amtCls(game.seats[s].score) + '">' + money(game.seats[s].score) + '</td></tr>';
+      html += '<tr><td>' + netEsc(game.nameOf(s)) + (s === game.humanSeat() ? '（你）' : '') + '</td><td class="' + amtCls(r.deltas[s]) + '">' + money(r.deltas[s]) + '</td><td class="' + amtCls(game.seats[s].score) + '">' + money(game.seats[s].score) + '</td></tr>';
     }
     html += '</table>';
     var rot = '';
@@ -3226,7 +3330,7 @@ window.onerror = function (msg, src, line, col) {
         parts.push(botW.map(function (w) { return game.nameOf(w); }).join('、') + '（电脑）胡牌下桌，等待区的人上桌');
       }
       if (humanW.length) parts.push('真人赢牌不下桌，继续坐着打');
-      if (parts.length) rot = '<div style="font-size:13px;color:#ffcf7a">转转：' + parts.join('；') + '。</div>';
+      if (parts.length) rot = '<div style="font-size:13px;color:#ffcf7a">转转：' + parts.map(netEsc).join('；') + '。</div>';
     }
     html += rot + '<div class="center"><button class="act" id="btnNext">继续下一局</button></div>';
     box.innerHTML = html;
@@ -3234,8 +3338,8 @@ window.onerror = function (msg, src, line, col) {
       var mb = $('mBird');
       if (mb) r.birds.forEach(function (k) { mb.appendChild(tileEl(k, 'mid', ZMJ.isBird(k) ? 'bird hit' : '')); });
     }
-    $('btnNext').onclick = function () { $('modal').classList.add('hidden'); resetHandExtra(); feedback = null; game.nextHand(); render(); timer = setTimeout(tick, 350); };
-    $('modal').classList.remove('hidden');
+    $('btnNext').onclick = function () { closeModal(); resetHandExtra(); feedback = null; game.nextHand(); render(); timer = setTimeout(tick, 350); };
+    openModal();
   }
 
   // ---------- 规则 / 设置 ----------
@@ -3263,8 +3367,8 @@ window.onerror = function (msg, src, line, col) {
       '</table>' +
       '<div style="font-size:13px;color:#9fb3a8">收炮与自摸翻的是同一批鸟牌，差别在"基础"：收炮 +5 元、自摸每家 +10 元 ⇒ <b style="color:#f2c14e">自摸 ≈ 3.85 倍收炮</b>（收炮 +17.7 元，自摸 +68 元）。</div>' +
       '<div class="center"><button class="act" id="btnClose">知道了</button></div>';
-    $('btnClose').onclick = function () { $('modal').classList.add('hidden'); };
-    $('modal').classList.remove('hidden');
+    $('btnClose').onclick = function () { closeModal(); };
+    openModal();
   }
 
   function showSettings() {
@@ -3296,7 +3400,7 @@ window.onerror = function (msg, src, line, col) {
     $('setTurnTime').value = String(cfg.turnTime);
     $('setAiThink').value = String(cfg.aiThink);
     $('setSeed').value = cfg.seed == null ? '' : String(cfg.seed);
-    $('btnCancel').onclick = function () { $('modal').classList.add('hidden'); };
+    $('btnCancel').onclick = function () { closeModal(); };
     $('btnApply').onclick = function () {
       cfg.rotate = $('setRotate').value === '1';
       cfg.claimStyle = $('setStyle').value;
@@ -3319,16 +3423,23 @@ window.onerror = function (msg, src, line, col) {
       var sd = $('setSeed').value.trim();
       cfg.seed = sd === '' ? null : (parseInt(sd, 10) >>> 0);
       saveConfig();
-      $('modal').classList.add('hidden');
+      closeModal();
       newGame();
       updateRotate();
     };
-    $('modal').classList.remove('hidden');
+    openModal();
   }
 
   // ---------- 快捷键 ----------
   document.addEventListener('pointerdown', unlockAudio, { once: true });
   document.addEventListener('keydown', function (e) {
+    if (e.defaultPrevented || !$('modal').classList.contains('hidden') ||
+        ($('home') && !$('home').classList.contains('hidden')) ||
+        /INPUT|SELECT|TEXTAREA|BUTTON/.test(e.target.tagName) || e.target.isContentEditable) return;
+    if ($('side').classList.contains('open')) {
+      if (e.key === 'Escape') { e.preventDefault(); sheetOpen(false); }
+      return;
+    }
     unlockAudio();
     var a = game && game.awaiting;
     if (!a) return;
@@ -3378,9 +3489,9 @@ window.onerror = function (msg, src, line, col) {
     }
     var wrap = document.createElement('div'); wrap.className = 'center';
     var close = document.createElement('button'); close.className = 'act'; close.textContent = '关闭';
-    close.onclick = function () { $('modal').classList.add('hidden'); };
+    close.onclick = function () { closeModal(); };
     wrap.appendChild(close); box.appendChild(wrap);
-    $('modal').classList.remove('hidden');
+    openModal();
   }
   function startReplay(rec) {
     rp.rec = rec;
@@ -3455,11 +3566,112 @@ window.onerror = function (msg, src, line, col) {
     wrap.appendChild(mk('◀ 上一步', function () { if (rp.i > 0) { rp.i--; renderReplay(); } }, 'pass'));
     wrap.appendChild(mk('下一步 ▶', function () { if (rp.i < rp.states.length - 1) { rp.i++; renderReplay(); } }));
     wrap.appendChild(mk('换一局', function () { showReplayList(); }, 'pass'));
-    wrap.appendChild(mk('关闭', function () { $('modal').classList.add('hidden'); }, 'pass'));
+    wrap.appendChild(mk('关闭', function () { closeModal(); }, 'pass'));
     box.appendChild(wrap);
-    $('modal').classList.remove('hidden');
+    openModal();
   }
-  // ---------- 防守道场：只练「少放铳」（调研显示这是水平提升的主要来源） ----------
+  // ---------- 牌效训练：先作答，再比较；错题保存在本机 ----------
+  var practice = { index: 0, topic: '全部', review: false, picked: null, answered: false };
+  var PRACTICE_KEY = 'zmj_practice_v1';
+  var practiceRecord = { attempts: 0, correct: 0, wrong: [] };
+  try {
+    var savedPractice = JSON.parse(localStorage.getItem(PRACTICE_KEY) || 'null');
+    if (savedPractice && Number.isInteger(savedPractice.attempts) && savedPractice.attempts >= 0 &&
+        Number.isInteger(savedPractice.correct) && savedPractice.correct >= 0 && savedPractice.correct <= savedPractice.attempts && Array.isArray(savedPractice.wrong)) {
+      practiceRecord = { attempts: savedPractice.attempts, correct: savedPractice.correct,
+        wrong: savedPractice.wrong.filter(function (id, i, all) {
+          return all.indexOf(id) === i && ZMJ.practiceCases.some(function (q) { return q.id === id; });
+        }) };
+    }
+  } catch (e) {}
+  function practiceList() {
+    return ZMJ.practiceCases.filter(function (q) {
+      return (practice.topic === '全部' || q.topic === practice.topic) && (!practice.review || practiceRecord.wrong.indexOf(q.id) >= 0);
+    });
+  }
+  function startPractice() {
+    practice.review = false; practice.index = 0; practice.answered = false; practice.picked = null;
+    renderPractice();
+  }
+  function renderPractice() {
+    var list = practiceList(), box = $('modalBox');
+    practice.index = list.length ? practice.index % list.length : 0;
+    // 作答后即便移出错题本，仍保留当前题的讲解直到点下一题。
+    var spec = practice.answered ? practice.spec : list[practice.index];
+    if (!practice.answered) practice.spec = spec;
+    box.innerHTML = '<h2>牌效训练</h2><div class="practiceNote">先选你会打的一张，再看计算。按向听最少、有效进张最多评分；同等牌效的答案都算对。</div>' +
+      '<div class="practiceKpi"><span><b>' + practiceRecord.attempts + '</b>次作答</span><span><b>' + practiceRecord.correct + '</b>次同优选择</span><span><b>' + practiceRecord.wrong.length + '</b>道待复习</span></div>' +
+      '<div class="practiceTop"><label for="practiceTopic">练什么</label><select id="practiceTopic">' +
+      ['全部', '先降向听', '听得更宽', '小七对'].map(function (topic) {
+        return '<option' + (topic === practice.topic ? ' selected' : '') + '>' + topic + '</option>';
+      }).join('') + '</select><button class="mini" id="practiceReview" aria-pressed="' + practice.review + '">' +
+      (practice.review ? '返回全部题目' : '复习错题') + '</button></div>';
+    $('practiceTopic').onchange = function () { practice.topic = this.value; practice.index = 0; practice.answered = false; renderPractice(); };
+    $('practiceReview').onclick = function () { practice.review = !practice.review; practice.topic = '全部'; practice.index = 0; practice.answered = false; renderPractice(); };
+    if (!spec) {
+      var empty = document.createElement('p'); empty.className = 'practiceNote';
+      empty.textContent = practice.review ? '当前没有待复习错题。可以返回全部题目继续练习。' : '这个分类暂时没有题目。';
+      box.appendChild(empty); openModal(); return;
+    }
+    var H = ZMJ.practiceHand(spec.id), opts = ZMJ.evaluateDiscards(H, 0), best = opts[0];
+    var label = document.createElement('p'); label.className = 'practiceNote';
+    label.textContent = spec.topic + ' · ' + spec.id + '　' + (practice.answered ? '查看本题讲解' : '这 14 张牌，你会打哪张？');
+    box.appendChild(label);
+    var handBox = document.createElement('div'); handBox.className = 'practiceHand';
+    handBox.appendChild(tilesRow(H.players[0].concealed, practice.answered ? '' : 'clickable', practice.answered ? null : answerPractice));
+    box.appendChild(handBox);
+    if (practice.answered) {
+      var mine = opts.filter(function (o) { return o.kind === practice.picked; })[0];
+      var good = ZMJ.sameEfficiency(mine, best), guide = ZMJ.trainingGuide(H, 0, best.kind, true);
+      var ties = opts.filter(function (o) { return ZMJ.sameEfficiency(o, best); });
+      var explanation = document.createElement('section'); explanation.className = 'practiceFeedback' + (good ? '' : ' warn');
+      explanation.innerHTML = '<h3 tabindex="-1" id="practiceVerdict">' + (good ? '这张也是牌效最优解' : '这一手还有更好的牌效选择') + '</h3>' +
+        '<div>你选 ' + ZMJ.tileName(practice.picked) + '：' + shantenWords(mine.shanten) + '，未见有效牌 ' + mine.ukeire + ' 张。</div>' +
+        '<div>本题最优：' + ties.map(function (o) { return ZMJ.tileName(o.kind); }).join(' / ') + '；' + shantenWords(best.shanten) + '，未见有效牌 ' + best.ukeire + ' 张。</div>' +
+        '<p class="practiceNote">' + (good ? '同样的向听和进张，均予认可。' : mine.shanten > best.shanten ? '先比较向听。这里多了 ' + (mine.shanten - best.shanten) + ' 向听，进张数量属于不同阶段。' :
+          '向听相同，但少了 ' + (best.ukeire - mine.ukeire) + ' 张有效进张。') + ' ' + spec.lesson + '</p>' +
+        '<div class="guideStep">以打 ' + ZMJ.tileName(best.kind) + ' 为例，下一摸的有效牌</div>' +
+        '<div class="guideTiles">' + guide.draws.map(function (d) { return '<span>' + ZMJ.tileName(d.kind) + ' × ' + d.count + '</span>'; }).join('') + '</div>' +
+        '<div class="guideMath">' + guide.total + ' ÷ ' + guide.unknown + ' = <b>' + (guide.chanceNext * 100).toFixed(1) + '%</b> 下一摸基准命中率</div>';
+      if (guide.paths.length) {
+        explanation.innerHTML += '<div class="guideStep">进张之后，怎样听得更宽？</div>' + guide.paths.slice(0, 3).map(function (p) {
+          return '<div class="guidePath">摸 ' + ZMJ.tileName(p.draw) + ' → 打 ' + ZMJ.tileName(p.discard) + ' → 听 ' +
+            p.waits.map(function (k, i) { return ZMJ.tileName(k) + '×' + p.waitCounts[i]; }).join('、') + '，共 ' + p.waitTotal + ' 张。</div>';
+        }).join('') + '<p class="practiceNote">按各有效摸牌的未见张数加权，进入听牌后平均听 ' + guide.averageWait.toFixed(1) + ' 张；示例不含对手行动与弃牌风险。</p>';
+      }
+      box.appendChild(explanation);
+      var table = document.createElement('div'); table.className = 'practiceTableWrap';
+      table.innerHTML = '<table class="practiceTable"><caption>所有可打牌的比较</caption><thead><tr><th>弃牌</th><th>打后</th><th>有效进张</th></tr></thead><tbody>' + opts.map(function (o) {
+        return '<tr class="' + (ZMJ.sameEfficiency(o, best) ? 'best' : '') + '"><td>' + ZMJ.tileName(o.kind) +
+          (o.kind === practice.picked ? '（你选）' : '') + (ZMJ.sameEfficiency(o, best) ? ' ★' : '') + '</td><td>' + shantenWords(o.shanten) + '</td><td>' + o.ukeire + ' 张</td></tr>';
+      }).join('') + '</tbody></table>';
+      box.appendChild(table);
+    }
+    var note = document.createElement('div'); note.className = 'practiceNote';
+    note.textContent = '本题未展示牌河，未见数只扣除自己已知的 14 张牌；打出的牌仍是已知牌。未见牌包含对手暗牌与鸟牌。概率按随机分布计算，不等于整局胜率。';
+    box.appendChild(note);
+    var footer = document.createElement('div'); footer.className = 'practiceFooter';
+    var next = document.createElement('button'); next.className = 'act'; next.id = 'practiceNext'; next.textContent = practice.answered ? '下一题' : '换一题';
+    next.onclick = function () {
+      var nextList = practiceList(), previous = nextList.indexOf(practice.spec);
+      practice.index = nextList.length ? (previous + 1) % nextList.length : 0;
+      practice.answered = false; practice.picked = null; renderPractice(); $('modalBox').scrollTop = 0;
+    };
+    footer.appendChild(next); box.appendChild(footer); openModal();
+  }
+  function answerPractice(kind) {
+    if (practice.answered || !practice.spec) return;
+    var opts = ZMJ.evaluateDiscards(ZMJ.practiceHand(practice.spec.id), 0);
+    var mine = opts.filter(function (o) { return o.kind === kind; })[0];
+    if (!mine) return;
+    practice.answered = true; practice.picked = kind; practiceRecord.attempts++;
+    var good = ZMJ.sameEfficiency(mine, opts[0]);
+    if (good) { practiceRecord.correct++; practiceRecord.wrong = practiceRecord.wrong.filter(function (id) { return id !== practice.spec.id; }); }
+    else if (practiceRecord.wrong.indexOf(practice.spec.id) < 0) practiceRecord.wrong.push(practice.spec.id);
+    try { localStorage.setItem(PRACTICE_KEY, JSON.stringify(practiceRecord)); } catch (e) {}
+    renderPractice(); $('practiceVerdict').focus();
+  }
+  // ---------- 防守练习：比较采样风险与启发式进攻分值 ----------
   var dojo = { sc: null, answered: false, picked: -1 };
   function dojoNew() {
     var sc = null;
@@ -3475,7 +3687,11 @@ window.onerror = function (msg, src, line, col) {
     for (var k = 0; k < ZMJ.KINDS; k++) {
       for (var c = 0; c < counts[k]; c++) {
         var t = tileEl(k, 'mid', cls || '');
-        if (onClick) t.onclick = (function (kk) { return function () { onClick(kk); }; })(k);
+        if (onClick) {
+          t.setAttribute('role', 'button'); t.tabIndex = 0; t.setAttribute('aria-label', '选择' + ZMJ.tileName(k));
+          t.onclick = (function (kk) { return function () { onClick(kk); }; })(k);
+          t.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); } };
+        }
         row.appendChild(t);
       }
     }
@@ -3487,8 +3703,8 @@ window.onerror = function (msg, src, line, col) {
     if (!sc) {
       box.innerHTML = '<h2>防守道场</h2><div style="font-size:13px;color:#cfd8d3">局面生成失败，点下面重试。</div>' +
         '<div class="center"><button class="act" id="dojoNext">换一题</button> <button class="act pass" id="dojoClose">关闭</button></div>';
-      $('dojoNext').onclick = dojoNew; $('dojoClose').onclick = function () { $('modal').classList.add('hidden'); };
-      $('modal').classList.remove('hidden'); return;
+      $('dojoNext').onclick = dojoNew; $('dojoClose').onclick = function () { closeModal(); };
+      openModal(); return;
     }
     var H = sc.hand;
     box.innerHTML = '';
@@ -3569,10 +3785,10 @@ window.onerror = function (msg, src, line, col) {
     b1.textContent = dojo.answered ? '下一题' : '换一题';
     b1.onclick = dojoNew;
     var b2 = document.createElement('button'); b2.className = 'act pass'; b2.textContent = '关闭';
-    b2.onclick = function () { $('modal').classList.add('hidden'); };
+    b2.onclick = function () { closeModal(); };
     btns.appendChild(b1); btns.appendChild(b2);
     box.appendChild(btns);
-    $('modal').classList.remove('hidden');
+    openModal();
   }
   function answerDojo(kind) {
     if (dojo.answered || !dojo.sc) return;
@@ -3608,8 +3824,8 @@ window.onerror = function (msg, src, line, col) {
     if (!sum) {
       box.innerHTML = '<h2>训练统计</h2><div style="font-size:13px;color:#cfd8d3;line-height:1.9">还没有对局数据。打几局之后这里会显示你的放铳率、自摸占比、听牌速度等指标。</div>' +
         '<div class="center"><button class="act" id="btnStatsClose">关闭</button></div>';
-      $('btnStatsClose').onclick = function () { $('modal').classList.add('hidden'); };
-      $('modal').classList.remove('hidden'); return;
+      $('btnStatsClose').onclick = function () { closeModal(); };
+      openModal(); return;
     }
     var need = sum.hands < 500;
     var rows = [
@@ -3637,11 +3853,11 @@ window.onerror = function (msg, src, line, col) {
     html += '<div style="margin-top:10px;color:#9fb3a8;font-size:12px">鸟数分布（0~6 只）</div><div style="font-size:12.5px;color:#cfd8d3">' + sum.birdHist.join(' / ') + '</div>';
     html += '<div class="center"><button class="act pass" id="btnStatsReset">清空统计</button> <button class="act" id="btnStatsClose">关闭</button></div>';
     box.innerHTML = html;
-    $('btnStatsClose').onclick = function () { $('modal').classList.add('hidden'); };
+    $('btnStatsClose').onclick = function () { closeModal(); };
     $('btnStatsReset').onclick = function () {
       STATS = ZMJ.newStats(); settledHandNo = 0; saveStats(); showStats();
     };
-    $('modal').classList.remove('hidden');
+    openModal();
   }
   // ---------- 牌谱导出 ----------
   function download(name, content, mime) {
@@ -3688,8 +3904,8 @@ window.onerror = function (msg, src, line, col) {
         } else { $('exportMsg').textContent = '当前环境不支持复制，请手动选中预览区文字'; }
       } catch (e) { $('exportMsg').textContent = '复制失败，请手动选中预览区文字'; }
     };
-    $('btnExportClose').onclick = function () { $('modal').classList.add('hidden'); };
-    $('modal').classList.remove('hidden');
+    $('btnExportClose').onclick = function () { closeModal(); };
+    openModal();
   }
   // ================= 联机（服务端权威） =================
   // 联机时牌局跑在服务器上，浏览器只做两件事：提交自己的操作、把收到的状态画出来。
@@ -3702,6 +3918,12 @@ window.onerror = function (msg, src, line, col) {
     var savedNet = JSON.parse(localStorage.getItem(NET_KEY) || 'null');
     if (savedNet) { NET.name = savedNet.name || ''; NET.server = savedNet.server || ''; }
   } catch (e) {}
+  try {
+    var savedSeat = JSON.parse(sessionStorage.getItem('zmj_seat_v1') || 'null');
+    if (savedSeat && savedSeat.server === NET.server && typeof savedSeat.room === 'string' && typeof savedSeat.token === 'string') {
+      NET.room = savedSeat.room; NET.token = savedSeat.token;
+    }
+  } catch (e) {}
   function netSaveCfg() {
     try { localStorage.setItem(NET_KEY, JSON.stringify({ name: NET.name, server: NET.server })); } catch (e) {}
   }
@@ -3710,17 +3932,16 @@ window.onerror = function (msg, src, line, col) {
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
   function netURL() {
-    var s = String(NET.server || '').trim();
-    if (s) {
-      if (/^wss?:\/\//i.test(s)) return s.replace(/\/+$/, '');
-      if (/^https?:\/\//i.test(s)) return s.replace(/^http/i, 'ws').replace(/\/+$/, '');
-      return (location.protocol === 'https:' ? 'wss://' : 'ws://') + s.replace(/^\/+/, '').replace(/\/+$/, '');
-    }
-    // 直接双击打开的本地文件没有服务器，默认连本机的 8000 端口
-    if (location.protocol === 'file:') return 'ws://127.0.0.1:8000/ws';
-    var host = location.hostname || '127.0.0.1';
-    var port = location.port ? ':' + location.port : '';
-    return (location.protocol === 'https:' ? 'wss://' : 'ws://') + host + port + '/ws';
+    var value = String(NET.server || '').trim();
+    var base = location.protocol === 'file:' ? 'http://127.0.0.1:8000/' : location.origin;
+    if (value && !/^[a-z]+:\/\//i.test(value)) value = (location.protocol === 'https:' ? 'https://' : 'http://') + value;
+    var parsed = new URL(value || base);
+    if (!/^(https?|wss?):$/.test(parsed.protocol) || parsed.username || parsed.password) throw new Error('请填写 http(s) 或 ws(s) 的服务器地址');
+    parsed.protocol = /^(https|wss):$/.test(parsed.protocol) ? 'wss:' : 'ws:';
+    if (location.protocol === 'https:' && parsed.protocol !== 'wss:') throw new Error('此页面使用 HTTPS，需要 wss/https 服务器。局域网游戏请直接打开服务器的 http 地址。');
+    if (parsed.pathname === '/' || !parsed.pathname) parsed.pathname = '/ws';
+    parsed.hash = ''; parsed.search = '';
+    return parsed.href;
   }
   var netBarEl = null;
   function netBar() {
@@ -3783,13 +4004,17 @@ window.onerror = function (msg, src, line, col) {
 
   function netConnect(done) {
     if (NET.ws && (NET.ws.readyState === 0 || NET.ws.readyState === 1)) { if (done) done(); return; }
-    var url = netURL();
+    var url;
+    try { url = netURL(); } catch (e) {
+      NET.status = 'error'; NET.err = e.message; netBar(); if ($('netBox')) renderNet(); return;
+    }
     NET.status = 'connecting'; NET.err = ''; netBar(); if ($('netBox')) renderNet();
     var ws;
     try { ws = new WebSocket(url); }
     catch (e) { NET.status = 'error'; NET.err = '服务器地址不对：' + url; netBar(); if ($('netBox')) renderNet(); return; }
     NET.ws = ws;
     ws.onopen = function () {
+      if (NET.ws !== ws) return;
       NET.status = 'on'; NET.retry = 0; NET.err = ''; NET.everConnected = true;
       netBar();
       if (NET.room) netJoin(NET.room, NET.name, NET.token);   // 断线重连：自动回到原来的房间
@@ -3797,11 +4022,13 @@ window.onerror = function (msg, src, line, col) {
       if (done) done();
     };
     ws.onmessage = function (ev) {
+      if (NET.ws !== ws) return;
       var m = null;
       try { m = JSON.parse(ev.data); } catch (e) { return; }
       onNetMessage(m);
     };
     ws.onclose = function () {
+      if (NET.ws !== ws) return;
       NET.ws = null;
       if (NET.status === 'error') { netBar(); return; }
       NET.status = 'error';
@@ -3818,7 +4045,7 @@ window.onerror = function (msg, src, line, col) {
       }
       if ($('netBox')) renderNet();
     };
-    ws.onerror = function () { NET.err = '连不上 ' + url; };
+    ws.onerror = function () { if (NET.ws !== ws) return; NET.err = '连不上 ' + url; };
   }
 
   function netJoin(room, name, token) {
@@ -3827,7 +4054,8 @@ window.onerror = function (msg, src, line, col) {
 
   function netLeave(noHome) {
     if (NET.ws && NET.ws.readyState === 1) netSend({ t: 'leave' });
-    NET.room = ''; NET.token = ''; NET.state = null;
+    NET.room = ''; NET.token = ''; NET.state = null; proxyGame = null;
+    try { sessionStorage.removeItem('zmj_seat_v1'); } catch (e) {}
     NET.status = NET.ws ? 'on' : 'off';
     netBar();
     // 离开房间回主界面，而不是直接开一局单机（用户还没选玩法）
@@ -3971,10 +4199,16 @@ window.onerror = function (msg, src, line, col) {
       NET.room = m.room; NET.token = m.token; NET.pid = m.pid;
       if (m.you) NET.name = m.you;
       netSaveCfg();
+      try { sessionStorage.setItem('zmj_seat_v1', JSON.stringify({ room: NET.room, token: NET.token, server: NET.server })); } catch (e) {}
       netToast('进入房间 ' + m.room);
       netBar();
       if ($('netBox')) renderNet();
       return;
+    }
+    if (m.t === 'replaced') {
+      NET.room = ''; NET.token = ''; NET.status = 'error'; NET.err = m.msg;
+      try { sessionStorage.removeItem('zmj_seat_v1'); } catch (e) {}
+      netToast(m.msg); if ($('netBox')) renderNet(); return;
     }
     if (m.t === 'left') { NET.room = ''; NET.state = null; netBar(); if ($('netBox')) renderNet(); return; }
     if (m.t === 'err') { netToast(m.msg); NET.err = m.msg; if ($('netBox')) renderNet(); return; }
@@ -4005,7 +4239,7 @@ window.onerror = function (msg, src, line, col) {
       else { NET.status = 'off'; netConnect(); }
     }
     renderNet();
-    $('modal').classList.remove('hidden');
+    openModal();
   }
 
   function renderNet() {
@@ -4026,12 +4260,13 @@ window.onerror = function (msg, src, line, col) {
       box.innerHTML = h;
       $('netRetry').onclick = function () {
         var v = $('netServer').value;
+        if (NET.server !== v) { NET.room = ''; NET.token = ''; proxyGame = null; try { sessionStorage.removeItem('zmj_seat_v1'); } catch (e) {} }
         NET.server = v;
         netSaveCfg();
         if (NET.ws) { try { NET.ws.close(); } catch (e) {} NET.ws = null; }
         netConnect();
       };
-      $('netClose').onclick = function () { $('modal').classList.add('hidden'); };
+      $('netClose').onclick = function () { closeModal(); };
       return;
     }
     if (!NET.room) {
@@ -4069,7 +4304,7 @@ window.onerror = function (msg, src, line, col) {
         netJoin(rid || '', nm, '');
       };
       $('netEnter').onclick = function () { joinIt($('netRoomIn').value.trim()); };
-      $('netClose2').onclick = function () { $('modal').classList.add('hidden'); };
+      $('netClose2').onclick = function () { closeModal(); };
       var btns = box.querySelectorAll('button[data-room]');
       for (var b = 0; b < btns.length; b++) {
         btns[b].onclick = function () { joinIt(this.getAttribute('data-room')); };
@@ -4117,14 +4352,15 @@ window.onerror = function (msg, src, line, col) {
     if ($('netNext')) $('netNext').onclick = function () { netSend({ t: 'next' }); };
     $('netCopyLink').onclick = function () {
       var url = location.origin + location.pathname + '?room=' + encodeURIComponent(NET.room);
+      if (NET.server) url += '&server=' + encodeURIComponent(netURL());
       var done = function (ok) { netToast(ok ? '邀请链接已复制，发给朋友即可' : '复制被浏览器拒绝，链接是：' + url); };
       try {
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(function () { done(true); }, function () { done(false); });
         else done(false);
       } catch (e) { done(false); }
     };
-    $('netLeave').onclick = function () { netLeave(); $('modal').classList.add('hidden'); };
-    $('netClose3').onclick = function () { $('modal').classList.add('hidden'); };
+    $('netLeave').onclick = function () { netLeave(); closeModal(); };
+    $('netClose3').onclick = function () { closeModal(); };
   }
 
   function netOpenBox() {
@@ -4138,9 +4374,9 @@ window.onerror = function (msg, src, line, col) {
     s.id = 'homeCss';
     s.textContent =
       '#home{position:fixed;inset:0;z-index:70;display:flex;align-items:center;justify-content:center;' +
-      'padding:18px;box-sizing:border-box;overflow:auto;background:radial-gradient(circle at 50% 22%,#12684a,#07241a 72%)}' +
+      'padding:24px 18px;box-sizing:border-box;overflow:auto;background:radial-gradient(circle at 50% 22%,#12684a,#07241a 72%)}' +
       '#home.hidden{display:none}' +
-      '.homeWrap{width:100%;max-width:700px;text-align:center;color:#e8f3ec}' +
+      '.homeWrap{width:100%;max-width:980px;text-align:center;color:#e8f3ec}' +
       '.homeBrand{font-size:26px;font-weight:700;color:var(--gold);letter-spacing:1px}' +
       '.homeSub{font-size:13px;color:#9fb3a8;margin:6px 0 20px}' +
       '.homeCards{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}' +
@@ -4158,6 +4394,7 @@ window.onerror = function (msg, src, line, col) {
   }
   function showHome() {
     injectHomeCss();
+    if (!STATS) loadStats();
     var el = $('home');
     if (!el) { el = document.createElement('div'); el.id = 'home'; document.body.appendChild(el); }
     var sum = null;
@@ -4169,16 +4406,19 @@ window.onerror = function (msg, src, line, col) {
     el.innerHTML =
       '<div class="homeWrap">' +
         '<div class="homeBrand">🀄 转转麻将 · 练牌室</div>' +
-        '<div class="homeSub">选一种玩法开始</div>' +
+        '<div class="homeSub">看懂每一次选择，慢慢把牌打好。</div>' +
         '<div class="homeCards">' +
+          '<button class="homeCard homePractice" id="homePractice">' +
+            '<span class="homeTag">牌效训练</span><span class="homeDesc">先自己选一张，再看向听、进张和概率。练宽听、小七对，错题留着再练。</span>' +
+            '<span class="homeGo">从一道题开始 →</span></button>' +
           '<button class="homeCard" id="homeSolo">' +
             '<span class="homeTag">单机练习</span>' +
-            '<span class="homeDesc">和三个电脑打。每次出牌都有牌效推荐和放铳风险，打错会告诉你差在哪；还有防守道场、牌谱回放和长期统计。</span>' +
+            '<span class="homeDesc">和三位电脑练完整牌局。随时看弃牌讲解、比较有效牌，打完再看牌谱与统计。</span>' +
             '<span class="homeGo">开始练习 →</span>' +
           '</button>' +
           '<button class="homeCard" id="homeOnline">' +
             '<span class="homeTag">联机打牌</span>' +
-            '<span class="homeDesc">开一间房和朋友一起打，人不够由电脑补位。真人一直坐在桌上，电脑胡牌才换人，等待区的真人优先上桌；掉线了电脑先替你打，重连接着玩。</span>' +
+            '<span class="homeDesc">和朋友同桌，空位由电脑补齐。需要一位朋友提供联机服务器；掉线时电脑先帮你打。</span>' +
             '<span class="homeGo">进入房间 →</span>' +
           '</button>' +
         '</div>' +
@@ -4186,19 +4426,24 @@ window.onerror = function (msg, src, line, col) {
         '<div class="homeRule">108 张（万/条/筒 1-9，无字牌）· 不能吃，可碰可杠 · 小七对和平胡同价 · 收炮 5+鸟钱，自摸每家 10+鸟钱</div>' +
       '</div>';
     el.classList.remove('hidden');
+    syncLayers();
+    $('homePractice').onclick = function () { hideHome(); startPractice(); };
+    if (game && !game.online && game.hand && !game.hand.over) $('homeSolo').querySelector('.homeGo').textContent = '继续本局 →';
     clearTimeout(timer);                      // 菜单期间不推进牌局
     $('homeSolo').onclick = function () {
       hideHome();
       if (game && game.online) netLeave(true);  // 从联机切回单机
+      if (game && !game.online && game.hand && !game.hand.over) { render(); timer = setTimeout(tick, 200); return; }
       cfg.seed = (Math.random() * 0xffffffff) >>> 0;
       newGame();
     };
     $('homeOnline').onclick = function () { hideHome(); showNet(); };
   }
-  function hideHome() { var el = $('home'); if (el) el.classList.add('hidden'); }
+  function hideHome() { var el = $('home'); if (el) el.classList.add('hidden'); syncLayers(); }
 
   $('btnExport').onclick = showExport;
   $('btnStats').onclick = showStats;
+  $('btnPractice').onclick = startPractice;
   $('btnDojo').onclick = function () { dojoNew(); };
   $('btnReplay').onclick = showReplayList;
 
@@ -4227,13 +4472,15 @@ window.onerror = function (msg, src, line, col) {
       hb.id = 'btnHome'; hb.className = 'mini'; hb.textContent = '主界面';
       hb.onclick = function () {
         if (game && game.online && !window.confirm('正在联机，回主界面会离开房间。确定吗？')) return;
-        if (game && game.online) { netLeave(); $('modal').classList.add('hidden'); return; }
+        if (game && game.online) { netLeave(); closeModal(); return; }
         showHome();
       };
       tools.insertBefore(hb, b.nextSibling);
     }
     try {
-      var q = new URLSearchParams(location.search).get('room');
+      var inviteParams = new URLSearchParams(location.search);
+      var q = inviteParams.get('room');
+      if (q && inviteParams.get('server')) { NET.server = inviteParams.get('server'); NET.room = ''; NET.token = ''; }
       // 朋友发来的邀请链接：跳过主界面，直接进联机面板
       if (q) { NET.wantRoom = q; setTimeout(function () { hideHome(); showNet(); }, 400); }
     } catch (e) {}

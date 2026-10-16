@@ -205,4 +205,46 @@ test('等待区的人操作会被明确拒绝', async () => {
   } finally { s.hub.close(); s.server.close(); }
 });
 
+test('重复进房不占新座位，重连会撤销旧连接身份', async () => {
+  const s = await startServer();
+  try {
+    const a = await connect(s.port, '甲');
+    a.send({ t: 'join', room: '2010', name: '甲' });
+    await waitFor(() => a.joined, 2000, '首次进房');
+    const token = a.joined.token, pid = a.joined.pid;
+    assert.match(token, /^[a-f0-9]{48}$/);
+    a.joined = null;
+    a.send({ t: 'join', room: '2010', name: '甲' });
+    await waitFor(() => a.joined, 2000, '重复进房');
+    assert.equal(a.joined.pid, pid);
+    assert.equal(s.hub.store.get('2010').members.length, 1);
+    const oldSession = Array.from(s.hub.sessions).find(x => x.member && x.member.pid === pid);
+    const fresh = await connect(s.port, '甲');
+    fresh.send({ t: 'join', room: '2010', name: '甲', token });
+    await waitFor(() => fresh.joined, 2000, '接回座位');
+    assert.equal(fresh.joined.pid, pid);
+    assert.equal(oldSession.member, null, '旧页面不能操作重连后的座位');
+    assert.equal(oldSession.room, null);
+    await waitFor(() => a.ws.readyState === 3, 2000, '旧连接关闭');
+    assert.equal(s.hub.store.get('2010').onlineCount(), 1);
+  } finally { s.hub.close(); s.server.close(); }
+});
+
+test('错误类型的牌编号不能悄悄转换为另一张牌', async () => {
+  const s = await startServer();
+  try {
+    const a = await connect(s.port, '甲');
+    a.send({ t: 'join', room: '2011', name: '甲' });
+    await waitFor(() => a.joined, 2000, '进房');
+    a.send({ t: 'start' });
+    await waitFor(() => a.last && a.last.hand && a.last.hand.awaiting, 2000, '轮到自己');
+    const room = s.hub.store.get('2011');
+    const before = JSON.stringify(room.game.hand.players[0].concealed);
+    for (const kind of ['0', null, 0.5, 27, -1]) a.send({ t: 'act', act: 'discard', kind });
+    await waitFor(() => a.errors.length === 5, 2000, '拒绝所有错误类型');
+    assert.ok(a.errors.every(e => /牌编号/.test(e)));
+    assert.equal(JSON.stringify(room.game.hand.players[0].concealed), before);
+  } finally { s.hub.close(); s.server.close(); }
+});
+
 run();

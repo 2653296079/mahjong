@@ -69,14 +69,15 @@ function clickTile(w) {
     say('诊断：' + JSON.stringify(out.diag));
     await until(function () { return doc(A).getElementById('netName'); }, 8000, 'A 出现联机面板');
     doc(A).getElementById('netName').value = '甲';
+    doc(A).getElementById('netRoomIn').value = '1887';
     doc(A).getElementById('netEnter').click();
     say('甲 提交进房');
 
     // 乙：主界面 → 联机打牌
     doc(B).getElementById('homeOnline').click();
     await until(function () { return doc(B).getElementById('netName'); }, 10000, 'B 出现联机面板');
-    doc(B).getElementById('netName').value = '乙';
-    doc(B).getElementById('netRoomIn').value = '';
+    doc(B).getElementById('netName').value = '<b>乙</b>';
+    doc(B).getElementById('netRoomIn').value = '1887';
     doc(B).getElementById('netEnter').click();
     say('乙 提交进房');
     await sleep(800);
@@ -86,6 +87,15 @@ function clickTile(w) {
     startBtn.click();
     say('甲 点开始对局');
 
+    await until(function () { return A.__zmjGame && B.__zmjGame && A.__zmjGame.hand && B.__zmjGame.hand; }, 10000, '双方进入同一牌局');
+    if (doc(A).getElementById('netBar').textContent.indexOf('1887') < 0 || doc(B).getElementById('netBar').textContent.indexOf('1887') < 0) throw new Error('两个客户端不在同一房间');
+    [A, B].forEach(function (w) {
+      if (doc(w).querySelectorAll('.handRow').length !== 1) throw new Error('只能绘制自己的明手牌');
+      if (doc(w).querySelectorAll('#seat0 .handRow .tile').length < 13) throw new Error('开局看不到自己的手牌');
+      if (doc(w).querySelector('.seatName b')) throw new Error('昵称被解析成 HTML');
+      if (!doc(w).getElementById('table').textContent.includes('<b>乙</b>')) throw new Error('昵称未按纯文本显示');
+    });
+    say('两位真人同桌、各自手牌可见、对手牌背隐藏、昵称按文本显示');
     // 打出至少一手，直到出现「继续下一局」
     var acts = 0, tiles = 0, done = false;
     var t0 = Date.now();

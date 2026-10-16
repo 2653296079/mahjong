@@ -13,6 +13,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 let _core = null;
 /** 从 index.html 里取出内联引擎（零构建，不维护第二份源码） */
@@ -105,7 +106,7 @@ class Room {
     if (this.members.length >= this.opts.maxMembers) throw new Error('房间满了（最多 ' + this.opts.maxMembers + ' 人）');
     const m = {
       pid: newId('p'),
-      token: newId('tk'),
+      token: crypto.randomBytes(24).toString('hex'),
       name: (String(name || '').trim().slice(0, 12)) || ('玩家' + (this.members.length + 1)),
       conn: null, joinedAt: Date.now(), gone: false
     };
@@ -237,6 +238,8 @@ class Room {
     const seat = G.seatOfId(m.pid);
     if (seat < 0) throw new Error('你在等待区，等这局结束轮到你上桌');
     if (!this.isLiveHuman(seat)) throw new Error('这个座位现在不由你操作');
+    if (['discard', 'angang', 'bugang'].includes(a && a.act) &&
+        (!Number.isInteger(a.kind) || a.kind < 0 || a.kind >= 27)) throw new Error('牌编号不合法');
     let ok = false;
     switch (a && a.act) {
       case 'discard': ok = G.humanDiscard(a.kind | 0, seat); break;

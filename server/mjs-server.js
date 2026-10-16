@@ -92,6 +92,7 @@ function attach(server, opts) {
 
   function needRoom(session) {
     if (!session.room) throw new Error('你还没有进房间');
+    if (!session.member || session.member.conn !== session || session.member.gone) throw new Error('这个连接已失效，请重新进入房间');
     return session.room;
   }
 
@@ -129,12 +130,21 @@ function attach(server, opts) {
     } else {
       room = store.create();          // 没指定房间号就新开一间
     }
+    // 同一连接重复点击进房只刷新状态；重连后旧连接不再拥有该座位。
+    const sameMember = session.room === room && session.member && session.member.conn === session && !session.member.gone;
+    const previous = msg.token && room.memberByToken(msg.token);
+    const oldSession = previous && previous.conn;
     if (session.room && session.room !== room) doLeave(session);
-    const member = room.join(msg.name, msg.token);
+    const member = sameMember ? session.member : room.join(msg.name, msg.token);
     member.conn = session;
     member.gone = false;
     session.member = member;
     session.room = room;
+    if (oldSession && oldSession !== session) {
+      oldSession.member = null; oldSession.room = null;
+      send(oldSession, { t: 'replaced', msg: '此座位已在另一个页面连接。你可以关闭当前页面。' });
+      oldSession.conn.close(1000, 'seat reconnected');
+    }
     send(session, { t: 'joined', room: room.id, pid: member.pid, token: member.token, you: member.name });
     room.pump();
     broadcast(room);
@@ -143,7 +153,8 @@ function attach(server, opts) {
   function doLeave(session) {
     const room = session.room, m = session.member;
     if (!room || !m) return;
-    if (m.conn === session) m.conn = null;
+    if (m.conn !== session) { session.member = null; session.room = null; return; }
+    m.conn = null;
     room.leave(m);
     session.member = null;
     session.room = null;
