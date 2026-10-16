@@ -1,0 +1,58 @@
+<!doctype html><meta charset="utf-8"><title>延迟网络的操作反馈验收</title>
+<pre id="log"></pre><iframe id="game" style="width:390px;height:844px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]};
+function check(ok,msg){if(!ok)throw new Error(msg);out.steps.push(msg);}
+function pause(ms){return new Promise(function(r){setTimeout(r,ms);});}
+async function until(fn,label){for(var i=0;i<300;i++){if(fn())return;await pause(20);}throw new Error('超时：'+label);}
+(async function(){try{
+  localStorage.setItem('zmj_cfg_v2',JSON.stringify({sound:false,analyze:true,turnTime:0}));
+  localStorage.setItem('zmj_noRotate','1');sessionStorage.removeItem('zmj_seat_v1');
+  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html';});
+  var w=f.contentWindow,d=w.document,Native=w.WebSocket,sent=0,inState=false,analysisInState=0,lastState=null,states=[],analysisCalls=0,clicking=false,analysisDuringClick=0;
+  var originalAnalysis=w.ZMJ.analyzeSituation;
+  w.ZMJ.analyzeSituation=function(){analysisCalls++;if(inState)analysisInState++;if(clicking)analysisDuringClick++;return originalAnalysis.apply(this,arguments);};
+  w.WebSocket=function(url){
+    var self=this,raw=new Native(url);Object.defineProperty(self,'readyState',{get:function(){return raw.readyState;}});
+    self.send=function(text){var m=JSON.parse(text);if(m.t==='act')sent++;setTimeout(function(){if(raw.readyState===1)raw.send(text);},100);};
+    self.close=function(){raw.close.apply(raw,arguments);};
+    ['open','close','error'].forEach(function(type){raw.addEventListener(type,function(e){if(self['on'+type])self['on'+type](e);});});
+    raw.addEventListener('message',function(e){setTimeout(function(){
+      var m=JSON.parse(e.data);inState=m.t==='state';if(inState)lastState=m;
+      if(self.onmessage)self.onmessage(e);
+      if(inState&&m.hand){states.push({rev:m.rev,discards:m.hand.players[0].discards.length,domDiscards:d.querySelectorAll('#seat0 .discards .tile').length,analysisCalls:analysisCalls});}
+      inState=false;
+    },100);});
+  };
+  d.getElementById('homeOnline').click();await until(function(){return d.getElementById('netName');},'联机面板');
+  d.getElementById('netName').value='延迟测试';d.getElementById('netRoomIn').value='1889';d.getElementById('netEnter').click();
+  await until(function(){return d.getElementById('netStart');},'开始按钮');d.getElementById('netStart').click();
+  await until(function(){return w.__zmjGame&&w.__zmjGame.awaiting;},'自己的回合');
+  var g=w.__zmjGame,initial=g.hand.players[0].discards.length;
+  function clickDiscard(){
+    var tile=d.querySelector('.handRow .clickable');clicking=true;tile.click();if(!d.getElementById('netPendingAction'))tile.click();clicking=false;return tile;
+  }
+  // 一次过期请求必须恢复操作，且不能乐观地删掉暗牌。
+  var stale=JSON.parse(JSON.stringify(lastState));stale.rev--;g.applyView(stale);w.dispatchEvent(new w.Event('resize'));
+  clickDiscard();check(!!d.getElementById('netPendingAction'),'点击后立即显示等待确认，不等网络往返');
+  await until(function(){return !d.getElementById('netPendingAction')&&sent===1&&g.hand.players[0].discards.length===initial;},'过期请求恢复');
+  check(!g.hand.over&&!!d.querySelector('.handRow .clickable'),'请求被拒绝后恢复操作，没有误删手牌');
+  var beforeCount=g.hand.players[0].concealed.reduce(function(a,b){return a+b;},0),previous=sent,tile=clickDiscard();
+  check(!!d.getElementById('netPendingAction')&&d.querySelectorAll('.handRow .sending').length===1,'仅提交的那张牌显示发送状态');
+  check(g.hand.players[0].concealed.reduce(function(a,b){return a+b;},0)===beforeCount,'服务器确认前保持权威手牌不变');
+  for(var i=0;i<6;i++)tile.click();
+  check(sent===previous+1,'高延迟期间快速连点只发送一次操作');
+  check(Array.from(d.querySelectorAll('.handRow [role="button"]')).every(function(t){return t.getAttribute('aria-disabled')==='true';}),'确认期间所有手牌都有不可重复操作的状态');
+  await pause(70);check(!!d.getElementById('netPendingAction'),'单程 100ms 的链路尚未返回时等待状态持续');
+  await until(function(){return g.hand.players[0].discards.length>initial;},'权威出牌牌面');
+  check(states.some(function(s){return s.discards>initial&&s.domDiscards===s.discards;}),'收到状态的同一次消息处理就更新真实牌河');
+  check(analysisInState===0&&analysisDuringClick===0,'收包与点击路径不启动风险采样');
+  check(!d.getElementById('netPendingAction'),'权威状态到达后自动解除等待');
+  d.getElementById('btnNet').click();
+  await until(function(){return /网络往返：\d+ ms/.test(d.getElementById('netLatency').textContent);},'网络往返测量');
+  out.diagnostics=d.getElementById('netLatency').textContent;
+  check(/上次操作确认：\d+ ms/.test(out.diagnostics),'面板可区分网络往返与操作确认耗时');
+  out.ok=true;
+}catch(e){out.errors.push(e.message);}
+document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));})();
+</script>

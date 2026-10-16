@@ -231,7 +231,7 @@ class Room {
   }
 
   /** 真人的一次操作 */
-  act(m, a) {
+  act(m, a, opts) {
     const G = this.game;
     if (!G || !G.hand) throw new Error('牌局还没开始');
     if (G.hand.over) throw new Error('本局已经结束了');
@@ -255,7 +255,8 @@ class Room {
     if (!ok) throw new Error('这个操作现在不合法');
     this.awaitSince = 0;
     this.lastActive = Date.now();
-    this.pump();
+    if (opts && opts.deferPump) this.rev++;
+    else this.pump();
   }
 
   /** 下一局（任何人按都可以，重复按无效） */

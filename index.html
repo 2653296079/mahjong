@@ -184,6 +184,8 @@ main{flex:1;display:flex;min-height:0}
 .tile.xs{width:20px;height:27px;border-radius:3px;padding:0 1px}
 #seat0{overflow:visible}
 .tile.chosen{transform:translateY(-12px) !important;box-shadow:0 0 0 2px var(--gold),0 6px 0 rgba(0,0,0,.35)}
+.tile.sending{opacity:.55;transform:translateY(-6px)!important;outline:2px solid var(--gold)}
+.tile[aria-disabled="true"]{cursor:wait}
 .tile,.act,.mini{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 #log{-webkit-overflow-scrolling:touch}
 
@@ -2375,7 +2377,7 @@ window.onerror = function (msg, src, line, col) {
   var isTouch = !!(window.matchMedia && window.matchMedia('(hover: none)').matches) ||
     ('ontouchstart' in window) ||
     (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0);
-  var selectedKind = null;                      // 手机上"点一下选中、再点打出"
+  var selectedTile = null;                      // 按实际牌的位置选择，同种牌分别确认
   function isNarrow() { return (window.innerWidth || 1200) <= 680; }
   var rotateDismissed = false;
   try { rotateDismissed = localStorage.getItem('zmj_noRotate') === '1'; } catch (e) { rotateDismissed = false; }
@@ -2557,7 +2559,7 @@ window.onerror = function (msg, src, line, col) {
   function newGame() {
     if (game && game.online) { netToast('联机中：想自己练牌，先点「离开房间」'); return; }
     clearTimeout(timer);
-    turnDeadline = 0; pauseStarted = 0; lastAwaiting = null; feedback = null; selectedKind = null;
+    turnDeadline = 0; pauseStarted = 0; lastAwaiting = null; feedback = null; selectedTile = null;
     guideCache = { key: '', entries: {} };
     sitCache = { key: '', data: null, cands: null };
     sfxSig = { disc: '', meld: '', drawn: -1, over: '' };
@@ -2594,7 +2596,7 @@ window.onerror = function (msg, src, line, col) {
       render();
       return;
     }
-    if (!(game.awaiting && game.awaiting.type === 'turn')) selectedKind = null;
+    if (!(game.awaiting && game.awaiting.type === 'turn')) selectedTile = null;
     var H = game.hand;
     if (H.over) {
       lastAwaiting = null; pauseStarted = 0;
@@ -2678,20 +2680,55 @@ window.onerror = function (msg, src, line, col) {
   }
 
   // ---------- 渲染 ----------
+  var onlineRenderGeneration = 0, onlineAnalysisTimer = 0, onlineAnalysisFrame = 0, onlineDetailsKey = '';
+  function cancelOnlineAnalysis() {
+    onlineRenderGeneration++;
+    clearTimeout(onlineAnalysisTimer); cancelAnimationFrame(onlineAnalysisFrame);
+  }
+  function queueOnlineAnalysis() {
+    cancelOnlineAnalysis();
+    if (!game || !game.online || NET.pendingAction || NET.status !== 'on') return;
+    var target = game, generation = onlineRenderGeneration, key = situationKey();
+    function current() { return game === target && generation === onlineRenderGeneration && !NET.pendingAction; }
+    if (key !== onlineDetailsKey) {
+      var text = liveHints() ? '牌面已更新，正在计算讲解…' : hiddenHintText();
+      ['myStat','hint','miniHint','situation'].forEach(function (id) { $(id).textContent = text; });
+      if (!game.hand.over) {
+        $('coach').className = '';
+        $('coachEyebrow').textContent = '牌面已更新';
+        $('coachMain').textContent = game.awaiting ? '轮到你做决定' : '等待下一步';
+        $('coachDetail').textContent = text;
+      }
+    }
+    // 先给浏览器绘制服务器牌面，再计算基础讲解；风险采样再让出一帧。
+    onlineAnalysisFrame = requestAnimationFrame(function () {
+      onlineAnalysisTimer = setTimeout(function () {
+        if (!current()) return;
+        renderMyStat(); renderCoach(); renderHint(); renderMiniHint(); onlineDetailsKey = key;
+        onlineAnalysisFrame = requestAnimationFrame(function () {
+          onlineAnalysisTimer = setTimeout(function () {
+            if (!current()) return;
+            renderSituation(); renderCenterTile();
+          }, 0);
+        });
+      }, 0);
+    });
+  }
   function render() {
     if (!game) return;
     if (game.online && !game.hand) return;   // 联机还没开局，牌桌没什么可画的
     renderScores();
-    renderMyStat();
+    if (!game.online) renderMyStat();
     for (var p = 0; p < 4; p++) renderSeat(p);
-    renderCenter();
+    renderCenter(!!game.online);
     sfxCheck();
     renderActions();
     renderTimer();
+    renderLog();
+    if (game.online) { queueOnlineAnalysis(); return; }
     renderSituation();
     renderHint();
     renderMiniHint();
-    renderLog();
   }
 
   // ---------- 音效：WebAudio 程序合成（零外部文件、零授权风险） ----------
@@ -2980,28 +3017,35 @@ window.onerror = function (msg, src, line, col) {
       if (opt && opt.canZimo && !canDiscard) row.classList.add('tenpai');
       // 刚摸到的牌单独放到最右边（其余按顺序排列）
       var drawnKind = (canDiscard && H.lastDraw != null) ? H.lastDraw : -1;
-      function addTile(kk) {
-        var chosen = canDiscard && selectedKind === kk;
-        var t = tileEl(kk, 'big', (canDiscard ? 'clickable' : '') + (chosen ? ' chosen' : '') + (kk === drawnKind ? ' drawn' : ''));
+      var selectKey = situationKey();
+      if (selectedTile && selectedTile.key !== selectKey) selectedTile = null;
+      function addTile(kk, copy, isDrawn) {
+        var id = kk + ':' + copy;
+        var chosen = canDiscard && selectedTile && selectedTile.id === id;
+        var sending = game.online && NET.pendingAction && NET.pendingAction.tileId === id;
+        var t = tileEl(kk, 'big', (canDiscard ? 'clickable' : '') + (chosen ? ' chosen' : '') + (isDrawn ? ' drawn' : '') + (sending ? ' sending' : ''));
+        t.setAttribute('data-tile-id', id);
         if (canDiscard) {
           t.setAttribute('role', 'button');
           t.setAttribute('tabindex', '0');
           t.setAttribute('aria-label', '打出' + ZMJ.tileName(kk));
-          t.onclick = function () { onDiscardClick(kk); };
+          t.setAttribute('aria-pressed', chosen ? 'true' : 'false');
+          if (game.online && (NET.pendingAction || NET.status !== 'on')) t.setAttribute('aria-disabled', 'true');
+          t.onclick = function () { onDiscardClick(kk, id); };
           t.onkeydown = function (e) {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDiscardClick(kk); }
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDiscardClick(kk, id); }
           };
         }
         row.appendChild(t);
       }
       for (var k = 0; k < ZMJ.KINDS; k++) {
         var cnt = hp.concealed[k] - (k === drawnKind ? 1 : 0);
-        for (var c = 0; c < cnt; c++) addTile(k);
+        for (var c = 0; c < cnt; c++) addTile(k, c, false);
       }
       if (drawnKind >= 0) {
         var gap = document.createElement('div'); gap.className = 'gap';
         row.appendChild(gap);
-        addTile(drawnKind);
+        addTile(drawnKind, hp.concealed[drawnKind] - 1, true);
       }
       el.appendChild(row);
       var dc = document.createElement('div'); dc.className = 'discards';
@@ -3078,15 +3122,17 @@ window.onerror = function (msg, src, line, col) {
 
   // 中央放大展示最新打出的一张牌
   var lastCenterSig = '';
-  function renderCenterTile() {
+  var centerRiskPending = false;
+  function renderCenterTile(fast) {
     var el = $('centerTile');
     if (!el) return;
     var H = game.hand, ld = H.lastDiscard;
     if (!ld || H.over) { el.innerHTML = ''; lastCenterSig = ''; return; }
     var sig = ld.seat + ':' + ld.kind + ':' + H.players[ld.seat].discards.length;
-    if (sig === lastCenterSig && el.children.length) return;
+    if (sig === lastCenterSig && el.children.length && !(centerRiskPending && !fast)) return;
     var isNew = lastCenterSig !== '' && sig !== lastCenterSig;
     lastCenterSig = sig;
+    centerRiskPending = !!fast;
     el.innerHTML = '';
     var who = document.createElement('div');
     who.className = 'who';
@@ -3099,7 +3145,7 @@ window.onerror = function (msg, src, line, col) {
     var danger = '';
     try {
       var hs = game.humanSeat();
-      if (hs >= 0 && cfg.analyze) {
+      if (!fast && hs >= 0 && cfg.analyze) {
         var sit = getSituation();
         var r = sit && (sit.res || sit.data);
         if (r && r.dealIn) {
@@ -3145,9 +3191,9 @@ window.onerror = function (msg, src, line, col) {
     el.className = 'hidden';
   }
 
-  function renderCenter() {
-    renderCenterTile();
-    renderCoach();
+  function renderCenter(fast) {
+    renderCenterTile(fast);
+    if (!fast || game.hand.over) renderCoach();
     var H = game.hand;
     $('wallInfo').textContent = '牌墙 ' + H.wall.length + ' 张（约 ' + game.drawsLeft() + ' 巡）';
     $('dealerInfo').textContent = '庄 ' + game.nameOf(game.dealer);
@@ -3277,6 +3323,11 @@ window.onerror = function (msg, src, line, col) {
       wb.classList.add('hidden');
       var view=btn('查看本局手牌与结算','',showSettlement);view.id='btnViewFinalHands';bar.appendChild(view);return;
     }
+    if (game.online && NET.pendingAction) {
+      var pending = document.createElement('span'); pending.id = 'netPendingAction'; pending.setAttribute('role', 'status');
+      pending.textContent = NET.pendingAction.act === 'discard' ? '正在出牌，等待服务器确认…' : '操作已发送，等待服务器确认…';
+      bar.appendChild(pending); return;
+    }
     if (game.humanSeat() < 0) {
       wb.classList.remove('hidden');
       wb.textContent = '你在等待区（第 ' + (game.queue.findIndex(function (p) { return p.isHuman; }) + 1) + ' 位），快进中…';
@@ -3297,9 +3348,9 @@ window.onerror = function (msg, src, line, col) {
       if (!a.options.canZimo && !a.options.anGang.length && !a.options.buGang.length) {
         var tip = document.createElement('div');
         tip.style.cssText = 'font-size:13px;color:#9fb3a8';
-        tip.textContent = selectedKind == null
+        tip.textContent = selectedTile == null
           ? (isTouch ? '点一下选中，再点一下打出' : '点击你的牌打出') + (a.afterClaim ? '（碰后不摸牌）' : '')
-          : '再点一次 ' + ZMJ.tileName(selectedKind) + ' 打出';
+          : '再点一次选中的 ' + ZMJ.tileName(selectedTile.kind) + ' 打出';
         bar.appendChild(tip);
       }
     } else if (a.type === 'claim') {
@@ -3325,10 +3376,11 @@ window.onerror = function (msg, src, line, col) {
   function act(fn) {
     if (!fn()) return false;
     turnDeadline = 0; pauseStarted = 0;
+    if (game.online) return true; // 已在发送时更新等待状态；不能重算旧牌面的讲解。
     render(); timer = setTimeout(tick, 120);
     return true;
   }
-  function discardReview(kind, opts) {
+  function discardReview(kind, opts, context) {
     if (!opts.length) return null;
     var best = opts[0];
     var picked = opts.filter(function (o) { return o.kind === kind; })[0];
@@ -3341,23 +3393,46 @@ window.onerror = function (msg, src, line, col) {
       '（' + best.shanten + ' 向听，进张 ' + best.ukeire + '）';
     if (cfg.analyze) {
       try {
-        var sit = getSituation();
-        var res = sit && sit.res;
+        var sit = context ? null : getSituation();
+        var res = context ? context.risk : sit && sit.res;
         if (res) detail += '；该张采样放铳风险约 ' + (res.dealIn(kind).prob * 100).toFixed(1) + '%';
       } catch (e) {}
     }
-    return { handNo: game.handNo, main: main, detail: detail, grade: same ? 'good' : 'warn',
-      turn: game.hand.turnCount, picked: kind, best: best.kind,
+    return { handNo: context ? context.handNo : game.handNo, main: main, detail: detail, grade: same ? 'good' : 'warn',
+      turn: context ? context.turn : game.hand.turnCount, picked: kind, best: best.kind,
       shantenLoss: picked.shanten - best.shanten,
       outsLoss: picked.shanten === best.shanten ? best.ukeire - picked.ukeire : 0 };
   }
-  function onDiscardClick(kind) {
+  function onDiscardClick(kind, tileId) {
     if (!game.awaiting || game.awaiting.type !== 'turn') return;
+    if (game.online && (NET.pendingAction || NET.status !== 'on')) return;
     // 触屏：第一次点选、再点同一张才打出，避免误触
-    if (isTouch && selectedKind !== kind) { selectedKind = kind; render(); return; }
+    var key = situationKey();
+    if (isTouch && (!selectedTile || selectedTile.id !== tileId || selectedTile.key !== key)) {
+      selectedTile = { kind: kind, id: tileId, key: key };
+      // 只更新选中牌及操作提示，不重画整桌、不触发分析。
+      document.querySelectorAll('.handRow .tile[role="button"]').forEach(function (tile) {
+        var chosen = tile.getAttribute('data-tile-id') === tileId;
+        tile.classList.toggle('chosen', chosen); tile.setAttribute('aria-pressed', chosen ? 'true' : 'false');
+      });
+      renderActions(); return;
+    }
+    if (game.online) {
+      var hand = game.hand, seat = game.humanSeat();
+      var context = { handNo: game.handNo, turn: hand.turnCount, risk: sitCache.key === key && sitCache.data ? sitCache.data.res : null };
+      var cached = decisionCache && decisionCache.key === key ? decisionCache.report.candidates : null;
+      NET.actionTileId = tileId;
+      var sent = act(function () { return game.humanDiscard(kind); });
+      NET.actionTileId = null;
+      if (!sent) return;
+      selectedTile = null;
+      // 发包优先；复盘只读发送时保存的公开局面，不为点击临时启动风险采样。
+      NET.pendingReviews[NET.lastActionId] = discardReview(kind, cached || ZMJ.evaluateDiscards(hand, seat), context);
+      return;
+    }
     var opts = getDiscardOptions();
     var review = discardReview(kind, opts);
-    selectedKind = null;
+    selectedTile = null;
     if (act(function () { return game.humanDiscard(kind); })) {
       // 联机发出操作不等于操作被接受；过期或连点被拒绝时不能计入成绩。
       if (game.online) NET.pendingReviews[NET.lastActionId] = review;
@@ -3371,7 +3446,7 @@ window.onerror = function (msg, src, line, col) {
       if (review.grade === 'good') handExtra.recFollow++;
       handExtra.reviews.push(review);
     }
-    feedback = review; renderCoach();
+    feedback = review; if (!game.online) renderCoach();
   }
 
   function guidePathsHTML(guide, start) {
@@ -4235,7 +4310,37 @@ window.onerror = function (msg, src, line, col) {
   // 但谁都拿不到别人的手牌（连网络流量里也没有）。
   var NET_KEY = 'zmj_net_v1';
   var NET = { ws: null, status: 'off', err: '', note: '', state: null, lobby: null,
-              room: '', name: '', server: '', token: '', pid: '', wantRoom: '', retry: 0, pendingReviews: {}, lastActionId: '' };
+              room: '', name: '', server: '', token: '', pid: '', wantRoom: '', retry: 0, pendingReviews: {}, lastActionId: '',
+              pendingAction: null, actionTileId: null, probe: null, probeSeq: 0, probeTimer: 0, pendingTimer: 0,
+              roundTrip: null, lastConfirm: null, serverMs: null, probeUnsupported: false };
+  function netDiagnostics() {
+    var text = '网络往返：' + (NET.roundTrip == null ? NET.probeUnsupported ? '服务器更新后可测量' : '测量中' : NET.roundTrip + ' ms');
+    if (NET.lastConfirm != null) text += ' · 上次操作确认：' + NET.lastConfirm + ' ms';
+    if (NET.serverMs != null) text += '（服务器处理 ' + NET.serverMs + ' ms）';
+    var el = $('netLatency'); if (el) el.textContent = text;
+    if (netBarEl) netBarEl.title = text + '。点这里打开联机面板';
+    return text;
+  }
+  function netProbe() {
+    clearTimeout(NET.probeTimer);
+    if (!NET.ws || NET.ws.readyState !== 1) return;
+    NET.probe = { id: ++NET.probeSeq, at: performance.now() };
+    netSend({ t: 'ping', probe: NET.probe.id });
+    NET.probeTimer = setTimeout(netProbe, 10000);
+  }
+  function clearPendingAction() {
+    NET.pendingAction = null; clearTimeout(NET.pendingTimer);
+  }
+  function renderPendingAction() {
+    if (!game || !game.online || !NET.pendingAction) return;
+    cancelOnlineAnalysis();
+    document.querySelectorAll('.handRow .tile[role="button"]').forEach(function (tile) {
+      tile.setAttribute('aria-disabled', 'true'); tile.setAttribute('aria-pressed', 'false');
+      tile.classList.remove('chosen');
+      tile.classList.toggle('sending', tile.getAttribute('data-tile-id') === NET.pendingAction.tileId);
+    });
+    renderActions();
+  }
   try {
     var savedNet = JSON.parse(localStorage.getItem(NET_KEY) || 'null');
     if (savedNet) { NET.name = savedNet.name || ''; NET.server = savedNet.server || ''; }
@@ -4300,6 +4405,7 @@ window.onerror = function (msg, src, line, col) {
     t.textContent = txt;
     netBarEl.appendChild(d); netBarEl.appendChild(t);
     netBarEl.style.display = 'inline-flex';
+    netDiagnostics();
   }
   function netToast(msg) {
     NET.note = msg;
@@ -4320,12 +4426,24 @@ window.onerror = function (msg, src, line, col) {
 
   function netSend(obj) {
     if (obj.t === 'act') {
+      if (NET.pendingAction) return false;
       if (!NET.state || !Number.isInteger(NET.state.rev)) return false;
       obj.rev = NET.state.rev;
       obj.requestId = 'a_' + Date.now().toString(36) + '_' + (++netRequestSeq);
     }
     if (!NET.ws || NET.ws.readyState !== 1) { netToast('还没连上服务器'); return false; }
-    try { NET.ws.send(JSON.stringify(obj)); if (obj.t === 'act') NET.lastActionId = obj.requestId; return true; }
+    try {
+      NET.ws.send(JSON.stringify(obj));
+      if (obj.t === 'act') {
+        NET.lastActionId = obj.requestId;
+        NET.pendingAction = { requestId: obj.requestId, rev: obj.rev, act: obj.act, tileId: NET.actionTileId, at: performance.now(), acknowledged: false };
+        renderPendingAction();
+        NET.pendingTimer = setTimeout(function () {
+          if ($('netPendingAction')) $('netPendingAction').textContent = '确认时间较长，请检查网络连接；暂勿重复操作。';
+        }, 8000);
+      }
+      return true;
+    }
     catch (e) { netToast('发送失败：' + e.message); return false; }
   }
   var netRequestSeq = 0;
@@ -4344,6 +4462,7 @@ window.onerror = function (msg, src, line, col) {
     ws.onopen = function () {
       if (NET.ws !== ws) return;
       NET.status = 'on'; NET.retry = 0; NET.err = ''; NET.everConnected = true;
+      NET.roundTrip = null; NET.lastConfirm = null; NET.serverMs = null; NET.probeUnsupported = false; clearPendingAction(); netProbe();
       netBar();
       if (NET.room) netJoin(NET.room, NET.name, NET.token);   // 断线重连：自动回到原来的房间
       else netSend({ t: 'rooms' });
@@ -4358,9 +4477,11 @@ window.onerror = function (msg, src, line, col) {
     ws.onclose = function (event) {
       if (NET.ws !== ws) return;
       NET.ws = null;
+      clearPendingAction(); clearTimeout(NET.probeTimer); NET.probe = null; cancelOnlineAnalysis();
       NET.pendingReviews = {};
       if (NET.status === 'error') { netBar(); return; }
       NET.status = 'error';
+      if (game && game.online && game.hand) render();
       // 从没连上过 = 地址不对或没有服务；连上过又断 = 掉线。两种提示不能混。
       NET.err = event.code===1008 ? '连接因流量或接收限制断开，请稍后重连。' : NET.everConnected
         ? '与服务器断开了，正在自动重连…'
@@ -4384,6 +4505,7 @@ window.onerror = function (msg, src, line, col) {
   function netLeave(noHome) {
     if (NET.ws && NET.ws.readyState === 1) netSend({ t: 'leave' });
     NET.room = ''; NET.token = ''; NET.state = null; proxyGame = null;
+    clearPendingAction(); cancelOnlineAnalysis(); NET.pendingReviews = {};
     try { sessionStorage.removeItem('zmj_seat_v1'); } catch (e) {}
     NET.status = NET.ws ? 'on' : 'off';
     netBar();
@@ -4516,7 +4638,7 @@ window.onerror = function (msg, src, line, col) {
     if (game && game.online) return game;
     if (!proxyGame) proxyGame = makeProxyGame();
     clearTimeout(timer);
-    turnDeadline = 0; pauseStarted = 0; lastAwaiting = null; feedback = null; selectedKind = null;
+    turnDeadline = 0; pauseStarted = 0; lastAwaiting = null; feedback = null; selectedTile = null;
     guideCache = { key: '', entries: {} };
     sitCache = { key: '', data: null, cands: null };
     sfxSig = { disc: '', meld: '', drawn: -1, over: '' };
@@ -4548,19 +4670,32 @@ window.onerror = function (msg, src, line, col) {
       netBar(); closeModal(); showHome(); netToast(m.msg); return;
     }
     if (m.t === 'left') { NET.room = ''; NET.state = null; netBar(); if ($('netBox')) renderNet(); return; }
-    if (m.t === 'err') { if (m.requestId) delete NET.pendingReviews[m.requestId]; netToast(m.msg); NET.err = m.msg; if ($('netBox')) renderNet(); return; }
+    if (m.t === 'err') {
+      if (m.requestId) delete NET.pendingReviews[m.requestId];
+      if (NET.pendingAction && m.requestId === NET.pendingAction.requestId) { clearPendingAction(); if (game && game.online) render(); }
+      netToast(m.msg); NET.err = m.msg; if ($('netBox')) renderNet(); return;
+    }
     if (m.t === 'ack') {
+      if (NET.pendingAction && NET.pendingAction.requestId === m.requestId) {
+        NET.lastConfirm = Math.round(performance.now() - NET.pendingAction.at);
+        NET.serverMs = Number.isFinite(m.serverMs) ? m.serverMs : null;
+        NET.pendingAction.acknowledged = true; netDiagnostics();
+      }
       var accepted = NET.pendingReviews[m.requestId]; delete NET.pendingReviews[m.requestId];
       if (accepted) acceptDiscardReview(accepted);
       return;
     }
-    if (m.t === 'pong') return;
+    if (m.t === 'pong') {
+      if (NET.probe && m.probe === NET.probe.id) { NET.roundTrip = Math.round(performance.now() - NET.probe.at); NET.probe = null; netDiagnostics(); }
+      else if (NET.probe && m.probe == null) { NET.probeUnsupported = true; NET.probe = null; netDiagnostics(); }
+      return;
+    }
     if (m.t === 'chat') { netToast(m.from + '：' + m.text); return; }
     if (m.t === 'state') {
+      if (NET.pendingAction && NET.pendingAction.acknowledged && m.rev > NET.pendingAction.rev) clearPendingAction();
       var P = netUseProxy();
       P.applyView(m);
       netBar();
-      render();
       tick();
       if ($('netBox')) renderNet();
       return;
@@ -4587,7 +4722,7 @@ window.onerror = function (msg, src, line, col) {
   function renderNet() {
     if (!$('netBox')) return;
     var box = $('netBox');
-    var h = '';
+    var h = '<div id="netLatency" class="practiceNote">' + netEsc(NET.status === 'on' ? netDiagnostics() : '连接后可查看网络往返与操作确认耗时') + '</div>';
     if (NET.status !== 'on') {
       h += '<div style="font-size:13px;color:#cfd8d3;line-height:1.7;margin-bottom:8px">' +
         '联机需要一台跑着 <b style="color:#f2c14e">node server.js</b> 的电脑（局域网里任意一台就行）。' +

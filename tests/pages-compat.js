@@ -58,6 +58,7 @@ server.listen(PORT, '127.0.0.1', () => {
     console.log('已造废弃房 9999（开局后无人）');
   }
   const child = execFile(EDGE, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
+    ...(PAGE === 'selection-ui' ? ['--touch-events=enabled'] : []),
     '--user-data-dir=' + PROFILE,
     base + '/tests/' + PAGE + '.html'], { timeout: 120000 }, () => {});
   const t0 = Date.now();

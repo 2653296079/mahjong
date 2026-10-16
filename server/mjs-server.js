@@ -25,6 +25,7 @@
 const { upgrade } = require('./ws-lite');
 const { RoomStore } = require('./rooms');
 const { readLimits, TokenBucket } = require('./limits');
+const { performance } = require('node:perf_hooks');
 
 const HEARTBEAT_MS = 25000;
 const TICK_MS = 500;
@@ -36,6 +37,23 @@ function attach(server, opts) {
   const limits = readLimits(opts.limits);
   const store = new RoomStore(Object.assign({},opts.room,{maxRooms:limits.maxRooms}));
   const sessions = new Set();
+  const pumps = new Map();
+  function needsPump(room) {
+    const G = room.game;
+    if (!G || !G.hand || G.hand.over) return false;
+    const awaiting = G.pendingAwaits();
+    return G.hasPendingResolve() || !awaiting.length || awaiting.some(a => !room.isLiveHuman(a.seat));
+  }
+
+  // 先发布真人操作的权威结果，再在下一轮事件循环推进电脑，避免确认等候整圈计算。
+  function schedulePump(room) {
+    if (pumps.has(room) || !needsPump(room)) return;
+    pumps.set(room, setImmediate(() => {
+      pumps.delete(room);
+      if (store.get(room.id) !== room || !needsPump(room)) return;
+      room.pump(); broadcast(room);
+    }));
+  }
 
   function send(session, msg) {
     if (!session || !session.conn || session.conn.closed) return;
@@ -107,7 +125,7 @@ function attach(server, opts) {
 
   function handle(session, msg) {
     switch (msg.t) {
-      case 'ping': return send(session, { t: 'pong', at: Date.now() });
+      case 'ping': return send(session, { t: 'pong', at: Date.now(), probe: Number.isSafeInteger(msg.probe) ? msg.probe : undefined });
       case 'rooms': return send(session, { t: 'rooms', rooms: store.list() });
       case 'join': return doJoin(session, msg);
       case 'leave': {
@@ -132,11 +150,12 @@ function attach(server, opts) {
           send(session, { t: 'err', msg: '牌局已更新，请根据最新牌面重新确认操作', code: 'stale', requestId: msg.requestId });
           send(session, r.viewFor(member)); return;
         }
-        r.act(member, msg);
+        const started = performance.now();
+        r.act(member, msg, { deferPump: true });
         member.actions.set(msg.requestId, signature);
         if (member.actions.size > 64) member.actions.delete(member.actions.keys().next().value);
-        send(session, { t: 'ack', requestId: msg.requestId, duplicate: false });
-        broadcast(r); return;
+        send(session, { t: 'ack', requestId: msg.requestId, duplicate: false, serverMs: Math.round((performance.now() - started) * 10) / 10 });
+        broadcast(r); schedulePump(r); return;
       }
       case 'chat': {
         const r = needRoom(session);
@@ -237,6 +256,8 @@ function attach(server, opts) {
     },
     close() {
       clearInterval(heartbeat); clearInterval(ticker); clearInterval(sweeper);
+      for (const task of pumps.values()) clearImmediate(task);
+      pumps.clear();
       for (const s of sessions) { try { s.conn.close(1001, '服务器关闭'); } catch (e) {} }
     }
   };

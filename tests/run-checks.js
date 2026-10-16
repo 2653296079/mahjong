@@ -12,6 +12,7 @@ if (process.argv.includes('--browser')) jobs.push(
   ['tests/pages-compat.js', 'training-ui'], ['tests/pages-compat.js', 'training-release'],
   ['tests/pages-compat.js', 'lesson-ui'],
   ['tests/pages-compat.js', 'settlement-ui'],
+  ['tests/pages-compat.js', 'selection-ui'], ['tests/pages-compat.js', 'online-response', '--hub'],
   ['tests/pages-compat.js', 'coach-advice'], ['tests/pages-compat.js', 'reconnect', '--hub'],
   ['tests/pages-compat.js'], ['tests/browser-online.js']
 );

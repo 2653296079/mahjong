@@ -283,4 +283,43 @@ test('过期局面操作被拒绝，重发成功请求不会重复出牌', async
   } finally { s.hub.close(); s.server.close(); }
 });
 
+test('操作确认与真人出牌状态先发布，再推进电脑；保活回显测量编号', async () => {
+  const s = await startServer();
+  try {
+    const a = await connect(s.port, '甲');
+    a.send({t:'join',room:'2013',name:'甲'});
+    await waitFor(()=>a.joined,2000,'进房');a.send({t:'start'});
+    await waitFor(()=>a.last&&a.last.hand&&a.last.hand.awaiting,2000,'出牌回合');
+    const room=s.hub.store.get('2013'),member=room.members[0],trace=[];
+    const rawSend=member.conn.conn.send.bind(member.conn.conn),pump=room.pump.bind(room);
+    member.conn.conn.send=function(msg){if(msg.t==='ack')trace.push('ack');if(msg.t==='state'&&msg.hand.players[0].discards.length)trace.push('state');return rawSend(msg);};
+    room.pump=function(){trace.push('pump');return pump();};
+    a.send({t:'act',act:'discard',kind:a.last.hand.mine.concealed.findIndex(n=>n>0)});
+    await waitFor(()=>trace.includes('pump')&&a.acks.length,2000,'确认与推进');
+    assert.ok(trace.indexOf('ack')<trace.indexOf('state')&&trace.indexOf('state')<trace.indexOf('pump'),trace.join(','));
+    assert.ok(Number.isFinite(a.acks[0].serverMs));
+    let pong=null;a.ws.addEventListener('message',e=>{const m=JSON.parse(e.data);if(m.t==='pong')pong=m;});
+    a.send({t:'ping',probe:42});await waitFor(()=>pong,2000,'保活');assert.equal(pong.probe,42);
+  } finally {s.hub.close();s.server.close();}
+});
+
+test('四位真人待决时不做空推进，不额外改变局面版本', async () => {
+  const s = await startServer();
+  try {
+    const clients=[];
+    for(const name of ['甲','乙','丙','丁']){
+      const c=await connect(s.port,name);c.send({t:'join',room:'2014',name});
+      await waitFor(()=>c.joined,2000,'四人入房');clients.push(c);
+    }
+    const a=clients[0];a.send({t:'start'});
+    await waitFor(()=>a.last&&a.last.hand&&a.last.hand.awaiting,2000,'庄家回合');
+    const room=s.hub.store.get('2014'),rev=room.rev;let pumps=0;
+    const original=room.pump.bind(room);room.pump=function(){pumps++;return original();};
+    a.send({t:'act',act:'discard',kind:a.last.hand.mine.concealed.findIndex(n=>n>0)});
+    await waitFor(()=>a.acks.length,2000,'确认');await sleep(30);
+    assert.equal(pumps,0);assert.equal(room.rev,rev+1);
+    assert.ok(room.game.hand.over||room.game.pendingAwaits().every(p=>room.isLiveHuman(p.seat)));
+  } finally {s.hub.close();s.server.close();}
+});
+
 run();
