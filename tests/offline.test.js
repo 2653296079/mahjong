@@ -23,7 +23,7 @@ function worker(fetch) {
 test('offline upgrade removes only this game old caches', async () => {
   const w = worker(); let done;
   w.handlers.activate({ waitUntil: x => done = x }); await done;
-  assert.deepEqual(w.deleted, ['zmj-v15', 'zmj-v16', 'zmj-v17', 'zmj-v18', 'zmj-v19']);
+  assert.deepEqual(w.deleted, ['zmj-v15', 'zmj-v16', 'zmj-v17', 'zmj-v18', 'zmj-v19', 'zmj-v20']);
 });
 test('failed HTTP responses are not cached; room links share one offline page', async () => {
   const error = worker(async () => ({ ok: false, status: 503 }));

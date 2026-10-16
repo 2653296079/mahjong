@@ -1,0 +1,38 @@
+<!doctype html><meta charset="utf-8"><title>界面布局与菜单验收</title>
+<pre id="log"></pre><iframe id="game" title="麻将预览" style="width:390px;height:844px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]};
+function check(ok,msg){if(!ok)throw Error(msg);out.steps.push(msg);}
+var frame=document.getElementById('game');
+async function size(w,h){frame.style.width=w+'px';frame.style.height=h+'px';await new Promise(function(r){requestAnimationFrame(function(){requestAnimationFrame(r);});});}
+(async function(){try{
+  localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:20261016,sound:false,analyze:false,turnTime:0}));
+  localStorage.setItem('zmj_noRotate','1');
+  await new Promise(function(r){frame.onload=r;frame.src='/index.html';});
+  var w=frame.contentWindow,d=w.document;
+  for(var width of [360,390,430,844,1366]){
+    await size(width,width===844?390:900);
+    check(d.documentElement.scrollWidth<=width+1,width+' 宽大厅无横向溢出');
+    check(Array.from(d.querySelectorAll('.homeCard')).every(function(el){var b=el.getBoundingClientRect();return b.left>=0&&b.right<=width+1&&b.width>150;}),width+' 宽三个入口均完整可用');
+  }
+  d.getElementById('homeSolo').click();
+  for(var dims of [[360,844],[390,844],[430,844],[844,390],[1366,900]]){
+    await size(dims[0],dims[1]);
+    var tiles=Array.from(d.querySelectorAll('#seat0 .handRow .tile'));
+    check(tiles.length===14&&tiles.every(function(el){var b=el.getBoundingClientRect();return b.left>=0&&b.right<=dims[0]+1&&b.top>=0&&b.bottom<dims[1];}),dims.join('×')+' 的 14 张手牌均在屏幕内');
+    var menu=d.getElementById('moreTools'),summary=menu.querySelector('summary');summary.click();
+    var button=d.getElementById('btnSettings'),b=button.getBoundingClientRect();
+    check(menu.open&&b.left>=0&&b.right<=dims[0]&&b.top>=0&&b.bottom<=dims[1]&&d.elementFromPoint(b.x+b.width/2,b.y+b.height/2)===button,dims.join('×')+' 更多菜单可见且未被牌桌遮挡');
+    var before=JSON.stringify(w.__zmjGame.hand);
+    summary.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+    check(!menu.open&&d.activeElement===summary&&JSON.stringify(w.__zmjGame.hand)===before,'Escape 关闭菜单并归还焦点，不改变牌局 '+dims.join('×'));
+  }
+  d.querySelector('#moreTools summary').click();d.getElementById('btnSettings').click();
+  check(!d.getElementById('moreTools').open&&!d.getElementById('modal').classList.contains('hidden'),'菜单设置入口可打开面板并收起菜单');
+  d.getElementById('modalDismiss').click();
+  check(d.activeElement===d.querySelector('#moreTools summary'),'关闭设置后焦点回到可见的更多入口');
+  out.ok=true;
+}catch(e){out.errors.push(e.message);}
+document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));
+})();
+</script>
