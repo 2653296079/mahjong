@@ -69,23 +69,44 @@ function clickTile(w) {
     say('诊断：' + JSON.stringify(out.diag));
     await until(function () { return doc(A).getElementById('netName'); }, 8000, 'A 出现联机面板');
     doc(A).getElementById('netName').value = '甲';
+    doc(A).getElementById('netRoomIn').value = '1887';
     doc(A).getElementById('netEnter').click();
     say('甲 提交进房');
 
     // 乙：主界面 → 联机打牌
     doc(B).getElementById('homeOnline').click();
     await until(function () { return doc(B).getElementById('netName'); }, 10000, 'B 出现联机面板');
-    doc(B).getElementById('netName').value = '乙';
-    doc(B).getElementById('netRoomIn').value = '';
+    doc(B).getElementById('netName').value = '<b>乙</b>';
+    doc(B).getElementById('netRoomIn').value = '1887';
     doc(B).getElementById('netEnter').click();
     say('乙 提交进房');
     await sleep(800);
 
     // 甲开始对局
+    var originalSave = A.Storage.prototype.setItem;
+    A.Storage.prototype.setItem = function (key, value) {
+      if (key === 'zmj_stats_v1') out.savedStatsA = JSON.parse(value);
+      return originalSave.call(this, key, value);
+    };
     var startBtn = await until(function () { return doc(A).getElementById('netStart') || null; }, 10000, '出现开始按钮');
     startBtn.click();
     say('甲 点开始对局');
 
+    await until(function () { return A.__zmjGame && B.__zmjGame && A.__zmjGame.hand && B.__zmjGame.hand; }, 10000, '双方进入同一牌局');
+    if (doc(A).getElementById('netBar').textContent.indexOf('1887') < 0 || doc(B).getElementById('netBar').textContent.indexOf('1887') < 0) throw new Error('两个客户端不在同一房间');
+    [A, B].forEach(function (w) {
+      if (doc(w).querySelectorAll('.handRow').length !== 1) throw new Error('只能绘制自己的明手牌');
+      if (doc(w).querySelectorAll('#seat0 .handRow .tile').length < 13) throw new Error('开局看不到自己的手牌');
+      if (doc(w).querySelector('.seatName b')) throw new Error('昵称被解析成 HTML');
+      if (!doc(w).getElementById('table').textContent.includes('<b>乙</b>')) throw new Error('昵称未按纯文本显示');
+    });
+    say('两位真人同桌、各自手牌可见、对手牌背隐藏、昵称按文本显示');
+    if (A.__zmjGame.hand.revealed || B.__zmjGame.hand.revealed) throw new Error('局中出现了终局暗牌快照');
+    // 同一旧画面连续点击会发出多个请求，但服务器只接受其中一次。
+    var rapidTile = doc(A).querySelector('.handRow .clickable');
+    if (!rapidTile) throw new Error('甲开局没有可打牌');
+    rapidTile.click(); rapidTile.click(); rapidTile.click(); rapidTile.click();
+    await sleep(300);
     // 打出至少一手，直到出现「继续下一局」
     var acts = 0, tiles = 0, done = false;
     var t0 = Date.now();
@@ -119,6 +140,30 @@ function clickTile(w) {
     } else { out.netBarOverlaps = null; say('联机状态条没显示（跳过重叠检查）'); }
     var resA = doc(A).getElementById('modalBox');
     out.resultShown = !!(resA && /继续下一局/.test(resA.textContent));
+    [A,B].forEach(function(w){
+      var revealed=w.__zmjGame.hand.revealed,cards=doc(w).querySelectorAll('#settlementHands .endHand');
+      if(!revealed||revealed.length!==4||cards.length!==4)throw new Error('联机终局缺少四家剩余手牌');
+      revealed.forEach(function(p){
+        var names=[];p.concealed.forEach(function(n,k){for(var i=0;i<n;i++)names.push(w.ZMJ.tileName(k));});
+        var actual=Array.from(doc(w).querySelectorAll('.endHand[data-seat="'+p.seat+'"] .endConcealed .tile')).map(function(t){return t.getAttribute('aria-label');});
+        if(JSON.stringify(names)!==JSON.stringify(actual))throw new Error('联机终局牌面与服务器亮牌不一致');
+      });
+      doc(w).getElementById('modalDismiss').click();doc(w).getElementById('btnViewFinalHands').click();
+      if(doc(w).querySelectorAll('.endHand').length!==4)throw new Error('联机无法重新查看终局手牌');
+    });
+    say('联机终局四家逐张亮牌与服务器一致，关闭后可重新查看');
+    var record = A.__zmjGame.records[A.__zmjGame.records.length - 1];
+    var acceptedDiscards = record.events.filter(function (e) { return e.t === 'x' && e.s === A.__zmjGame.humanSeat(); }).length;
+    if (!out.savedStatsA || out.savedStatsA.recTotal !== acceptedDiscards) throw new Error('训练成绩计入了未被服务器接受的出牌');
+    say('快速连点被拒绝的操作不计成绩：记录 ' + out.savedStatsA.recTotal + ' 次，牌谱实际 ' + acceptedDiscards + ' 次');
+    delete out.savedStatsA;
+    var finalNo=A.__zmjGame.handNo;
+    doc(B).getElementById('btnNext').click();
+    await until(function(){return A.__zmjGame.handNo>finalNo;},5000,'别人提前开始下一局');
+    if(doc(A).getElementById('btnNext').textContent!=='返回当前牌局')throw new Error('旧结算没有提示返回当前牌局');
+    doc(A).getElementById('btnNext').click();
+    if(!doc(A).getElementById('modal').classList.contains('hidden')||A.__zmjGame.hand.revealed)throw new Error('下一局残留了终局亮牌状态');
+    say('别人先开始下一局时，可从旧结算返回当前牌局，局中不再亮牌');
     out.ok = done && out.errors.length === 0 && out.netBarOverlaps !== true;
     say('结论：' + (out.ok ? '通过' : '未通过'));
   } catch (e) {

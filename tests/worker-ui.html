@@ -1,0 +1,63 @@
+<!doctype html><meta charset="utf-8"><title>后台采样验收</title>
+<pre id="log"></pre><iframe id="game" style="width:390px;height:844px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]};
+function check(ok,msg){if(!ok)throw new Error(msg);out.steps.push(msg);}
+function pause(ms){return new Promise(function(r){setTimeout(r,ms);});}
+async function until(fn,label){for(var i=0;i<400;i++){if(fn())return;await pause(20);}throw new Error('超时：'+label);}
+(async function(){try{
+  localStorage.setItem('zmj_cfg_v2',JSON.stringify({sound:false,analyze:true,turnTime:0,worlds:150}));
+  localStorage.setItem('zmj_noRotate','1');sessionStorage.removeItem('zmj_seat_v1');
+  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html';});
+  var w=f.contentWindow,d=w.document,Native=w.Worker,worker=null,jobs=[],results=[],delayed=[],hold=false,mainCalls=0;
+  var original=w.ZMJ.analyzeSituation;
+  w.ZMJ.analyzeSituation=function(){mainCalls++;throw new Error('联机风险采样不能回到主线程');};
+  // 真实 Worker，只在交付结果时提供可控延迟，以验证陈旧任务处理。
+  w.Worker=function(url){
+    var self=this,raw=new Native(url);worker=self;
+    self.postMessage=function(job){jobs.push(JSON.parse(JSON.stringify(job)));raw.postMessage(job);};
+    self.terminate=function(){raw.terminate();};
+    raw.onmessage=function(event){results.push(event.data);if(hold)delayed.push(event);else if(self.onmessage)self.onmessage(event);};
+    raw.onerror=function(e){if(self.onerror)self.onerror(e);};
+  };
+  d.getElementById('homeOnline').click();await until(function(){return d.getElementById('netName');},'联机面板');
+  d.getElementById('netName').value='后台分析验收';d.getElementById('netRoomIn').value='1890';d.getElementById('netEnter').click();
+  await until(function(){return d.getElementById('netStart');},'开始按钮');d.getElementById('netStart').click();
+  await until(function(){return jobs.length&&results.length&&/组采样/.test(d.getElementById('situation').textContent);},'后台分析');
+  check(mainCalls===0,'联机风险采样完全在真实 Worker 中执行');
+  var job=jobs[0],res=results[0],reference=original(job.hand,job.seat,job.options);
+  check(job.hand.players.every(function(p,s){return s===job.seat?Array.isArray(p.concealed):!Object.prototype.hasOwnProperty.call(p,'concealed');}),'发送给 Worker 的消息不含其他三家的暗牌');
+  check(JSON.stringify(res.opponents)===JSON.stringify(reference.opponents)&&res.deals.every(function(value,k){return JSON.stringify(value)===JSON.stringify(reference.dealIn(k));}),'150 组后台采样与相同种子的同步参照逐项一致');
+  check(/候选弃牌的采样风险估计/.test(d.getElementById('situation').textContent),'异步完成后显示当前局面的风险表');
+  check(mainCalls===0,'渲染后台结果不会再次同步采样');
+  var g=w.__zmjGame,realHand=g.hand,realAwait=g.awaiting;
+  function fixture(id,turn){
+    var H=w.ZMJ.practiceHand(id);H.wall=realHand.wall;H.turn=0;H.turnCount=turn;
+    g.hand=H;g.awaiting={type:'turn',seat:g.humanSeat(),options:{canZimo:false,anGang:[],buGang:[]}};
+    w.dispatchEvent(new w.Event('resize'));
+  }
+  hold=true;fixture('shape-1',41);
+  await until(function(){return delayed.length;},'暂停一个真实任务结果');
+  var oldJob=jobs[jobs.length-1];fixture('wide-1',42);
+  await pause(100);check(jobs[jobs.length-1].id===oldJob.id,'后台忙时不并发启动重复任务');
+  var countBefore=jobs.length;fixture('pairs-1',43);await pause(100);
+  hold=false;var event=delayed.shift();worker.onmessage(event);
+  check(!/组采样/.test(d.getElementById('situation').textContent),'旧局面迟到结果不会冒充当前局面');
+  await until(function(){return jobs.length>countBefore&&/组采样/.test(d.getElementById('situation').textContent);},'最新任务结果');
+  check(jobs.length===countBefore+1&&jobs[jobs.length-1].hand.turnCount===43,'只保留最新等待任务，跳过已被替代的中间局面');
+  var latest=jobs[jobs.length-1],expect=original(latest.hand,latest.seat,latest.options),best=w.ZMJ.evaluateDiscards(g.hand,g.humanSeat()).slice(0,5);
+  check(best.every(function(c){return d.getElementById('situation').textContent.includes((expect.dealIn(c.kind).prob*100).toFixed(1)+'%')||Math.max.apply(null,best.map(function(o){return expect.dealIn(o.kind).prob;}))<.005;}),'当前风险表来自最新局面');
+  check(mainCalls===0,'多次换局面依旧不占用主线程采样');
+  // 人为模拟 Worker 不可用，必须保留牌面与基础讲解，并允许重试。
+  hold=true;fixture('pairs-2',44);await until(function(){return delayed.length;},'正在计算的任务');
+  worker.onerror({preventDefault:function(){}});
+  check(!!d.getElementById('retryRiskWorker')&&/可继续使用基础牌效/.test(d.getElementById('situation').textContent),'Worker 失败明确降级，不显示旧百分比或假安全值');
+  check(!!d.querySelector('.handRow .clickable')&&/牌效推荐/.test(d.getElementById('hint').textContent),'后台失败不影响出牌与基础牌效');
+  hold=false;d.getElementById('retryRiskWorker').click();
+  await until(function(){return !d.getElementById('retryRiskWorker')&&/组采样/.test(d.getElementById('situation').textContent);},'重试成功');
+  check(mainCalls===0,'重试仍在后台执行');
+  g.hand=realHand;g.awaiting=realAwait;
+  out.ok=true;
+}catch(e){out.errors.push(e.message);}
+document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));})();
+</script>

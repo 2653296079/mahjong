@@ -1,0 +1,80 @@
+<!doctype html><meta charset="utf-8"><title>训练与交互回归</title>
+<pre id="log"></pre><iframe id="game" style="width:390px;height:844px;border:0"></iframe>
+<script>
+var out = { ok: false, steps: [], errors: [] };
+function check(ok, msg) { if (!ok) throw new Error(msg); out.steps.push(msg); }
+function load(frame, url) { return new Promise(function (resolve) { frame.onload = resolve; frame.src = url; }); }
+(async function () {
+  try {
+    localStorage.removeItem('zmj_practice_v1');
+    localStorage.setItem('zmj_cfg_v2', JSON.stringify({ sound: false, analyze: false, seed: 2026, turnTime: 0 }));
+    var frame = document.getElementById('game');
+    await load(frame, '/index.html');
+    var w = frame.contentWindow, d = w.document;
+    check(d.getElementById('app').inert, '首页覆盖时，牌桌不能被键盘误操作');
+    d.getElementById('homePractice').click();
+    check(d.getElementById('modal').getAttribute('aria-modal') === 'true', '训练弹窗具有 dialog 语义');
+    check(d.getElementById('modal').contains(d.activeElement), '打开弹窗时焦点进入面板');
+    check(d.querySelectorAll('.practiceHand .tile').length === 14, '竖屏完整显示 14 张题目手牌');
+    d.querySelector('[aria-label="选择一万"]').click();
+    check(/更好的/.test(d.getElementById('practiceVerdict').textContent), '作答后显示差异讲解');
+    check(JSON.parse(localStorage.getItem('zmj_practice_v1')).wrong.length === 1, '错题写入本机记录');
+    check(d.querySelectorAll('.practiceTable tbody tr').length > 3, '展示所有可打牌，不把差向听候选进张写成零');
+    check(d.getElementById('modalBox').scrollWidth <= d.getElementById('modalBox').clientWidth + 1, '390 像素竖屏弹窗没有横向溢出');
+    d.getElementById('modalDismiss').focus();
+    d.activeElement.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+    check(d.getElementById('modal').contains(d.activeElement) && d.activeElement.id !== 'modalDismiss', 'Tab 在弹窗中循环');
+    d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    check(d.getElementById('modal').classList.contains('hidden') && !d.getElementById('home').classList.contains('hidden'), 'Escape 关闭训练并返回首页');
+    await load(frame, '/index.html?reload=1'); w = frame.contentWindow; d = w.document;
+    d.getElementById('homePractice').click(); d.getElementById('practiceReview').click();
+    check(d.querySelector('.practiceHand'), '刷新后错题仍可复习');
+    d.querySelector('[aria-label="选择九筒"]').click();
+    check(/最优解/.test(d.getElementById('practiceVerdict').textContent), '复习答对后予以认可');
+    check(JSON.parse(localStorage.getItem('zmj_practice_v1')).wrong.length === 0, '答对的错题移出待复习列表');
+    var saved = JSON.parse(localStorage.getItem('zmj_practice_v1'));
+    check(saved.cards['wide-1'].dueAt > Date.now() && saved.cards['wide-1'].reason === '同优', '纠错后安排间隔复习并保留错因结果');
+    d.getElementById('practiceNext').click();
+    check(/没有待复习/.test(d.getElementById('modalBox').textContent), '错题练完有明确完成状态');
+    d.getElementById('practiceAssessment').click();
+    check(/-transfer-/.test(d.getElementById('modalBox').textContent), '变式小测使用预留变式题');
+    var attemptBefore = JSON.parse(localStorage.getItem('zmj_practice_v1')).assessment.attempts;
+    d.querySelector('.practiceHand [role="button"]').click();
+    check(JSON.parse(localStorage.getItem('zmj_practice_v1')).assessment.attempts === attemptBefore + 1, '首次变式成绩独立记录');
+    // 用真实 Blob 验证导出内容，再通过 FileReader 恢复，避免只验证按钮存在。
+    var exported = null, originalURL = w.URL.createObjectURL, originalClick = w.HTMLAnchorElement.prototype.click;
+    w.URL.createObjectURL = function (blob) { exported = blob; return 'blob:test'; };
+    w.HTMLAnchorElement.prototype.click = function () {};
+    d.getElementById('practiceExport').click();
+    w.URL.createObjectURL = originalURL; w.HTMLAnchorElement.prototype.click = originalClick;
+    var backupText = await exported.text(), backup = JSON.parse(backupText);
+    check(backup.format === 'zmj-practice' && backup.progress.version === 2, '导出包含版本和完整训练记录');
+    var restoredAttempts = backup.progress.attempts;
+    var transfer = new w.DataTransfer(); transfer.items.add(new w.File([backupText], 'practice.json', { type: 'application/json' }));
+    var restoreInput = d.getElementById('practiceImport'); restoreInput.files = transfer.files;
+    w.confirm = function () { return true; }; restoreInput.dispatchEvent(new w.Event('change'));
+    await new Promise(function (resolve, reject) {
+      var until = Date.now() + 3000, poll = setInterval(function () {
+        if (/记录已恢复/.test(d.getElementById('practiceMsg').textContent)) { clearInterval(poll); resolve(); }
+        else if (Date.now() > until) { clearInterval(poll); reject(new Error('恢复超时')); }
+      }, 20);
+    });
+    check(JSON.parse(localStorage.getItem('zmj_practice_v1')).attempts === restoredAttempts, '恢复成功且成绩未丢失');
+    d.getElementById('modalDismiss').click(); d.getElementById('homeSolo').click();
+    var original = w.__zmjGame;
+    d.getElementById('btnHome').click(); d.getElementById('homeSolo').click();
+    check(w.__zmjGame === original, '返回首页再继续，保留当前单机牌局');
+    d.getElementById('btnSettings').click();
+    var claims = 0;
+    original.awaiting = { type: 'claim', seat: 0, options: { peng: true, hu: true, gang: true } };
+    original.humanClaim = function () { claims++; return false; };
+    var input = d.getElementById('setSeed'); input.focus();
+    ['p', 'h', 'g', ' '].forEach(function (key) { input.dispatchEvent(new w.KeyboardEvent('keydown', { key: key, bubbles: true, cancelable: true })); });
+    d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    check(claims === 0, '弹窗输入和 Escape 不触发牌桌碰杠胡或过');
+    out.ok = true;
+  } catch (e) { out.errors.push(e.message); }
+  document.getElementById('log').textContent = JSON.stringify(out, null, 2);
+  fetch('/__result?d=' + encodeURIComponent(JSON.stringify(out)));
+})();
+</script>

@@ -1,0 +1,45 @@
+<!doctype html><meta charset="utf-8"><title>邀请与重连验收</title>
+<pre id="log"></pre><iframe id="first" style="width:390px;height:740px"></iframe><iframe id="second" style="width:390px;height:740px"></iframe>
+<script>
+var out = { ok: false, steps: [], errors: [] };
+function check(ok, msg) { if (!ok) throw new Error(msg); out.steps.push(msg); }
+async function until(fn) {
+  var end = Date.now() + 8000;
+  while (Date.now() < end) { if (fn()) return; await new Promise(function (r) { setTimeout(r, 30); }); }
+  throw new Error('等待状态超时');
+}
+async function load(frame, url) { await new Promise(function (r) { frame.onload = r; frame.src = url; }); }
+(async function () {
+  try {
+    sessionStorage.removeItem('zmj_seat_v1');
+    localStorage.setItem('zmj_cfg_v2', JSON.stringify({ sound: false, analyze: false, learningMode: 'guided' }));
+    var first = document.getElementById('first'), url = '/index.html?room=2025&server=' + encodeURIComponent(location.origin);
+    await load(first, url);
+    await until(function () { return first.contentDocument.getElementById('netEnter'); });
+    first.contentDocument.getElementById('netName').value = '重连验收';
+    first.contentDocument.getElementById('netEnter').click();
+    await until(function () { return first.contentDocument.getElementById('netStart'); });
+    check(true, '不带 /ws 的邀请地址能够连上并进入指定房间');
+    var seat = JSON.parse(first.contentWindow.sessionStorage.getItem('zmj_seat_v1'));
+    first.contentDocument.getElementById('netStart').click();
+    await until(function () { return first.contentWindow.__zmjGame && first.contentWindow.__zmjGame.hand; });
+    var originalSeat = first.contentWindow.__zmjGame.humanSeat(), handNo = first.contentWindow.__zmjGame.handNo;
+    await load(first, url);
+    await until(function () { return first.contentWindow.__zmjGame && first.contentWindow.__zmjGame.hand; });
+    var after = JSON.parse(first.contentWindow.sessionStorage.getItem('zmj_seat_v1'));
+    check(after.token === seat.token && after.room === seat.room, '刷新邀请页保留座位令牌，不增加新玩家');
+    var resumed = first.contentWindow.__zmjGame;
+    check(resumed.humanSeat() === originalSeat && resumed.handNo === handNo && resumed.hand.players[originalSeat].concealed.some(function (n) { return n > 0; }),
+      '刷新后接回同一座位的当前牌局，断线期间允许托管推进');
+    var second = document.getElementById('second');
+    await load(second, url);
+    await until(function () { return second.contentWindow.__zmjGame && second.contentWindow.__zmjGame.hand; });
+    await until(function () { return /另一个页面/.test(first.contentDocument.getElementById('netToast').textContent); });
+    check(!first.contentDocument.getElementById('home').classList.contains('hidden'), '新页面接管座位后，旧页面回到首页');
+    check(first.contentDocument.getElementById('app').inert, '旧页面的过期牌桌无法继续点击操作');
+    out.ok = true;
+  } catch (e) { out.errors.push(e.message); }
+  document.getElementById('log').textContent = JSON.stringify(out, null, 2);
+  fetch('/__result?d=' + encodeURIComponent(JSON.stringify(out)));
+})();
+</script>

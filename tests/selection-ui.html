@@ -1,0 +1,34 @@
+<!doctype html><meta charset="utf-8"><title>逐张选牌验收</title>
+<pre id="log"></pre><iframe id="game" style="width:390px;height:844px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]};
+function check(ok,msg){if(!ok)throw new Error(msg);out.steps.push(msg);}
+(async function(){try{
+  localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:20261016,sound:false,analyze:false,turnTime:0}));
+  localStorage.setItem('zmj_noRotate','1');
+  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html';});
+  var w=f.contentWindow,d=w.document;d.getElementById('homeSolo').click();var g=w.__zmjGame;
+  check('ontouchstart' in w || w.navigator.maxTouchPoints>0,'测试浏览器启用了真实触屏确认路径');
+  var H=w.ZMJ.practiceHand('pairs-1');g.hand.players=H.players;g.hand.lastDraw=0;
+  g.awaiting={type:'turn',seat:0,options:{canZimo:false,anGang:[],buGang:[]}};
+  w.dispatchEvent(new w.Event('resize'));
+  var before=JSON.stringify(g.hand),tiles=Array.from(d.querySelectorAll('.handRow [aria-label="打出一万"]'));
+  check(tiles.length>=2,'同种牌有多个可独立选择的位置');
+  var ids=tiles.map(function(t){return t.dataset.tileId;});check(new Set(ids).size===ids.length,'相同牌的位置标识互不相同');
+  tiles[0].click();
+  check(d.querySelectorAll('.handRow .chosen').length===1&&tiles[0].classList.contains('chosen'),'第一下只高亮实际点中的一张');
+  check(JSON.stringify(g.hand)===before,'第一次选择不改变手牌');
+  tiles[1].click();
+  check(d.querySelectorAll('.handRow .chosen').length===1&&tiles[1].classList.contains('chosen'),'点击另一张同种牌时转移选择，不误当作确认出牌');
+  check(JSON.stringify(g.hand)===before,'切换同种牌不会打出任何牌');
+  w.dispatchEvent(new w.Event('resize'));
+  var chosen=d.querySelector('.handRow .chosen');check(chosen&&chosen.dataset.tileId===ids[1],'重画后仍只保留选中的具体位置');
+  check(d.querySelectorAll('.handRow .drawn').length===1,'摸入牌的标记也只属于实际那一张');
+  var sent=false,old=g.humanDiscard;g.humanDiscard=function(k){sent=k===0;return old.call(g,k);};
+  chosen.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
+  check(sent,'再次确认同一张牌可正常打出，键盘确认也生效');
+  check(d.querySelectorAll('.handRow .chosen').length===0,'出牌后清除选择状态');
+  out.ok=true;
+}catch(e){out.errors.push(e.message);}
+document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));})();
+</script>

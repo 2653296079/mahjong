@@ -1,0 +1,586 @@
+{
+  "format": "zmj-risk-evaluation",
+  "version": 1,
+  "rulesVersion": "zhuanzhuan-108-v1",
+  "analysisVersion": "paixiao-v2",
+  "engineSha256": "d5cabf34139fdc8dc617706cd35e106ebe270a54b2b0ca83c987090bbdacf0c8",
+  "options": {
+    "hands": 24,
+    "worlds": 150,
+    "seed": 20261016,
+    "stride": 4
+  },
+  "decisions": 197,
+  "dealIn": {
+    "count": 2071,
+    "hits": 35,
+    "brier": 0.019574054402060108,
+    "meanPredicted": 0.05333333333333328,
+    "observedRate": 0.016900048285852245,
+    "alwaysZeroBrier": 0.016900048285852245,
+    "expectedCalibrationError": 0.037141477547078694,
+    "bins": [
+      {
+        "lower": 0,
+        "upper": 0.02,
+        "count": 825,
+        "hits": 4,
+        "predicted": 0.003959595959595968,
+        "observed": 0.0048484848484848485
+      },
+      {
+        "lower": 0.02,
+        "upper": 0.05,
+        "count": 394,
+        "hits": 5,
+        "predicted": 0.032605752961082826,
+        "observed": 0.012690355329949238
+      },
+      {
+        "lower": 0.05,
+        "upper": 0.1,
+        "count": 440,
+        "hits": 7,
+        "predicted": 0.07221212121212112,
+        "observed": 0.015909090909090907
+      },
+      {
+        "lower": 0.1,
+        "upper": 0.2,
+        "count": 349,
+        "hits": 13,
+        "predicted": 0.13245463228271268,
+        "observed": 0.03724928366762178
+      },
+      {
+        "lower": 0.2,
+        "upper": 1,
+        "count": 63,
+        "hits": 6,
+        "predicted": 0.2593650793650792,
+        "observed": 0.09523809523809523
+      }
+    ]
+  },
+  "tenpai": {
+    "count": 591,
+    "hits": 82,
+    "brier": 0.15789178416995678,
+    "meanPredicted": 0.2805414551607442,
+    "observedRate": 0.13874788494077833,
+    "alwaysZeroBrier": 0.13874788494077833,
+    "expectedCalibrationError": 0.15309644670050734,
+    "bins": [
+      {
+        "lower": 0,
+        "upper": 0.02,
+        "count": 108,
+        "hits": 1,
+        "predicted": 0.00648148148148148,
+        "observed": 0.009259259259259259
+      },
+      {
+        "lower": 0.02,
+        "upper": 0.05,
+        "count": 66,
+        "hits": 4,
+        "predicted": 0.030505050505050518,
+        "observed": 0.06060606060606061
+      },
+      {
+        "lower": 0.05,
+        "upper": 0.1,
+        "count": 54,
+        "hits": 5,
+        "predicted": 0.07308641975308641,
+        "observed": 0.09259259259259259
+      },
+      {
+        "lower": 0.1,
+        "upper": 0.2,
+        "count": 45,
+        "hits": 3,
+        "predicted": 0.137037037037037,
+        "observed": 0.06666666666666667
+      },
+      {
+        "lower": 0.2,
+        "upper": 1,
+        "count": 318,
+        "hits": 69,
+        "predicted": 0.48104821802934966,
+        "observed": 0.2169811320754717
+      }
+    ]
+  },
+  "byStyle": [
+    {
+      "style": "v1",
+      "dealIn": {
+        "count": 540,
+        "hits": 13,
+        "brier": 0.02323440329218109,
+        "meanPredicted": 0.04091358024691357,
+        "observedRate": 0.024074074074074074,
+        "alwaysZeroBrier": 0.024074074074074074,
+        "expectedCalibrationError": 0.01701234567901235,
+        "bins": [
+          {
+            "lower": 0,
+            "upper": 0.02,
+            "count": 267,
+            "hits": 1,
+            "predicted": 0.0035705368289637965,
+            "observed": 0.003745318352059925
+          },
+          {
+            "lower": 0.02,
+            "upper": 0.05,
+            "count": 99,
+            "hits": 1,
+            "predicted": 0.03340067340067343,
+            "observed": 0.010101010101010102
+          },
+          {
+            "lower": 0.05,
+            "upper": 0.1,
+            "count": 101,
+            "hits": 5,
+            "predicted": 0.07234323432343238,
+            "observed": 0.04950495049504951
+          },
+          {
+            "lower": 0.1,
+            "upper": 0.2,
+            "count": 64,
+            "hits": 5,
+            "predicted": 0.1313541666666666,
+            "observed": 0.078125
+          },
+          {
+            "lower": 0.2,
+            "upper": 1,
+            "count": 9,
+            "hits": 1,
+            "predicted": 0.23555555555555538,
+            "observed": 0.1111111111111111
+          }
+        ]
+      },
+      "tenpai": {
+        "count": 162,
+        "hits": 33,
+        "brier": 0.11033635116598083,
+        "meanPredicted": 0.24090534979423872,
+        "observedRate": 0.2037037037037037,
+        "alwaysZeroBrier": 0.2037037037037037,
+        "expectedCalibrationError": 0.041234567901234545,
+        "bins": [
+          {
+            "lower": 0,
+            "upper": 0.02,
+            "count": 40,
+            "hits": 0,
+            "predicted": 0.005833333333333332,
+            "observed": 0
+          },
+          {
+            "lower": 0.02,
+            "upper": 0.05,
+            "count": 23,
+            "hits": 1,
+            "predicted": 0.02927536231884058,
+            "observed": 0.043478260869565216
+          },
+          {
+            "lower": 0.05,
+            "upper": 0.1,
+            "count": 11,
+            "hits": 0,
+            "predicted": 0.07636363636363637,
+            "observed": 0
+          },
+          {
+            "lower": 0.1,
+            "upper": 0.2,
+            "count": 16,
+            "hits": 1,
+            "predicted": 0.13499999999999998,
+            "observed": 0.0625
+          },
+          {
+            "lower": 0.2,
+            "upper": 1,
+            "count": 72,
+            "hits": 31,
+            "predicted": 0.48777777777777775,
+            "observed": 0.4305555555555556
+          }
+        ]
+      }
+    },
+    {
+      "style": "v2",
+      "dealIn": {
+        "count": 528,
+        "hits": 7,
+        "brier": 0.01616843434343435,
+        "meanPredicted": 0.037941919191919166,
+        "observedRate": 0.013257575757575758,
+        "alwaysZeroBrier": 0.013257575757575758,
+        "expectedCalibrationError": 0.03188131313131314,
+        "bins": [
+          {
+            "lower": 0,
+            "upper": 0.02,
+            "count": 271,
+            "hits": 3,
+            "predicted": 0.004059040590405903,
+            "observed": 0.01107011070110701
+          },
+          {
+            "lower": 0.02,
+            "upper": 0.05,
+            "count": 104,
+            "hits": 2,
+            "predicted": 0.0325641025641026,
+            "observed": 0.019230769230769232
+          },
+          {
+            "lower": 0.05,
+            "upper": 0.1,
+            "count": 89,
+            "hits": 1,
+            "predicted": 0.0707865168539326,
+            "observed": 0.011235955056179775
+          },
+          {
+            "lower": 0.1,
+            "upper": 0.2,
+            "count": 58,
+            "hits": 1,
+            "predicted": 0.13137931034482758,
+            "observed": 0.017241379310344827
+          },
+          {
+            "lower": 0.2,
+            "upper": 1,
+            "count": 6,
+            "hits": 0,
+            "predicted": 0.2711111111111109,
+            "observed": 0
+          }
+        ]
+      },
+      "tenpai": {
+        "count": 138,
+        "hits": 16,
+        "brier": 0.1206769726247987,
+        "meanPredicted": 0.20231884057971017,
+        "observedRate": 0.11594202898550725,
+        "alwaysZeroBrier": 0.11594202898550725,
+        "expectedCalibrationError": 0.1205797101449275,
+        "bins": [
+          {
+            "lower": 0,
+            "upper": 0.02,
+            "count": 37,
+            "hits": 1,
+            "predicted": 0.006486486486486484,
+            "observed": 0.02702702702702703
+          },
+          {
+            "lower": 0.02,
+            "upper": 0.05,
+            "count": 19,
+            "hits": 2,
+            "predicted": 0.03192982456140351,
+            "observed": 0.10526315789473684
+          },
+          {
+            "lower": 0.05,
+            "upper": 0.1,
+            "count": 12,
+            "hits": 1,
+            "predicted": 0.06611111111111112,
+            "observed": 0.08333333333333333
+          },
+          {
+            "lower": 0.1,
+            "upper": 0.2,
+            "count": 17,
+            "hits": 1,
+            "predicted": 0.13647058823529412,
+            "observed": 0.058823529411764705
+          },
+          {
+            "lower": 0.2,
+            "upper": 1,
+            "count": 53,
+            "hits": 11,
+            "predicted": 0.45207547169811313,
+            "observed": 0.20754716981132076
+          }
+        ]
+      }
+    },
+    {
+      "style": "v3",
+      "dealIn": {
+        "count": 1003,
+        "hits": 15,
+        "brier": 0.019396167054392403,
+        "meanPredicted": 0.0681222997673647,
+        "observedRate": 0.014955134596211365,
+        "alwaysZeroBrier": 0.014955134596211365,
+        "expectedCalibrationError": 0.05316716517115317,
+        "bins": [
+          {
+            "lower": 0,
+            "upper": 0.02,
+            "count": 287,
+            "hits": 0,
+            "predicted": 0.004227642276422767,
+            "observed": 0
+          },
+          {
+            "lower": 0.02,
+            "upper": 0.05,
+            "count": 191,
+            "hits": 2,
+            "predicted": 0.03221640488656194,
+            "observed": 0.010471204188481676
+          },
+          {
+            "lower": 0.05,
+            "upper": 0.1,
+            "count": 250,
+            "hits": 1,
+            "predicted": 0.07266666666666663,
+            "observed": 0.004
+          },
+          {
+            "lower": 0.1,
+            "upper": 0.2,
+            "count": 227,
+            "hits": 7,
+            "predicted": 0.13303964757709247,
+            "observed": 0.030837004405286344
+          },
+          {
+            "lower": 0.2,
+            "upper": 1,
+            "count": 48,
+            "hits": 5,
+            "predicted": 0.262361111111111,
+            "observed": 0.10416666666666667
+          }
+        ]
+      },
+      "tenpai": {
+        "count": 291,
+        "hits": 33,
+        "brier": 0.20201420389461644,
+        "meanPredicted": 0.33970217640320705,
+        "observedRate": 0.1134020618556701,
+        "alwaysZeroBrier": 0.1134020618556701,
+        "expectedCalibrationError": 0.23972508591065264,
+        "bins": [
+          {
+            "lower": 0,
+            "upper": 0.02,
+            "count": 31,
+            "hits": 0,
+            "predicted": 0.0073118279569892464,
+            "observed": 0
+          },
+          {
+            "lower": 0.02,
+            "upper": 0.05,
+            "count": 24,
+            "hits": 1,
+            "predicted": 0.030555555555555558,
+            "observed": 0.041666666666666664
+          },
+          {
+            "lower": 0.05,
+            "upper": 0.1,
+            "count": 31,
+            "hits": 4,
+            "predicted": 0.0746236559139785,
+            "observed": 0.12903225806451613
+          },
+          {
+            "lower": 0.1,
+            "upper": 0.2,
+            "count": 12,
+            "hits": 1,
+            "predicted": 0.14055555555555552,
+            "observed": 0.08333333333333333
+          },
+          {
+            "lower": 0.2,
+            "upper": 1,
+            "count": 193,
+            "hits": 27,
+            "predicted": 0.486493955094991,
+            "observed": 0.13989637305699482
+          }
+        ]
+      }
+    }
+  ],
+  "hands": [
+    {
+      "seed": 20261016,
+      "style": "v1",
+      "decisions": 2,
+      "result": "discard"
+    },
+    {
+      "seed": 20268935,
+      "style": "v2",
+      "decisions": 5,
+      "result": "zimo"
+    },
+    {
+      "seed": 20276854,
+      "style": "v3",
+      "decisions": 9,
+      "result": "discard"
+    },
+    {
+      "seed": 20284773,
+      "style": "v1",
+      "decisions": 6,
+      "result": "discard"
+    },
+    {
+      "seed": 20292692,
+      "style": "v2",
+      "decisions": 2,
+      "result": "zimo"
+    },
+    {
+      "seed": 20300611,
+      "style": "v3",
+      "decisions": 11,
+      "result": "discard"
+    },
+    {
+      "seed": 20308530,
+      "style": "v1",
+      "decisions": 6,
+      "result": "zimo"
+    },
+    {
+      "seed": 20316449,
+      "style": "v2",
+      "decisions": 2,
+      "result": "zimo"
+    },
+    {
+      "seed": 20324368,
+      "style": "v3",
+      "decisions": 14,
+      "result": "draw"
+    },
+    {
+      "seed": 20332287,
+      "style": "v1",
+      "decisions": 11,
+      "result": "zimo"
+    },
+    {
+      "seed": 20340206,
+      "style": "v2",
+      "decisions": 6,
+      "result": "discard"
+    },
+    {
+      "seed": 20348125,
+      "style": "v3",
+      "decisions": 14,
+      "result": "draw"
+    },
+    {
+      "seed": 20356044,
+      "style": "v1",
+      "decisions": 12,
+      "result": "discard"
+    },
+    {
+      "seed": 20363963,
+      "style": "v2",
+      "decisions": 9,
+      "result": "zimo"
+    },
+    {
+      "seed": 20371882,
+      "style": "v3",
+      "decisions": 14,
+      "result": "draw"
+    },
+    {
+      "seed": 20379801,
+      "style": "v1",
+      "decisions": 9,
+      "result": "discard"
+    },
+    {
+      "seed": 20387720,
+      "style": "v2",
+      "decisions": 10,
+      "result": "zimo"
+    },
+    {
+      "seed": 20395639,
+      "style": "v3",
+      "decisions": 8,
+      "result": "zimo"
+    },
+    {
+      "seed": 20403558,
+      "style": "v1",
+      "decisions": 2,
+      "result": "zimo"
+    },
+    {
+      "seed": 20411477,
+      "style": "v2",
+      "decisions": 3,
+      "result": "zimo"
+    },
+    {
+      "seed": 20419396,
+      "style": "v3",
+      "decisions": 14,
+      "result": "draw"
+    },
+    {
+      "seed": 20427315,
+      "style": "v1",
+      "decisions": 6,
+      "result": "zimo"
+    },
+    {
+      "seed": 20435234,
+      "style": "v2",
+      "decisions": 9,
+      "result": "discard"
+    },
+    {
+      "seed": 20443153,
+      "style": "v3",
+      "decisions": 13,
+      "result": "draw"
+    }
+  ],
+  "limits": [
+    "模拟对手不是实际玩家；三个风格使用同一引擎规则。",
+    "同一手牌中的多个候选和多个决策相关，样本数不能当作独立牌局数。",
+    "这是固定种子保留评估，没有根据结果拟合或调整模型。",
+    "Brier 与分箱误差只描述本次样本；空箱与少量命中不能证明已校准。",
+    "全预测不放铳的 Brier 是参照指标，不是推荐弃牌策略。"
+  ]
+}

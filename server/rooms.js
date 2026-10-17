@@ -13,6 +13,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 let _core = null;
 /** 从 index.html 里取出内联引擎（零构建，不维护第二份源码） */
@@ -38,7 +39,7 @@ function newId(prefix) {
 
 const DEFAULTS = {
   turnTimeout: 60000,   // 一个座位挂机多久后由电脑代打一手（毫秒）
-  nextHandDelay: 12000, // 一局结束后多久自动开下一局
+  nextHandDelay: 30000, // 留出查看其他三家手牌的时间；也可手动开始下一局
   queuedBots: 2,        // 等待区里放几个电脑，保证转转轮换有人上桌
   botStyle: 'v2',       // 电脑用哪个强度（v2 = 按期望值打）
   maxMembers: 12
@@ -105,7 +106,7 @@ class Room {
     if (this.members.length >= this.opts.maxMembers) throw new Error('房间满了（最多 ' + this.opts.maxMembers + ' 人）');
     const m = {
       pid: newId('p'),
-      token: newId('tk'),
+      token: crypto.randomBytes(24).toString('hex'),
       name: (String(name || '').trim().slice(0, 12)) || ('玩家' + (this.members.length + 1)),
       conn: null, joinedAt: Date.now(), gone: false
     };
@@ -230,13 +231,15 @@ class Room {
   }
 
   /** 真人的一次操作 */
-  act(m, a) {
+  act(m, a, opts) {
     const G = this.game;
     if (!G || !G.hand) throw new Error('牌局还没开始');
     if (G.hand.over) throw new Error('本局已经结束了');
     const seat = G.seatOfId(m.pid);
     if (seat < 0) throw new Error('你在等待区，等这局结束轮到你上桌');
     if (!this.isLiveHuman(seat)) throw new Error('这个座位现在不由你操作');
+    if (['discard', 'angang', 'bugang'].includes(a && a.act) &&
+        (!Number.isInteger(a.kind) || a.kind < 0 || a.kind >= 27)) throw new Error('牌编号不合法');
     let ok = false;
     switch (a && a.act) {
       case 'discard': ok = G.humanDiscard(a.kind | 0, seat); break;
@@ -252,7 +255,8 @@ class Room {
     if (!ok) throw new Error('这个操作现在不合法');
     this.awaitSince = 0;
     this.lastActive = Date.now();
-    this.pump();
+    if (opts && opts.deferPump) this.rev++;
+    else this.pump();
   }
 
   /** 下一局（任何人按都可以，重复按无效） */
@@ -301,7 +305,7 @@ class Room {
   /**
    * 发给某个玩家的状态。
    * 只包含：他自己的暗牌 + 所有人公开的牌（副露、牌河）+ 别人的暗牌张数。
-   * 别人的暗牌具体是什么、牌墙顺序、鸟牌，一律不发。
+   * 局中不发别人的暗牌、牌墙顺序及鸟牌；终局才额外发送四家剩余手牌与完整牌谱。
    */
   viewFor(m) {
     const G = this.game;
@@ -351,6 +355,7 @@ class Room {
     out.result = (H.over && G.lastResult) ? publicResult(G.lastResult) : null;
     out.logs = G.logs.slice(-60);
     if (H.over) {
+      out.hand.revealed = loadCore().settlementHands(H);
       const rec = G.records[G.records.length - 1];
       out.record = rec || null;                    // 牌谱只在本局结束后才发
     }
@@ -386,6 +391,7 @@ function publicResult(res) {
 class RoomStore {
   constructor(opts) { this.opts = opts || {}; this.rooms = new Map(); }
   create(id, opts) {
+    if(this.rooms.size >= (this.opts.maxRooms || 64))throw new Error('房间数量已达上限，请稍后重试');
     let rid = id;
     if (!rid) { do { rid = String(1000 + Math.floor(Math.random() * 9000)); } while (this.rooms.has(rid)); }
     if (this.rooms.has(rid)) throw new Error('房间号已被占用');

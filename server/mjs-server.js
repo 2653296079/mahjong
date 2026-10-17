@@ -12,7 +12,7 @@
  *     {t:'join', room?, name, token?, create?} 进房间（给 token = 重连；不给 room = 新开一间）
  *     {t:'start'}                              开局（空座位自动补电脑）
  *     {t:'next'}                               下一局
- *     {t:'act', act, kind}                     出牌/碰/杠/胡/过
+ *     {t:'act', act, kind, rev, requestId}      基于 rev 操作，requestId 防重复
  *     {t:'chat', text}                         聊天
  *     {t:'ping'}                               保活
  *   服务器 → 客户端
@@ -24,6 +24,8 @@
  */
 const { upgrade } = require('./ws-lite');
 const { RoomStore } = require('./rooms');
+const { readLimits, TokenBucket } = require('./limits');
+const { performance } = require('node:perf_hooks');
 
 const HEARTBEAT_MS = 25000;
 const TICK_MS = 500;
@@ -32,8 +34,26 @@ const SWEEP_MS = 30000;
 function attach(server, opts) {
   opts = opts || {};
   const wsPath = opts.path || '/ws';
-  const store = new RoomStore(opts.room);
+  const limits = readLimits(opts.limits);
+  const store = new RoomStore(Object.assign({},opts.room,{maxRooms:limits.maxRooms}));
   const sessions = new Set();
+  const pumps = new Map();
+  function needsPump(room) {
+    const G = room.game;
+    if (!G || !G.hand || G.hand.over) return false;
+    const awaiting = G.pendingAwaits();
+    return G.hasPendingResolve() || !awaiting.length || awaiting.some(a => !room.isLiveHuman(a.seat));
+  }
+
+  // 先发布真人操作的权威结果，再在下一轮事件循环推进电脑，避免确认等候整圈计算。
+  function schedulePump(room) {
+    if (pumps.has(room) || !needsPump(room)) return;
+    pumps.set(room, setImmediate(() => {
+      pumps.delete(room);
+      if (store.get(room.id) !== room || !needsPump(room)) return;
+      room.pump(); broadcast(room);
+    }));
+  }
 
   function send(session, msg) {
     if (!session || !session.conn || session.conn.closed) return;
@@ -64,11 +84,16 @@ function attach(server, opts) {
       try { socket.destroy(); } catch (e) {}
       return;
     }
-    const conn = upgrade(req, socket, head, { path: wsPath });
+    if(sessions.size>=limits.maxSessions){
+      socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nRetry-After: 5\r\nContent-Length: 0\r\n\r\n');return;
+    }
+    const conn = upgrade(req, socket, head, { path: wsPath, maxMessageBytes:limits.maxMessageBytes, maxPendingBytes:limits.maxPendingBytes });
     if (!conn) return;
     const session = { conn: conn, member: null, room: null, alive: true, joinedAt: Date.now() };
+    session.budget = new TokenBucket(limits.messageRate,limits.messageBurst,Date.now());
     sessions.add(session);
     conn.on('message', (raw) => onMessage(session, raw));
+    conn.on('binary',()=>conn.close(1003,'text messages only'));
     conn.on('pong', () => { session.alive = true; });
     conn.on('close', () => { sessions.delete(session); onClose(session); });
     send(session, { t: 'welcome', rooms: store.list(), server: '转转麻将联机' });
@@ -83,21 +108,24 @@ function attach(server, opts) {
   }
 
   function onMessage(session, raw) {
+    if(!session.budget.take(Date.now())){session.conn.close(1008,'too many messages');return;}
+    if(Buffer.byteLength(raw,'utf8')>limits.maxMessageBytes){session.conn.close(1009,'message too large');return;}
     let msg = null;
     try { msg = JSON.parse(raw); } catch (e) { return send(session, { t: 'err', msg: '消息不是合法 JSON' }); }
-    if (!msg || typeof msg !== 'object') return;
+    if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return send(session,{t:'err',msg:'消息必须是一个指令对象'});
     try { handle(session, msg); }
-    catch (e) { send(session, { t: 'err', msg: String((e && e.message) || e) }); }
+    catch (e) { send(session, { t: 'err', msg: String((e && e.message) || e), requestId: typeof msg.requestId === 'string' ? msg.requestId : undefined }); }
   }
 
   function needRoom(session) {
     if (!session.room) throw new Error('你还没有进房间');
+    if (!session.member || session.member.conn !== session || session.member.gone) throw new Error('这个连接已失效，请重新进入房间');
     return session.room;
   }
 
   function handle(session, msg) {
     switch (msg.t) {
-      case 'ping': return send(session, { t: 'pong', at: Date.now() });
+      case 'ping': return send(session, { t: 'pong', at: Date.now(), probe: Number.isSafeInteger(msg.probe) ? msg.probe : undefined });
       case 'rooms': return send(session, { t: 'rooms', rooms: store.list() });
       case 'join': return doJoin(session, msg);
       case 'leave': {
@@ -106,7 +134,29 @@ function attach(server, opts) {
       }
       case 'start': { const r = needRoom(session); r.start(); broadcast(r); return; }
       case 'next': { const r = needRoom(session); r.next(); broadcast(r); return; }
-      case 'act': { const r = needRoom(session); r.act(session.member, msg); broadcast(r); return; }
+      case 'act': {
+        const r = needRoom(session), member = session.member;
+        if (!Number.isInteger(msg.rev) || typeof msg.requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(msg.requestId)) {
+          throw new Error('操作缺少局面版本或请求编号，请刷新页面后重试');
+        }
+        if (!member.actions) member.actions = new Map();
+        const signature = JSON.stringify([msg.act, msg.kind]);
+        if (member.actions.has(msg.requestId)) {
+          if (member.actions.get(msg.requestId) !== signature) throw new Error('同一请求编号不能用于不同操作');
+          send(session, { t: 'ack', requestId: msg.requestId, duplicate: true });
+          send(session, r.viewFor(member)); return;
+        }
+        if (msg.rev !== r.rev) {
+          send(session, { t: 'err', msg: '牌局已更新，请根据最新牌面重新确认操作', code: 'stale', requestId: msg.requestId });
+          send(session, r.viewFor(member)); return;
+        }
+        const started = performance.now();
+        r.act(member, msg, { deferPump: true });
+        member.actions.set(msg.requestId, signature);
+        if (member.actions.size > 64) member.actions.delete(member.actions.keys().next().value);
+        send(session, { t: 'ack', requestId: msg.requestId, duplicate: false, serverMs: Math.round((performance.now() - started) * 10) / 10 });
+        broadcast(r); schedulePump(r); return;
+      }
       case 'chat': {
         const r = needRoom(session);
         const c = r.pushChat(session.member, msg.text);
@@ -119,6 +169,9 @@ function attach(server, opts) {
 
   function doJoin(session, msg) {
     const wanted = msg.room == null ? '' : String(msg.room).trim();
+    if(wanted&&!/^\d{4,8}$/.test(wanted))throw new Error('房间号应为 4–8 位数字');
+    if(msg.name!=null&&typeof msg.name!=='string')throw new Error('名字必须是文字');
+    if(msg.token&& (typeof msg.token!=='string'||!/^[a-f0-9]{48}$/.test(msg.token)))throw new Error('重连令牌格式不正确');
     let room = null;
     if (wanted) {
       room = store.get(wanted);
@@ -129,12 +182,22 @@ function attach(server, opts) {
     } else {
       room = store.create();          // 没指定房间号就新开一间
     }
+    // 同一连接重复点击进房只刷新状态；重连后旧连接不再拥有该座位。
+    const sameMember = session.room === room && session.member && session.member.conn === session && !session.member.gone;
+    const previous = sameMember ? session.member : msg.token && room.memberByToken(msg.token);
+    const oldSession = previous && previous.conn;
+    const member = sameMember ? session.member : room.join(msg.name, msg.token);
+    // 目标房间满员时保留原房间，不能先退房再发现加入失败。
     if (session.room && session.room !== room) doLeave(session);
-    const member = room.join(msg.name, msg.token);
     member.conn = session;
     member.gone = false;
     session.member = member;
     session.room = room;
+    if (oldSession && oldSession !== session) {
+      oldSession.member = null; oldSession.room = null;
+      send(oldSession, { t: 'replaced', msg: '此座位已在另一个页面连接。你可以关闭当前页面。' });
+      oldSession.conn.close(1000, 'seat reconnected');
+    }
     send(session, { t: 'joined', room: room.id, pid: member.pid, token: member.token, you: member.name });
     room.pump();
     broadcast(room);
@@ -143,7 +206,8 @@ function attach(server, opts) {
   function doLeave(session) {
     const room = session.room, m = session.member;
     if (!room || !m) return;
-    if (m.conn === session) m.conn = null;
+    if (m.conn !== session) { session.member = null; session.room = null; return; }
+    m.conn = null;
     room.leave(m);
     session.member = null;
     session.room = null;
@@ -179,6 +243,7 @@ function attach(server, opts) {
   for (const t of [heartbeat, ticker, sweeper]) if (t.unref) t.unref();
 
   return {
+    limits: limits,
     store: store,
     sessions: sessions,
     broadcast: broadcast,
@@ -191,6 +256,8 @@ function attach(server, opts) {
     },
     close() {
       clearInterval(heartbeat); clearInterval(ticker); clearInterval(sweeper);
+      for (const task of pumps.values()) clearImmediate(task);
+      pumps.clear();
       for (const s of sessions) { try { s.conn.close(1001, '服务器关闭'); } catch (e) {} }
     }
   };

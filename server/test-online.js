@@ -22,14 +22,18 @@ function connect(port, name) {
   const ws = new WebSocket('ws://127.0.0.1:' + port + '/ws');
   const c = {
     ws: ws, name: name, last: null, states: [], errors: [], joined: null,
-    revs: 0, actedRev: -1,
-    send(obj) { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+    revs: 0, actedRev: -1, seq: 0, acks: [],
+    send(obj) {
+      if (obj.t === 'act') obj = Object.assign({ rev: c.last && c.last.rev, requestId: 'test_' + (++c.seq) }, obj);
+      if (ws.readyState === 1) ws.send(JSON.stringify(obj));
+    }
   };
   ws.addEventListener('message', (e) => {
     const m = JSON.parse(e.data);
     if (m.t === 'joined') c.joined = m;
     else if (m.t === 'state') { c.last = m; c.revs++; }
     else if (m.t === 'err') c.errors.push(m.msg);
+    else if (m.t === 'ack') c.acks.push(m);
   });
   return new Promise((resolve, reject) => {
     ws.addEventListener('open', () => resolve(c), { once: true });
@@ -137,6 +141,8 @@ test('网线上不泄漏对手暗牌：把服务器真手牌和服务端发出�
           if (seat === mySeat) continue;
           const secret = JSON.stringify(Array.from(G.hand.players[seat].concealed));
           for (const one of raw) {
+            const packet=JSON.parse(one);
+            if(packet.hand&&packet.hand.over)continue; // 结算亮牌是明确允许的公开信息。
             assert.ok(one.indexOf(secret) < 0,
               '服务器把座位 ' + seat + ' 的暗牌发给甲了！');
           }
@@ -203,6 +209,117 @@ test('等待区的人操作会被明确拒绝', async () => {
     await waitFor(() => cs[4].errors.length > 0, 2000, '错误提示');
     assert.match(cs[4].errors[0], /等待区/, '错误提示要说清楚原因：' + cs[4].errors[0]);
   } finally { s.hub.close(); s.server.close(); }
+});
+
+test('重复进房不占新座位，重连会撤销旧连接身份', async () => {
+  const s = await startServer();
+  try {
+    const a = await connect(s.port, '甲');
+    a.send({ t: 'join', room: '2010', name: '甲' });
+    await waitFor(() => a.joined, 2000, '首次进房');
+    const token = a.joined.token, pid = a.joined.pid;
+    assert.match(token, /^[a-f0-9]{48}$/);
+    a.joined = null;
+    a.send({ t: 'join', room: '2010', name: '甲' });
+    await waitFor(() => a.joined, 2000, '重复进房');
+    assert.equal(a.joined.pid, pid);
+    assert.equal(s.hub.store.get('2010').members.length, 1);
+    const oldSession = Array.from(s.hub.sessions).find(x => x.member && x.member.pid === pid);
+    const fresh = await connect(s.port, '甲');
+    fresh.send({ t: 'join', room: '2010', name: '甲', token });
+    await waitFor(() => fresh.joined, 2000, '接回座位');
+    assert.equal(fresh.joined.pid, pid);
+    assert.equal(oldSession.member, null, '旧页面不能操作重连后的座位');
+    assert.equal(oldSession.room, null);
+    await waitFor(() => a.ws.readyState === 3, 2000, '旧连接关闭');
+    assert.equal(s.hub.store.get('2010').onlineCount(), 1);
+  } finally { s.hub.close(); s.server.close(); }
+});
+
+test('错误类型的牌编号不能悄悄转换为另一张牌', async () => {
+  const s = await startServer();
+  try {
+    const a = await connect(s.port, '甲');
+    a.send({ t: 'join', room: '2011', name: '甲' });
+    await waitFor(() => a.joined, 2000, '进房');
+    a.send({ t: 'start' });
+    await waitFor(() => a.last && a.last.hand && a.last.hand.awaiting, 2000, '轮到自己');
+    const room = s.hub.store.get('2011');
+    const before = JSON.stringify(room.game.hand.players[0].concealed);
+    for (const kind of ['0', null, 0.5, 27, -1]) a.send({ t: 'act', act: 'discard', kind });
+    await waitFor(() => a.errors.length === 5, 2000, '拒绝所有错误类型');
+    assert.ok(a.errors.every(e => /牌编号/.test(e)));
+    assert.equal(JSON.stringify(room.game.hand.players[0].concealed), before);
+  } finally { s.hub.close(); s.server.close(); }
+});
+
+test('过期局面操作被拒绝，重发成功请求不会重复出牌', async () => {
+  const s = await startServer();
+  try {
+    const a = await connect(s.port, '甲');
+    a.send({ t: 'join', room: '2012', name: '甲' });
+    await waitFor(() => a.joined, 2000, '进房');
+    a.send({ t: 'start' });
+    await waitFor(() => a.last && a.last.hand && a.last.hand.awaiting, 2000, '待决');
+    const room = s.hub.store.get('2012'), rev = a.last.rev;
+    const awaiting = a.last.hand.awaiting;
+    const move = awaiting.type === 'claim' ? { act: 'pass' } : { act: 'discard', kind: a.last.hand.mine.concealed.findIndex(n => n > 0) };
+    a.send(Object.assign({ t: 'act', requestId: 'stale', rev: rev - 1 }, move));
+    await waitFor(() => a.errors.length, 2000, '拒绝过期操作');
+    assert.match(a.errors[0], /牌局已更新/);
+    assert.equal(room.rev, rev);
+    const request = Object.assign({ t: 'act', requestId: 'once', rev }, move);
+    a.send(request);
+    await waitFor(() => a.acks.length === 1, 2000, '操作确认');
+    const after = JSON.stringify(room.game.hand.record.events), nextRev = room.rev;
+    a.send(request);
+    await waitFor(() => a.acks.length === 2, 2000, '重发确认');
+    assert.equal(a.acks[1].duplicate, true);
+    assert.equal(room.rev, nextRev);
+    assert.equal(JSON.stringify(room.game.hand.record.events), after);
+    a.send(Object.assign({}, request, { act: move.act === 'pass' ? 'peng' : 'zimo' }));
+    await waitFor(() => a.errors.length === 2, 2000, '拒绝编号复用');
+    assert.match(a.errors[1], /不同操作/);
+  } finally { s.hub.close(); s.server.close(); }
+});
+
+test('操作确认与真人出牌状态先发布，再推进电脑；保活回显测量编号', async () => {
+  const s = await startServer();
+  try {
+    const a = await connect(s.port, '甲');
+    a.send({t:'join',room:'2013',name:'甲'});
+    await waitFor(()=>a.joined,2000,'进房');a.send({t:'start'});
+    await waitFor(()=>a.last&&a.last.hand&&a.last.hand.awaiting,2000,'出牌回合');
+    const room=s.hub.store.get('2013'),member=room.members[0],trace=[];
+    const rawSend=member.conn.conn.send.bind(member.conn.conn),pump=room.pump.bind(room);
+    member.conn.conn.send=function(msg){if(msg.t==='ack')trace.push('ack');if(msg.t==='state'&&msg.hand.players[0].discards.length)trace.push('state');return rawSend(msg);};
+    room.pump=function(){trace.push('pump');return pump();};
+    a.send({t:'act',act:'discard',kind:a.last.hand.mine.concealed.findIndex(n=>n>0)});
+    await waitFor(()=>trace.includes('pump')&&a.acks.length,2000,'确认与推进');
+    assert.ok(trace.indexOf('ack')<trace.indexOf('state')&&trace.indexOf('state')<trace.indexOf('pump'),trace.join(','));
+    assert.ok(Number.isFinite(a.acks[0].serverMs));
+    let pong=null;a.ws.addEventListener('message',e=>{const m=JSON.parse(e.data);if(m.t==='pong')pong=m;});
+    a.send({t:'ping',probe:42});await waitFor(()=>pong,2000,'保活');assert.equal(pong.probe,42);
+  } finally {s.hub.close();s.server.close();}
+});
+
+test('四位真人待决时不做空推进，不额外改变局面版本', async () => {
+  const s = await startServer();
+  try {
+    const clients=[];
+    for(const name of ['甲','乙','丙','丁']){
+      const c=await connect(s.port,name);c.send({t:'join',room:'2014',name});
+      await waitFor(()=>c.joined,2000,'四人入房');clients.push(c);
+    }
+    const a=clients[0];a.send({t:'start'});
+    await waitFor(()=>a.last&&a.last.hand&&a.last.hand.awaiting,2000,'庄家回合');
+    const room=s.hub.store.get('2014'),rev=room.rev;let pumps=0;
+    const original=room.pump.bind(room);room.pump=function(){pumps++;return original();};
+    a.send({t:'act',act:'discard',kind:a.last.hand.mine.concealed.findIndex(n=>n>0)});
+    await waitFor(()=>a.acks.length,2000,'确认');await sleep(30);
+    assert.equal(pumps,0);assert.equal(room.rev,rev+1);
+    assert.ok(room.game.hand.over||room.game.pendingAwaits().every(p=>room.isLiveHuman(p.seat)));
+  } finally {s.hub.close();s.server.close();}
 });
 
 run();

@@ -1,0 +1,414 @@
+{
+  "format": "zmj-node-performance",
+  "version": 1,
+  "rulesVersion": "zhuanzhuan-108-v1",
+  "analysisVersion": "paixiao-v2",
+  "questionVersion": "lessons-v3",
+  "environment": {
+    "node": "v22.16.0",
+    "platform": "win32",
+    "cpu": "AMD Ryzen 7 5800X 8-Core Processor             "
+  },
+  "passes": [
+    {
+      "name": "首次遍历",
+      "base": {
+        "count": 36,
+        "medianMs": 5.082700000000045,
+        "p95Ms": 27.807,
+        "maxMs": 38.63589999999999
+      },
+      "explanation": {
+        "count": 30,
+        "medianMs": 3.385699999999929,
+        "p95Ms": 39.438799999999986,
+        "maxMs": 44.7355
+      },
+      "samples": [
+        {
+          "id": "wide-1",
+          "baseMs": 27.807,
+          "explanationMs": 30.506499999999996
+        },
+        {
+          "id": "wide-2",
+          "baseMs": 8.250600000000006,
+          "explanationMs": 15.678899999999999
+        },
+        {
+          "id": "wide-3",
+          "baseMs": 10.882899999999992,
+          "explanationMs": 17.45789999999998
+        },
+        {
+          "id": "shape-1",
+          "baseMs": 10.099400000000003,
+          "explanationMs": 29.314300000000003
+        },
+        {
+          "id": "shape-2",
+          "baseMs": 13.841099999999983,
+          "explanationMs": 39.438799999999986
+        },
+        {
+          "id": "shape-3",
+          "baseMs": 6.291899999999998,
+          "explanationMs": 12.822099999999978
+        },
+        {
+          "id": "pairs-1",
+          "baseMs": 2.8600999999999885,
+          "explanationMs": 2.764499999999998
+        },
+        {
+          "id": "pairs-2",
+          "baseMs": 3.4708000000000254,
+          "explanationMs": 1.9529999999999745
+        },
+        {
+          "id": "pairs-3",
+          "baseMs": 4.153099999999995,
+          "explanationMs": 2.19380000000001
+        },
+        {
+          "id": "visible-1",
+          "baseMs": 0.406599999999969,
+          "explanationMs": 0.6707000000000107
+        },
+        {
+          "id": "visible-2",
+          "baseMs": 0.15739999999999554,
+          "explanationMs": 0.20010000000002037
+        },
+        {
+          "id": "visible-3",
+          "baseMs": 0.2569000000000301,
+          "explanationMs": 0.5303000000000111
+        },
+        {
+          "id": "wide-4",
+          "baseMs": 17.086400000000026,
+          "explanationMs": 44.7355
+        },
+        {
+          "id": "wide-5",
+          "baseMs": 38.63589999999999,
+          "explanationMs": 0.4463000000000079
+        },
+        {
+          "id": "wide-6",
+          "baseMs": 26.267899999999997,
+          "explanationMs": 28.968500000000006
+        },
+        {
+          "id": "wide-7",
+          "baseMs": 18.47320000000002,
+          "explanationMs": 25.33330000000001
+        },
+        {
+          "id": "shape-4",
+          "baseMs": 4.4658000000000015,
+          "explanationMs": 0.10739999999998417
+        },
+        {
+          "id": "shape-5",
+          "baseMs": 11.883800000000008,
+          "explanationMs": 0.15050000000002228
+        },
+        {
+          "id": "shape-6",
+          "baseMs": 10.494199999999978,
+          "explanationMs": 0.1449000000000069
+        },
+        {
+          "id": "shape-7",
+          "baseMs": 11.003499999999974,
+          "explanationMs": 34.2149
+        },
+        {
+          "id": "pairs-4",
+          "baseMs": 7.34800000000007,
+          "explanationMs": 3.513500000000022
+        },
+        {
+          "id": "pairs-5",
+          "baseMs": 8.532600000000002,
+          "explanationMs": 0.26319999999998345
+        },
+        {
+          "id": "pairs-6",
+          "baseMs": 6.96040000000005,
+          "explanationMs": 3.385699999999929
+        },
+        {
+          "id": "pairs-7",
+          "baseMs": 16.32680000000005,
+          "explanationMs": 35.50329999999997
+        },
+        {
+          "id": "open-1",
+          "baseMs": 2.360500000000002,
+          "explanationMs": 7.417299999999955
+        },
+        {
+          "id": "open-2",
+          "baseMs": 3.605199999999968,
+          "explanationMs": 9.481400000000008
+        },
+        {
+          "id": "open-3",
+          "baseMs": 0.3290000000000646,
+          "explanationMs": 0.48460000000000036
+        },
+        {
+          "id": "open-4",
+          "baseMs": 0.412900000000036,
+          "explanationMs": 1.1515000000000555
+        },
+        {
+          "id": "open-5",
+          "baseMs": 0.16279999999994743,
+          "explanationMs": 0.06880000000001019
+        },
+        {
+          "id": "open-6",
+          "baseMs": 0.062200000000075306,
+          "explanationMs": 0.044199999999932515
+        },
+        {
+          "id": "peng-1",
+          "baseMs": 3.1574999999999136,
+          "explanationMs": 0.002200000000016189
+        },
+        {
+          "id": "peng-2",
+          "baseMs": 0.6490999999999758,
+          "explanationMs": 0.00020000000006348273
+        },
+        {
+          "id": "peng-3",
+          "baseMs": 5.082700000000045,
+          "explanationMs": 0.00029999999992469384
+        },
+        {
+          "id": "peng-4",
+          "baseMs": 0.8721000000000458,
+          "explanationMs": 0.002200000000016189
+        },
+        {
+          "id": "peng-5",
+          "baseMs": 0.23080000000004475,
+          "explanationMs": 0.0001999999999497959
+        },
+        {
+          "id": "peng-6",
+          "baseMs": 1.2446999999999662,
+          "explanationMs": 0.00020000000006348273
+        }
+      ]
+    },
+    {
+      "name": "第二次遍历",
+      "base": {
+        "count": 36,
+        "medianMs": 0.24630000000001928,
+        "p95Ms": 0.38220000000001164,
+        "maxMs": 0.6182999999999765
+      },
+      "explanation": {
+        "count": 30,
+        "medianMs": 0.5742000000000189,
+        "p95Ms": 1.0804000000000542,
+        "maxMs": 1.2146999999999935
+      },
+      "samples": [
+        {
+          "id": "wide-1",
+          "baseMs": 0.3105000000000473,
+          "explanationMs": 0.9858000000000402
+        },
+        {
+          "id": "wide-2",
+          "baseMs": 0.28350000000000364,
+          "explanationMs": 0.717899999999986
+        },
+        {
+          "id": "wide-3",
+          "baseMs": 0.3632000000000062,
+          "explanationMs": 0.6673999999999296
+        },
+        {
+          "id": "shape-1",
+          "baseMs": 0.38220000000001164,
+          "explanationMs": 1.0804000000000542
+        },
+        {
+          "id": "shape-2",
+          "baseMs": 0.3162999999999556,
+          "explanationMs": 1.2146999999999935
+        },
+        {
+          "id": "shape-3",
+          "baseMs": 0.6182999999999765,
+          "explanationMs": 0.613999999999919
+        },
+        {
+          "id": "pairs-1",
+          "baseMs": 0.14359999999999218,
+          "explanationMs": 0.29340000000001965
+        },
+        {
+          "id": "pairs-2",
+          "baseMs": 0.1654999999999518,
+          "explanationMs": 0.25640000000009877
+        },
+        {
+          "id": "pairs-3",
+          "baseMs": 0.14789999999993597,
+          "explanationMs": 0.25339999999994234
+        },
+        {
+          "id": "visible-1",
+          "baseMs": 0.2717999999999847,
+          "explanationMs": 0.5860000000000127
+        },
+        {
+          "id": "visible-2",
+          "baseMs": 0.15420000000005984,
+          "explanationMs": 0.171100000000024
+        },
+        {
+          "id": "visible-3",
+          "baseMs": 0.2884000000000242,
+          "explanationMs": 0.5742000000000189
+        },
+        {
+          "id": "wide-4",
+          "baseMs": 0.3263999999999214,
+          "explanationMs": 0.8030999999999722
+        },
+        {
+          "id": "wide-5",
+          "baseMs": 0.2839000000000169,
+          "explanationMs": 0.33190000000001874
+        },
+        {
+          "id": "wide-6",
+          "baseMs": 0.27100000000007185,
+          "explanationMs": 0.901299999999992
+        },
+        {
+          "id": "wide-7",
+          "baseMs": 0.32350000000008095,
+          "explanationMs": 0.9744999999999209
+        },
+        {
+          "id": "shape-4",
+          "baseMs": 0.34550000000001546,
+          "explanationMs": 0.1169999999999618
+        },
+        {
+          "id": "shape-5",
+          "baseMs": 0.29090000000007876,
+          "explanationMs": 0.13859999999999673
+        },
+        {
+          "id": "shape-6",
+          "baseMs": 0.2948999999999842,
+          "explanationMs": 0.13009999999997035
+        },
+        {
+          "id": "shape-7",
+          "baseMs": 0.24630000000001928,
+          "explanationMs": 0.9107000000000198
+        },
+        {
+          "id": "pairs-4",
+          "baseMs": 0.15899999999999181,
+          "explanationMs": 0.2481000000000222
+        },
+        {
+          "id": "pairs-5",
+          "baseMs": 0.13390000000003965,
+          "explanationMs": 0.17270000000007713
+        },
+        {
+          "id": "pairs-6",
+          "baseMs": 0.15800000000001546,
+          "explanationMs": 0.24500000000000455
+        },
+        {
+          "id": "pairs-7",
+          "baseMs": 0.15579999999999927,
+          "explanationMs": 0.6783000000000357
+        },
+        {
+          "id": "open-1",
+          "baseMs": 0.19819999999992888,
+          "explanationMs": 0.9282000000000608
+        },
+        {
+          "id": "open-2",
+          "baseMs": 0.21680000000003474,
+          "explanationMs": 0.6292999999999438
+        },
+        {
+          "id": "open-3",
+          "baseMs": 0.24890000000004875,
+          "explanationMs": 0.26930000000004384
+        },
+        {
+          "id": "open-4",
+          "baseMs": 0.12979999999993197,
+          "explanationMs": 0.4612000000000762
+        },
+        {
+          "id": "open-5",
+          "baseMs": 0.07339999999999236,
+          "explanationMs": 0.0665000000000191
+        },
+        {
+          "id": "open-6",
+          "baseMs": 0.03750000000002274,
+          "explanationMs": 0.04200000000003001
+        },
+        {
+          "id": "peng-1",
+          "baseMs": 0.26139999999998054,
+          "explanationMs": 0.0004000000000132786
+        },
+        {
+          "id": "peng-2",
+          "baseMs": 0.14859999999998763,
+          "explanationMs": 0.0003000000000383807
+        },
+        {
+          "id": "peng-3",
+          "baseMs": 0.18679999999994834,
+          "explanationMs": 0.00020000000006348273
+        },
+        {
+          "id": "peng-4",
+          "baseMs": 0.19119999999998072,
+          "explanationMs": 0.0001999999999497959
+        },
+        {
+          "id": "peng-5",
+          "baseMs": 0.12530000000003838,
+          "explanationMs": 0.00020000000006348273
+        },
+        {
+          "id": "peng-6",
+          "baseMs": 0.12409999999999854,
+          "explanationMs": 0.00029999999992469384
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "这是开发电脑上的 Node 基线，不是手机浏览器性能。",
+    "首次遍历共享有界向听缓存，不是每道题单独清空缓存后的冷启动。",
+    "讲解测量包含前三个弃牌的宽听路径，不包含对手风险采样和页面绘制。",
+    "没有以这份结果宣布达到真实手机 P95 目标。"
+  ]
+}

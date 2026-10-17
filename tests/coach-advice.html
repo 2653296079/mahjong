@@ -19,34 +19,18 @@ function report() { fetch('/__result?d=' + encodeURIComponent(JSON.stringify(out
     w.document.getElementById('homeSolo').click();     // 主界面 → 单机练习
     await sleep(600);
     out.homeHidden = w.document.getElementById('home').classList.contains('hidden');
-    var seen = {};
-    var t1 = Date.now();
-    while (Date.now() - t1 < 45000) {
-      var e = bootErr(w);
-      if (e) { out.errors.push(e); break; }
-      var bar = w.document.getElementById('actionBtns');
-      var btns = bar ? Array.prototype.slice.call(bar.querySelectorAll('button')) : [];
-      var labels = btns.map(function (b) { return b.textContent.trim(); });
-      var isClaim = labels.indexOf('过') >= 0 && (labels.indexOf('碰') >= 0 || labels.indexOf('杠') >= 0 || labels.indexOf('胡（收炮）') >= 0);
-      var main = w.document.getElementById('coachMain');
-      var detail = w.document.getElementById('coachDetail');
-      var eyebrow = w.document.getElementById('coachEyebrow');
-      if (main) {
-        var key = main.textContent + ' || ' + detail.textContent;
-        if (!seen[key]) { seen[key] = 1; say('[' + (isClaim ? '碰杠胡' : '其它') + '] ' + main.textContent + ' —— ' + detail.textContent); }
-        if (isClaim && !out.claim) {
-          out.claim = { buttons: labels, eyebrow: eyebrow.textContent, main: main.textContent, detail: detail.textContent };
-          break;
-        }
-      }
-      // 一局打完会出现「继续下一局」，不点它就会一直空等到超时（这里以前漏了）
-      var next = w.document.getElementById('btnNext');
-      if (next) { next.click(); await sleep(600); continue; }
-      if (btns.length) { btns[0].click(); await sleep(140); continue; }
-      var tile = w.document.querySelector('.handRow .clickable');
-      if (tile) { tile.click(); await sleep(140); continue; }
-      await sleep(110);
-    }
+    // 注入固定的 13 张待碰局面，避免随机对局 45 秒内碰不到牌而误报。
+    var game = w.__zmjGame, H = w.ZMJ.practiceHand('shape-2');
+    H.players[0].concealed[0]--;
+    H.players[1].discards.push(26);
+    game.hand.players = H.players;
+    game.hand.lastDiscard = { seat: 1, kind: 26 };
+    game.awaiting = { type: 'claim', seat: 0, options: { kind: 26, from: 1, peng: true, gang: false, hu: false } };
+    w.dispatchEvent(new w.Event('resize'));
+    out.claim = { main: w.document.getElementById('coachMain').textContent,
+      detail: w.document.getElementById('coachDetail').textContent };
+    var expected = w.ZMJ.pengAdvice(game.hand, 0, 26, 1);
+    if (out.claim.detail.indexOf('碰后打 ' + w.ZMJ.tileName(expected.after.kind)) < 0) out.errors.push('没有解释碰后弃哪张');
     out.bootAtEnd = bootErr(w);
     out.ok = !!out.claim && out.errors.length === 0 && !out.bootAtEnd &&
              /建议碰|建议过|^胡 |^杠 /.test(out.claim.main);

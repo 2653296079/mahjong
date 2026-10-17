@@ -12,11 +12,13 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { execFile } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = Number(process.env.PORT || 8123);
 const SHOT = process.argv.indexOf('--shot') >= 0;
+const PROFILE = fs.mkdtempSync(path.join(os.tmpdir(), 'zmj-online-test-'));
 const EDGE_CANDIDATES = [
   'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
   'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
@@ -50,7 +52,7 @@ online.attach(server);
 server.listen(PORT, '127.0.0.1', () => {
   const base = 'http://127.0.0.1:' + PORT;
   const common = ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
-                  '--user-data-dir=' + path.join(__dirname, '_edgeprofile')];
+                  '--user-data-dir=' + PROFILE];
   if (SHOT) {
     const shot = path.join(ROOT, 'tests', 'shot-single.png');
     execFile(EDGE, common.concat(['--window-size=460,900', '--screenshot=' + shot, base + '/index.html']),

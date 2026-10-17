@@ -1,0 +1,4 @@
+# 替换为自己的域名；Node 使用 MAHJONG_HOST=127.0.0.1。
+mahjong.example.com {
+    reverse_proxy 127.0.0.1:8000
+}

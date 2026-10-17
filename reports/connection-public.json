@@ -1,0 +1,161 @@
+{
+  "url": "https://frp-way.com:20466",
+  "sampledAt": "2026-10-16T14:53:02.065Z",
+  "extraTrustProvided": true,
+  "http": [
+    {
+      "status": 200,
+      "dnsMs": 43.44,
+      "connectedMs": 75.42,
+      "tlsReadyMs": 115.43,
+      "headersMs": 161.83,
+      "totalMs": 162.93,
+      "bytes": 147,
+      "reusedSocket": false,
+      "sha256": "15a12c3caec5b388754951cd65bc24a2245b0d4411eb7c564b859762c98148a3",
+      "health": {
+        "status": "ok",
+        "rulesVersion": "zhuanzhuan-108-v1",
+        "analysisVersion": "paixiao-v2",
+        "questionVersion": "lessons-v3",
+        "rooms": 1,
+        "sessions": 3,
+        "players": 1
+      }
+    },
+    {
+      "status": 200,
+      "headersMs": 24.68,
+      "totalMs": 25,
+      "bytes": 147,
+      "reusedSocket": true,
+      "sha256": "15a12c3caec5b388754951cd65bc24a2245b0d4411eb7c564b859762c98148a3",
+      "health": {
+        "status": "ok",
+        "rulesVersion": "zhuanzhuan-108-v1",
+        "analysisVersion": "paixiao-v2",
+        "questionVersion": "lessons-v3",
+        "rooms": 1,
+        "sessions": 3,
+        "players": 1
+      }
+    },
+    {
+      "status": 200,
+      "headersMs": 42.49,
+      "totalMs": 42.79,
+      "bytes": 147,
+      "reusedSocket": true,
+      "sha256": "15a12c3caec5b388754951cd65bc24a2245b0d4411eb7c564b859762c98148a3",
+      "health": {
+        "status": "ok",
+        "rulesVersion": "zhuanzhuan-108-v1",
+        "analysisVersion": "paixiao-v2",
+        "questionVersion": "lessons-v3",
+        "rooms": 1,
+        "sessions": 3,
+        "players": 1
+      }
+    }
+  ],
+  "page": {
+    "status": 200,
+    "headersMs": 313.42,
+    "totalMs": 2626.61,
+    "bytes": 274027,
+    "reusedSocket": true,
+    "sha256": "0ebcfc3fc435d0b696bc1f5aa32444521a394426335708f92a69e15b8a86d441"
+  },
+  "websocket": {
+    "openedMs": 110.1,
+    "summary": {
+      "count": 16,
+      "minMs": 27.6,
+      "medianMs": 45.05,
+      "p95Ms": 599.51,
+      "maxMs": 599.51
+    },
+    "rows": [
+      {
+        "probe": 1,
+        "rttMs": 49.19,
+        "echoedProbe": false
+      },
+      {
+        "probe": 2,
+        "rttMs": 44.92,
+        "echoedProbe": false
+      },
+      {
+        "probe": 3,
+        "rttMs": 27.6,
+        "echoedProbe": false
+      },
+      {
+        "probe": 4,
+        "rttMs": 282.92,
+        "echoedProbe": false
+      },
+      {
+        "probe": 5,
+        "rttMs": 34.37,
+        "echoedProbe": false
+      },
+      {
+        "probe": 6,
+        "rttMs": 36.91,
+        "echoedProbe": false
+      },
+      {
+        "probe": 7,
+        "rttMs": 45.05,
+        "echoedProbe": false
+      },
+      {
+        "probe": 8,
+        "rttMs": 599.51,
+        "echoedProbe": false
+      },
+      {
+        "probe": 9,
+        "rttMs": 39.26,
+        "echoedProbe": false
+      },
+      {
+        "probe": 10,
+        "rttMs": 297.3,
+        "echoedProbe": false
+      },
+      {
+        "probe": 11,
+        "rttMs": 45.09,
+        "echoedProbe": false
+      },
+      {
+        "probe": 12,
+        "rttMs": 41.81,
+        "echoedProbe": false
+      },
+      {
+        "probe": 13,
+        "rttMs": 531.9,
+        "echoedProbe": false
+      },
+      {
+        "probe": 14,
+        "rttMs": 33.34,
+        "echoedProbe": false
+      },
+      {
+        "probe": 15,
+        "rttMs": 47.07,
+        "echoedProbe": false
+      },
+      {
+        "probe": 16,
+        "rttMs": 44.5,
+        "echoedProbe": false
+      }
+    ]
+  }
+}
