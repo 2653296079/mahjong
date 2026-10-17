@@ -1,0 +1,29 @@
+<!doctype html><meta charset="utf-8"><title>旧地址恢复与联机牌河验收</title>
+<pre id="log"></pre><iframe id="game" style="width:390px;height:844px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]};
+function check(ok,msg){if(!ok)throw Error(msg);out.steps.push(msg);}
+async function until(fn,label){for(var i=0;i<300;i++){if(fn())return;await new Promise(r=>setTimeout(r,20));}throw Error('等待超时：'+label);}
+(async function(){try{
+ sessionStorage.removeItem('zmj_seat_v1');localStorage.setItem('zmj_noRotate','1');
+ localStorage.setItem('zmj_net_v1',JSON.stringify({name:'连接验收',server:'http://127.0.0.1:65534'}));
+ localStorage.setItem('zmj_cfg_v2',JSON.stringify({sound:false,analyze:false,turnTime:0,learningMode:'guided'}));
+ var f=document.getElementById('game');await new Promise(r=>{f.onload=r;f.src='/index.html';});var w=f.contentWindow,d=w.document;
+ await new Promise(r=>setTimeout(r,100));d.getElementById('homeOnline').click();
+ await until(()=>d.getElementById('netCurrentServer'),'连接失败与恢复入口');
+ check(d.getElementById('netBox').textContent.includes('65534'),'连接失败明确展示正在连接的旧地址');
+ d.getElementById('netCurrentServer').click();await until(()=>d.getElementById('netEnter'),'连接本页服务器');
+ check(JSON.parse(localStorage.getItem('zmj_net_v1')).server==='','一键恢复当前服务器并清理失效地址');
+ check(d.getElementById('netBox').textContent.includes('ws://'+location.host+'/ws'),'恢复后展示正确的同源 WebSocket 地址');
+ d.getElementById('netName').value='连接验收';d.getElementById('netRoomIn').value='1891';d.getElementById('netEnter').click();
+ await until(()=>d.getElementById('netStart'),'进房间');d.getElementById('netStart').click();await until(()=>w.__zmjGame&&w.__zmjGame.awaiting,'轮到自己');
+ var g=w.__zmjGame;check(g.online&&Array.isArray(g.hand.river),'真实联机开局收到服务端公开牌河');
+ var count=g.hand.players[g.humanSeat()].discards.length,tile=d.querySelector('.handRow .clickable');tile.click();if(!d.getElementById('netPendingAction'))tile.click();
+ await until(()=>g.hand.players[g.humanSeat()].discards.length>count,'服务端确认弃牌');
+ var visible=g.hand.river.filter(e=>e.claimedBy==null),dom=Array.from(d.querySelectorAll('.riverEntry'));
+ check(d.getElementById('table').classList.contains('hasRiver')&&visible.length===dom.length,'联机确认后中央牌河立即同步权威状态');
+ check(dom.every((el,i)=>+el.dataset.order===visible[i].order&&+el.dataset.seat===visible[i].seat),'联机牌河逐张保留真实顺序与来源');
+ check(d.getElementById('tileAnalysis').classList.contains('hidden'),'发送出牌后不遗留过期的逐张讲解');
+ out.ok=true;
+}catch(e){out.errors.push(e.message);}document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));})();
+</script>

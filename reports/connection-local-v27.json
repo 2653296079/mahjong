@@ -1,0 +1,159 @@
+{
+  "url": "http://127.0.0.1:8191",
+  "sampledAt": "2026-10-17T05:05:46.141Z",
+  "extraTrustProvided": false,
+  "http": [
+    {
+      "status": 200,
+      "connectedMs": 6.94,
+      "headersMs": 12.81,
+      "totalMs": 13.95,
+      "bytes": 147,
+      "reusedSocket": false,
+      "sha256": "ba521ebbb023144e8bdc022b4caddf7ff2af48da3cd96634e695c8302aa4d7b4",
+      "health": {
+        "status": "ok",
+        "rulesVersion": "zhuanzhuan-108-v1",
+        "analysisVersion": "paixiao-v2",
+        "questionVersion": "lessons-v3",
+        "rooms": 0,
+        "sessions": 0,
+        "players": 0
+      }
+    },
+    {
+      "status": 200,
+      "headersMs": 0.89,
+      "totalMs": 1.11,
+      "bytes": 147,
+      "reusedSocket": true,
+      "sha256": "ba521ebbb023144e8bdc022b4caddf7ff2af48da3cd96634e695c8302aa4d7b4",
+      "health": {
+        "status": "ok",
+        "rulesVersion": "zhuanzhuan-108-v1",
+        "analysisVersion": "paixiao-v2",
+        "questionVersion": "lessons-v3",
+        "rooms": 0,
+        "sessions": 0,
+        "players": 0
+      }
+    },
+    {
+      "status": 200,
+      "headersMs": 0.32,
+      "totalMs": 0.49,
+      "bytes": 147,
+      "reusedSocket": true,
+      "sha256": "ba521ebbb023144e8bdc022b4caddf7ff2af48da3cd96634e695c8302aa4d7b4",
+      "health": {
+        "status": "ok",
+        "rulesVersion": "zhuanzhuan-108-v1",
+        "analysisVersion": "paixiao-v2",
+        "questionVersion": "lessons-v3",
+        "rooms": 0,
+        "sessions": 0,
+        "players": 0
+      }
+    }
+  ],
+  "page": {
+    "status": 200,
+    "headersMs": 1.83,
+    "totalMs": 3.09,
+    "bytes": 348642,
+    "reusedSocket": true,
+    "sha256": "6f8024a115d0d258af7da3c0c39b349689f36a46f3c8b2ea00facef1d2eba92d"
+  },
+  "websocket": {
+    "openedMs": 27.65,
+    "summary": {
+      "count": 16,
+      "minMs": 0.52,
+      "medianMs": 0.85,
+      "p95Ms": 1.64,
+      "maxMs": 1.64
+    },
+    "rows": [
+      {
+        "probe": 1,
+        "rttMs": 1.18,
+        "echoedProbe": true
+      },
+      {
+        "probe": 2,
+        "rttMs": 1.64,
+        "echoedProbe": true
+      },
+      {
+        "probe": 3,
+        "rttMs": 0.85,
+        "echoedProbe": true
+      },
+      {
+        "probe": 4,
+        "rttMs": 0.9,
+        "echoedProbe": true
+      },
+      {
+        "probe": 5,
+        "rttMs": 0.68,
+        "echoedProbe": true
+      },
+      {
+        "probe": 6,
+        "rttMs": 0.97,
+        "echoedProbe": true
+      },
+      {
+        "probe": 7,
+        "rttMs": 0.58,
+        "echoedProbe": true
+      },
+      {
+        "probe": 8,
+        "rttMs": 0.82,
+        "echoedProbe": true
+      },
+      {
+        "probe": 9,
+        "rttMs": 0.85,
+        "echoedProbe": true
+      },
+      {
+        "probe": 10,
+        "rttMs": 1.09,
+        "echoedProbe": true
+      },
+      {
+        "probe": 11,
+        "rttMs": 0.54,
+        "echoedProbe": true
+      },
+      {
+        "probe": 12,
+        "rttMs": 0.58,
+        "echoedProbe": true
+      },
+      {
+        "probe": 13,
+        "rttMs": 0.57,
+        "echoedProbe": true
+      },
+      {
+        "probe": 14,
+        "rttMs": 0.52,
+        "echoedProbe": true
+      },
+      {
+        "probe": 15,
+        "rttMs": 0.93,
+        "echoedProbe": true
+      },
+      {
+        "probe": 16,
+        "rttMs": 0.62,
+        "echoedProbe": true
+      }
+    ]
+  }
+}

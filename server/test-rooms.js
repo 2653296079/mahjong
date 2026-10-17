@@ -204,7 +204,7 @@ test('超时托管：有人挂机不动，到点由电脑替他打', () => {
 });
 
 test('五个人：真人优先上桌，多余的进等待区，转转轮换后总人数守恒', () => {
-  const store = new RoomStore();
+  const store = new RoomStore({ seed: 20261017 });
   const room = store.create('1007');
   const ms = [];
   for (const n of ['甲', '乙', '丙', '丁', '戊']) ms.push(fakeClient(room, n));

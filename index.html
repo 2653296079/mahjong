@@ -503,6 +503,84 @@ main{background:#102c28;gap:0}
 .tileAtlas{width:660px;max-width:100%}.tileAtlas h3{font-size:13px;font-weight:500;letter-spacing:3px;margin:22px 0 12px;color:#dcca9f}.tileAtlasRow{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:12px}.tileAtlas figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:10px;min-width:0}.tileAtlas .tile.big{width:100%;max-width:56px;height:auto;aspect-ratio:3/4;flex-shrink:0}.tileAtlas figcaption{font-size:10px;color:#bfcfb8}.tileAtlasSmall{margin-top:22px;border-top:1px solid #cbd5bc24;padding-top:15px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}.tileAtlasSmall>span{font-size:11px;color:#bfcfb8}.tileAtlasSmall .tiles{gap:5px;justify-content:flex-start;padding-bottom:5px}
 @media(max-width:680px){.tileAtlasRow{gap:5px}.tileAtlas h3{margin:18px 0 10px;font-size:12px}.tileAtlas figure{gap:8px}.tileAtlas figcaption{font-size:9px}.tileAtlas .tile.big{border-radius:4px;padding:1px 2px}.tileAtlasSmall{gap:8px;margin-top:18px}.tileAtlasSmall>span{width:100%}}
 @media(max-height:500px){#seat1 .seatPosition,#seat3 .seatPosition,#seat1 .seatScore,#seat3 .seatScore,#seat1 .backRow,#seat3 .backRow{display:none}#seat1 .concealedCount,#seat3 .concealedCount{display:inline;color:#b9cdb7;font-size:8px;white-space:nowrap}#seat1 .seatName,#seat3 .seatName{flex-wrap:nowrap}#seat1 .seatName .seatLabel,#seat3 .seatName .seatLabel{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}}
+/* 中央内容依据实际剩余高度收紧；出牌信息横排，避免溢出到上下座位。 */
+#table{grid-template-rows:minmax(0,min(145px,25%)) minmax(0,1fr) auto}
+.seatName,.backRow,.handRow,.melds{flex-shrink:0}
+#seat2 .backRow{flex-wrap:nowrap}#seat2 .backRow .tile{min-width:12px;flex-shrink:1}
+#seat2 .discards{min-height:0;flex-shrink:1}
+#center{container-type:size;overflow:hidden;min-width:0;gap:8px}
+#center>*{flex-shrink:0;max-width:100%}
+#centerTile{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;align-items:center;gap:2px 10px;min-height:64px;max-width:100%;padding:3px 0 7px}
+#centerTile:empty{display:none}
+#centerTile .tile{grid-column:2;grid-row:1/3;margin:0}
+#centerTile .who{text-align:right;overflow-wrap:anywhere;font-size:11px;line-height:1.4}
+#centerTile .who:first-child{align-self:end}#centerTile .who:last-child{align-self:start}
+#seat0 .discards,#seat2 .discards{max-height:81px;overflow-y:auto;flex-shrink:0;justify-content:center}
+@container(max-height:280px){
+  #coach{padding:8px 10px}#coachMain{font-size:18px;margin:4px 0}#coachEyebrow{font-size:9px;letter-spacing:1px}
+  #coachDetail{font-size:11px;line-height:1.5;max-height:3em;overflow:auto}
+  #centerTile{min-height:46px;padding-bottom:5px}#centerTile .tile.big{width:32px;height:43px}
+  #centerTop{gap:3px}#centerTop .pill{font-size:10px;padding:2px 5px}
+}
+@container(max-height:180px){#coach{padding:4px 7px}#coachMain{font-size:14px;margin:0}#coachEyebrow,#coachDetail{display:none}#centerTile .who{font-size:10px}#centerTile .tile.big{width:28px;height:37px}#centerTile{min-height:40px}}
+@container(max-height:120px){#centerTop,#birdArea{display:none}#coach{padding:2px 6px}#centerTile{min-height:36px}}
+@media(max-width:680px){#seat0 .discards,#seat2 .discards{max-height:52px}}
+@media(min-width:681px) and (max-width:1040px){
+  #side{position:fixed;left:0;right:0;bottom:0;width:100%;max-height:72dvh;z-index:15;padding:16px;background:#183c30;border-radius:18px 18px 0 0;border-top:1px solid #9b9f7555;transform:translateY(105%);overflow-y:auto;transition:transform .22s ease}
+  #side.open{transform:translateY(0)}#btnPanel{display:inline-block}#miniHint{display:block;font-size:11px;padding:5px 12px}
+  #seat1 .backRow,#seat3 .backRow,#seat1 .seatPosition,#seat3 .seatPosition,#seat1 .seatScore,#seat3 .seatScore{display:none}
+  #seat1 .concealedCount,#seat3 .concealedCount{display:inline;font-size:9px;white-space:nowrap;color:#b9cdb7}
+  #seat1 .seatName,#seat3 .seatName{padding:4px;font-size:10px;flex-wrap:wrap;gap:3px}
+  #seat1 .seatLabel,#seat3 .seatLabel{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%}
+  #seat1 .discards,#seat3 .discards{min-height:0;overflow-y:auto}#seat1 .discards .tile,#seat3 .discards .tile{width:20px;height:27px;padding:0 1px}
+}
+@media(max-height:500px){
+  #topbar{display:flex;flex-wrap:nowrap;gap:7px;min-height:0}#scorebar{min-width:0}.tools{max-width:55%;overflow-x:auto;justify-content:flex-start}.toolsMenu{position:static}.toolsPopover{position:fixed;top:44px;right:10px}
+  #miniHint{display:none}#center{display:flex;flex-direction:row;gap:6px;padding:4px}#coach{width:min(250px,65%)}
+  #centerTop{display:none}#centerTile{min-height:0;padding:0 0 4px}#centerTile .tile.big{width:28px;height:37px}
+  #seat0 .discards,#seat2 .discards{max-height:34px}#seat0 .discards .tile,#seat2 .discards .tile{width:20px;height:27px;padding:0 1px}
+}
+.homeAccountControls{display:flex;gap:10px;align-items:center;min-width:0}.homeAccountControls button{max-width:180px;overflow:hidden;text-overflow:ellipsis}.homeHeader{flex-wrap:wrap;gap:10px}
+#modalBox:has(#accountPanel){width:min(740px,100%)}
+.accountForm{display:grid;gap:13px;max-width:380px;margin:20px auto}.accountForm label{display:grid;gap:5px;color:#cbd8c7;font-size:13px}.accountForm input{width:100%;min-width:0;padding:11px 12px;border:1px solid #80917a;border-radius:8px;background:#11392f;color:#fff}.accountForm .act{width:100%}
+.accountTabs{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}.accountTabs [aria-pressed="true"]{background:#e6d1a4;color:#234638;border-color:#e6d1a4}.accountGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:16px 0}.accountMetric{padding:13px;border:1px solid #aec6a32b;border-radius:10px;background:#173f34;min-width:0}.accountMetric b{display:block;color:#f3dfb3;font-size:25px;font-weight:600;overflow-wrap:anywhere}.accountMetric span{color:#bfd0b9;font-size:12px}.accountHistory{display:grid;gap:8px}.accountMatch{display:block;width:100%;text-align:left;white-space:normal;padding:12px;line-height:1.8}.accountMatch small{display:block;color:#b7cbb3}.accountHeader{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.accountSync{font-size:12px;color:#bfd2b7;line-height:1.7;min-height:22px}.accountError{color:#ffb6a4}.accountMethod{font-size:12px;color:#b7cbb3;line-height:1.85;margin-top:16px}.accountMethod summary{cursor:pointer;color:#e6d1a4}.accountEmpty{padding:25px 12px;text-align:center;color:#bfd0b9;line-height:1.9}
+@media(max-width:680px){.accountGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.accountMetric{padding:11px}.accountMetric b{font-size:23px}.homeAccountControls{gap:6px}.homeAccountControls .homeStamp{display:none}.homeAccountControls button{max-width:160px}.accountTabs .mini{flex:1}.accountForm{margin:15px auto}}
+/* 中央牌河：按实际出牌顺序，外壳颜色只标来源，不改牌面图案。 */
+#center{display:flex;flex-direction:column;gap:6px;padding:8px}
+#riverArea{width:100%;min-height:0;flex:1 1 auto;display:flex;flex-direction:column;gap:5px}
+.riverHeader{display:flex;align-items:center;justify-content:space-between;gap:4px;flex-wrap:wrap;font-size:11px;color:#d3dcc6}.riverHeader label{display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap}.riverHeader input{accent-color:#d8c28c;margin:0;width:15px;height:15px}
+.riverLegend{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.sourceChip{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:#d2ddc8;padding:2px 4px;border-bottom:2px solid var(--seat-ink)}
+#riverScroll{min-height:0;flex:1;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#739e85 transparent}
+#riverTiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(32px,1fr));gap:4px;width:min(100%,440px);margin:0 auto;padding:5px 5px 10px;align-content:start}
+.riverEntry{min-width:0;border:2px solid transparent;border-radius:6px;padding:2px;position:relative}.riverEntry .tile.small{width:100%;height:auto;aspect-ratio:3/4;padding:1px;border-radius:3px;box-shadow:inset 0 1px 0 #fff,0 2px 0 #a6b196,0 3px 4px #0a302566}
+.sourceOn .riverEntry{border-color:var(--seat-ink);background:var(--seat-ink)}.sourceOn .seatName{border-color:var(--seat-ink);border-bottom-width:2px}
+.riverEntry.latest{outline:2px solid #fff0b7;outline-offset:1px}.riverEntry.latest::after{content:"";position:absolute;width:5px;height:5px;background:#705f30;border-radius:50%;top:4px;right:4px}
+.riverEmpty{grid-column:1/-1;text-align:center;font-size:12px;line-height:1.9;color:#afc6b2;padding:18px 8px}.riverNote{font-size:10px;color:#b8cdb8;line-height:1.5;text-align:center}.riverNote:empty{display:none}
+.hasRiver .seat>.discards,.hasRiver #centerTile,.hasRiver #centerMsg{display:none}.hasRiver #coach{flex-shrink:0;width:100%;max-width:none;background:transparent;padding:2px 6px}.hasRiver #coachMain{font-size:18px;line-height:1.4;margin:3px 0}.hasRiver #coachDetail{font-size:11px;line-height:1.5;max-height:3em;overflow:auto}.hasRiver #coachEyebrow{font-size:9px;letter-spacing:1px}
+.legacyRiver{flex:0 0 auto!important}.legacyRiver .riverHeader,.legacyRiver .riverLegend,.legacyRiver #riverScroll{display:none}
+.seatCards{min-height:0;max-width:100%;overflow-y:auto}.seatCards .melds{max-width:100%;justify-content:inherit}.meldTag{font-size:9px;color:#e6ce9c;align-self:center;padding-left:3px;white-space:nowrap}
+.seatName{flex-wrap:wrap}.seatName>span{flex-shrink:0;white-space:nowrap}.seatName .seatLabel{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+#seat1:has(.meld) .backRow,#seat3:has(.meld) .backRow,#seat2:has(.meld) .backRow{display:none}
+#seat1:has(.meld) .concealedCount,#seat3:has(.meld) .concealedCount,#seat2:has(.meld) .concealedCount{display:inline;font-size:9px}
+#seat1 .melds,#seat3 .melds{flex-direction:column;flex-wrap:nowrap;align-items:center}
+#seat1 .meld,#seat3 .meld{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;width:104px;max-width:100%;padding:3px}
+#seat1 .meld .tile,#seat3 .meld .tile{width:100%;height:auto;aspect-ratio:3/4;padding:0 1px}#seat1 .meldTag,#seat3 .meldTag{grid-column:1/-1;text-align:center;padding:0;font-size:8px}
+@container(max-height:280px){.hasRiver #coachDetail{display:none}#riverTiles{grid-template-columns:repeat(auto-fill,minmax(27px,1fr));gap:3px;width:min(100%,395px)}}
+@container(max-height:160px){.hasRiver #coach,.hasRiver #centerTop{display:none}.riverLegend{gap:3px}.sourceChip{padding:0 2px;font-size:9px}#riverArea{gap:3px}}
+@media(max-width:1040px){#seat1 .meld,#seat3 .meld{grid-template-columns:repeat(2,minmax(0,1fr));width:51px}}
+@media(max-width:680px){#riverTiles{grid-template-columns:repeat(auto-fill,minmax(25px,1fr));gap:3px;padding:3px 2px 8px}.riverEntry{padding:1px;border-radius:4px}.hasRiver #coachMain{font-size:15px}.sourceChip{font-size:9px;padding:1px}.riverHeader{font-size:10px}#seat1 .meld,#seat3 .meld{width:40px;padding:2px}.meldTag{font-size:8px}}
+#tileAnalysis{position:fixed;z-index:38;width:376px;max-width:calc(100vw - 20px);margin:0;background:#f6f2e5;color:#264b40;border:1px solid #c7b882;border-radius:14px;box-shadow:0 14px 44px #031c1bc2;padding:0;font:13px/1.65 system-ui,sans-serif;overflow:visible}
+#tileAnalysis.hidden{display:none}#tileAnalysis::after{content:"";position:absolute;left:var(--anchor-x,50%);bottom:-7px;width:12px;height:12px;transform:translateX(-50%) rotate(45deg);background:#f6f2e5;border-right:1px solid #c7b882;border-bottom:1px solid #c7b882}
+#tileAnalysis.below::after{top:-7px;bottom:auto;transform:translateX(-50%) rotate(225deg)}
+.tileAnalysisScroll{overflow-y:auto;overscroll-behavior:contain;max-height:inherit;border-radius:14px;padding:15px 17px;scrollbar-width:thin}
+.tileAnalysisHead{display:flex;align-items:center;gap:10px;margin-bottom:10px}.tileAnalysisHead .tile{width:29px;height:39px;flex-shrink:0}.tileAnalysisHead h3{margin:0;font-size:18px;color:#183e32}.tileAnalysisHead small{font-size:11px;color:#67766b}
+#tileAnalysisClose{margin-left:auto;border:0;background:transparent;color:#627266;font-size:22px;min-width:32px;min-height:32px;cursor:pointer;border-radius:7px}#tileAnalysisClose:hover,#tileAnalysisClose:focus-visible{background:#e5e4d2;outline:2px solid #7c9274}
+.tileAnalysisStats{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:9px 0}.tileAnalysisStats>div{background:#e8ecde;border-radius:8px;padding:6px;text-align:center}.tileAnalysisStats b{display:block;font-size:20px;color:#205744}.tileAnalysisStats small{color:#637165;font-size:10px}
+.tileAnalysisCompare{border-left:3px solid #8c9e71;padding:5px 8px;background:#e8ecde;margin:8px 0}.tileAnalysisCompare.warn{border-color:#bc7955;background:#f2e7d7}
+.tileAnalysisTiles{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}.tileAnalysisTiles span{background:#fffdf6;border:1px solid #d5d7c5;border-radius:5px;padding:2px 6px;white-space:nowrap;font-size:12px}
+.tileAnalysisLabel{margin:12px 0 3px;font-size:11px;color:#6b775c;letter-spacing:1px;font-weight:600}.tileAnalysisMath{font-size:12px;background:#e5ebdc;border-radius:7px;padding:7px 9px;margin-top:8px}.tileAnalysisPath{border-bottom:1px solid #d7ddcb;padding:5px 0;font-size:12px}.tileAnalysisNote{font-size:11px;line-height:1.6;color:#6a7466;margin-top:7px}#tileAnalysis .risk-hi{color:#ab503d}#tileAnalysis .risk-mid{color:#946622}#tileAnalysis .risk-lo{color:#247456}
+.handRow .tile.analyzing{outline:2px solid #efdc9c;outline-offset:2px}.handRow .tile.analyzing:not(.chosen){transform:translateY(-5px)}
+@media(max-width:680px){.tileAnalysisScroll{padding:12px 14px}.tileAnalysisHead h3{font-size:16px}.tileAnalysisStats b{font-size:18px}}
 </style>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-512.png">
@@ -522,7 +600,7 @@ main{background:#102c28;gap:0}
       <button id="btnPanel" class="mini">牌况 / 提示</button>
       <button id="btnPractice" class="mini">牌效训练</button>
       <details class="toolsMenu" id="moreTools"><summary>更多 ···</summary><div class="toolsPopover">
-        <button id="btnExport" class="mini">导出牌谱</button><button id="btnStats" class="mini">练习统计</button>
+        <button id="btnAccount" class="mini">我的账号</button><button id="btnExport" class="mini">导出牌谱</button><button id="btnStats" class="mini">练习统计</button>
         <button id="btnReplay" class="mini">牌局复盘</button><button id="btnDojo" class="mini">防守练习</button>
         <button id="btnRules" class="mini">玩法规则</button><button id="btnSettings" class="mini">设置</button>
         <button id="btnTileArt" class="mini">牌面一览</button><button id="btnNew" class="mini">重新开局</button>
@@ -543,6 +621,7 @@ main{background:#102c28;gap:0}
           <div class="pill" id="turnInfo">—</div>
         </div>
         <div id="coach" role="status" aria-live="polite"><div id="coachEyebrow">练牌提示</div><div id="coachMain">准备开局</div><div id="coachDetail">观察牌形，选择你的下一张弃牌</div></div>
+        <section id="riverArea" aria-label="中央弃牌区"><div class="riverHeader"><span id="riverCount">中央弃牌</span><label><input id="riverSource" type="checkbox" checked>显示来源</label></div><div id="riverLegend" class="riverLegend"></div><div id="riverScroll"><div id="riverTiles" role="list" aria-label="按出牌顺序排列"></div></div><div id="riverNote" class="riverNote"></div></section>
         <div id="birdArea" class="hidden">
           <div class="birdTitle">鸟牌</div>
           <div id="birdTiles" class="tiles"></div>
@@ -596,6 +675,7 @@ main{background:#102c28;gap:0}
 </div>
 
 <div id="scrim"></div>
+<aside id="tileAnalysis" class="hidden" role="region" aria-label="这张牌的弃牌分析"><div class="tileAnalysisScroll"><div id="tileAnalysisContent"></div></div></aside>
 <div id="modal" class="hidden" role="dialog" aria-modal="true" aria-label="练牌面板"><div class="modalBox" id="modalBox" tabindex="-1"></div><button id="modalDismiss" class="mini" aria-label="关闭面板">关闭 ×</button></div>
 
 <script id="mahjongCore">
@@ -2299,7 +2379,19 @@ main{background:#102c28;gap:0}
     return G;
   }
 
+  // 仅公开弃牌的先后与鸣牌去向，不包含摸牌、暗牌、牌墙或鸟牌。
+  function publicDiscards(hand) {
+    var river=[];
+    ((hand.record && hand.record.events) || []).forEach(function(e){
+      if(e.t==='x')river.push({seat:e.s,kind:e.k,order:river.length+1,claimedBy:null});
+      else if(e.t==='p'||e.t==='g'&&e.y==='ming'){
+        var last=river[river.length-1];if(last&&last.seat===e.f&&last.kind===e.k&&last.claimedBy==null)last.claimedBy=e.s;
+      }
+    });
+    return river;
+  }
   return {
+    publicDiscards: publicDiscards,
     RULES: RULES, KINDS: KINDS,
     tileName: tileName, numOf: numOf, suitOf: suitOf, isBird: isBird,
     newCounts: newCounts, sumCounts: sumCounts,
@@ -2343,11 +2435,11 @@ window.onerror = function (msg, src, line, col) {
 
   var game = null, timer = null;
   var cfg = { rotate: true, claimStyle: 'greedy', aiStyle: 'v2', hint: true, learningMode: 'guided', seed: null, analyze: true,
-              worlds: 150, turnTime: 0, aiThink: 1, sound: true };
+              worlds: 150, turnTime: 0, aiThink: 1, sound: true, discardSource: true };
   try {
     var savedCfg = JSON.parse(localStorage.getItem('zmj_cfg_v2') || 'null');
     if (savedCfg) {
-      ['rotate', 'hint', 'analyze', 'sound'].forEach(function (key) {
+      ['rotate', 'hint', 'analyze', 'sound', 'discardSource'].forEach(function (key) {
         if (typeof savedCfg[key] === 'boolean') cfg[key] = savedCfg[key];
       });
       if (['ev', 'greedy'].indexOf(savedCfg.claimStyle) >= 0) cfg.claimStyle = savedCfg.claimStyle;
@@ -2392,6 +2484,7 @@ window.onerror = function (msg, src, line, col) {
     var homeOpen = $('home') && !$('home').classList.contains('hidden');
     $('app').inert = !!(modalOpen || homeOpen);
     if ($('home')) $('home').inert = modalOpen;
+    if (modalOpen || homeOpen) hideTileAnalysis();
   }
   function openModal() {
     var fresh = $('modal').classList.contains('hidden');
@@ -2610,6 +2703,7 @@ window.onerror = function (msg, src, line, col) {
     game = ZMJ.createGame({ seed: cfg.seed == null ? undefined : cfg.seed, rotate: cfg.rotate, aiStyle: cfg.claimStyle,
       aiStyleV2: cfg.aiStyle === 'v1' ? [] : [1, 2, 3],
       aiStyleV3: cfg.aiStyle === 'v3' ? [1, 2, 3] : [] });
+    bindAccountGame(game);
     window.__zmjGame = game;   // 调试用：控制台里可直接查看牌局状态
     window.__zmjTile = tileEl;  // 调试用：window.__zmjTile(kind,'big') 生成一张牌
     window.__zmjFace = tileFace;
@@ -2706,6 +2800,8 @@ window.onerror = function (msg, src, line, col) {
 
   // 超时自动操作
   function autoAct() {
+    accountAutoAct=true;
+    try {
     var a = game.awaiting;
     if (!a) { tick(); return; }
     if (a.type === 'turn') {
@@ -2719,6 +2815,7 @@ window.onerror = function (msg, src, line, col) {
     if (a.type === 'claim') {
       act(function () { return game.humanClaim(a.options.hu ? 'hu' : 'pass'); });
     }
+    } finally { accountAutoAct=false; }
   }
 
   // ---------- 渲染 ----------
@@ -2757,11 +2854,13 @@ window.onerror = function (msg, src, line, col) {
     });
   }
   function render() {
+    if (game && !game.online) accountCheckpoint(game);
     if (!game) return;
     if (game.online && !game.hand) return;   // 联机还没开局，牌桌没什么可画的
     renderScores();
     if (!game.online) renderMyStat();
     for (var p = 0; p < 4; p++) renderSeat(p);
+    refreshTileAnalysis();
     renderCenter(!!game.online);
     sfxCheck();
     renderActions();
@@ -2925,6 +3024,7 @@ window.onerror = function (msg, src, line, col) {
             dealIn: function (kind) { return value.deals[kind]; } };
           cacheSituation(job.key, result, Math.round(value.ms));
           renderSituation(); centerRiskPending = true; renderCenterTile();
+          refreshTileAnalysis(true);
         }
         var next = riskWorkerQueued; riskWorkerQueued = null;
         if (next && riskJobCurrent(next)) startRiskJob(next);
@@ -2999,6 +3099,95 @@ window.onerror = function (msg, src, line, col) {
   }
   function riskCls(p) { return p >= 0.10 ? 'risk-hi' : (p >= 0.04 ? 'risk-mid' : 'risk-lo'); }
   function barColor(p) { return p >= 0.45 ? '#ff9a8b' : (p >= 0.2 ? '#ffcf7a' : '#7ee2a8'); }
+
+  // 逐张讲解只读取当前公开局面；悬停不会启动风险采样，也不进入出牌发送路径。
+  var tileAnalysis = null, tileAnalysisTimer = 0, tileAnalysisLeave = 0, tileAnalysisPaths = 0;
+  function tileAnalysisAllowed() {
+    return !!(game && game.hand && !game.hand.over && liveHints() && game.awaiting &&
+      game.awaiting.type === 'turn' && game.awaiting.seat === game.humanSeat() &&
+      (!game.online || !NET.pendingAction && NET.status === 'on') && !$('app').inert);
+  }
+  function hideTileAnalysis() {
+    clearTimeout(tileAnalysisTimer); clearTimeout(tileAnalysisLeave); clearTimeout(tileAnalysisPaths);
+    tileAnalysis = null;
+    if ($('tileAnalysis')) $('tileAnalysis').classList.add('hidden');
+    document.querySelectorAll('.handRow .analyzing').forEach(function(t) { t.classList.remove('analyzing'); t.removeAttribute('aria-describedby'); });
+  }
+  function positionTileAnalysis() {
+    if (!tileAnalysis || !tileAnalysis.anchor.isConnected) return;
+    var box = $('tileAnalysis'), r = tileAnalysis.anchor.getBoundingClientRect();
+    var viewport = window.visualViewport, vh = viewport ? viewport.height : innerHeight, vw = viewport ? viewport.width : innerWidth;
+    var topEdge = viewport ? viewport.offsetTop : 0, leftEdge = viewport ? viewport.offsetLeft : 0;
+    var above = r.top - topEdge - 20, below = topEdge + vh - r.bottom - 20;
+    var useBelow = above < 100 && below > above;
+    box.style.maxHeight = Math.max(60, Math.min(490, useBelow ? below : above)) + 'px';
+    box.classList.toggle('below', useBelow);
+    var b = box.getBoundingClientRect(), left = Math.max(leftEdge + 10, Math.min(r.left + r.width / 2 - b.width / 2, leftEdge + vw - b.width - 10));
+    box.style.left = left + 'px'; box.style.top = (useBelow ? r.bottom + 10 : r.top - b.height - 10) + 'px';
+    box.style.setProperty('--anchor-x', Math.max(18, Math.min(b.width - 18, r.left + r.width / 2 - left)) + 'px');
+  }
+  function refreshTileAnalysis(content) {
+    if (!tileAnalysis) return;
+    if (!tileAnalysisAllowed() || tileAnalysis.game !== game || tileAnalysis.key !== situationKey()) { hideTileAnalysis(); return; }
+    var anchor = document.querySelector('.handRow [data-tile-id="' + tileAnalysis.id + '"]');
+    if (!anchor) { hideTileAnalysis(); return; }
+    tileAnalysis.anchor = anchor; anchor.classList.add('analyzing'); anchor.setAttribute('aria-describedby', 'tileAnalysisSummary');
+    if (content) renderTileAnalysis(false); else positionTileAnalysis();
+  }
+  function renderTileAnalysis(paths) {
+    if (!tileAnalysis || !tileAnalysisAllowed() || tileAnalysis.key !== situationKey()) { hideTileAnalysis(); return; }
+    var active = tileAnalysis, opts = getDiscardOptions(), best = opts[0];
+    var picked = opts.find(function(o) { return o.kind === active.kind; }), guide = getTrainingGuide(active.kind, !!paths);
+    if (!picked || !guide) { hideTileAnalysis(); return; }
+    var same = ZMJ.sameEfficiency(picked, best), hit = guide.shanten === 0 ? '和牌张' : '有效进张';
+    var compare = same ? '向听、进张与本轮牌效最优相同。' : picked.shanten > best.shanten ?
+      '比打 ' + ZMJ.tileName(best.kind) + ' 多 ' + (picked.shanten - best.shanten) + ' 向听，优先保留更近的牌形。' :
+      '同为 ' + shantenWords(picked.shanten) + '，比打 ' + ZMJ.tileName(best.kind) + ' 少 ' + (best.ukeire - picked.ukeire) + ' 张未见有效牌。';
+    var html = '<div class="tileAnalysisHead">' + tileEl(active.kind, 'small').outerHTML + '<div><h3>打出 ' + ZMJ.tileName(active.kind) + '</h3><small>这一张的牌效分析</small></div><button id="tileAnalysisClose" aria-label="收起此牌分析">×</button></div>' +
+      '<div class="tileAnalysisStats" id="tileAnalysisSummary"><div><b>' + (guide.shanten === 0 ? '听牌' : guide.shanten + ' 向听') + '</b><small>打出后的距离</small></div><div><b>' + guide.draws.length + ' 种</b><small>' + hit + '</small></div><div><b>' + guide.total + ' 张</b><small>未见有效张</small></div></div>' +
+      '<div class="tileAnalysisCompare' + (same ? '' : ' warn') + '">' + compare + '</div>' +
+      '<div class="tileAnalysisLabel">' + (guide.shanten === 0 ? '听哪些牌' : '摸哪些牌能推进') + '</div><div class="tileAnalysisTiles">' +
+      (guide.draws.length ? guide.draws.map(function(d) { return '<span>' + ZMJ.tileName(d.kind) + ' <b>×' + d.count + '</b></span>'; }).join('') : '<span>目前没有未见有效牌</span>') + '</div>' +
+      '<div class="tileAnalysisMath">下一摸' + (guide.shanten === 0 ? '和牌' : '有效推进') + '基准：<b>' + guide.total + ' ÷ ' + guide.unknown + ' ≈ ' + (guide.chanceNext * 100).toFixed(1) + '%</b></div>';
+    html += '<div class="tileAnalysisLabel">接下来怎么做牌</div>';
+    if (guide.shanten === 0) html += guide.deadWait ? '结构上已听牌，但和牌张已全部可见，需要改良听口。' : '已经听牌。上方是仍未见的和牌张；继续比较新摸的牌能否拓宽听口。';
+    else if (guide.shanten === 1 && guide.paths.length) {
+      html += guide.paths.slice(0, 2).map(function(p) { return '<div class="tileAnalysisPath">摸 <b>' + ZMJ.tileName(p.draw) + '</b> → 打 <b>' + ZMJ.tileName(p.discard) + '</b> → 听 ' + p.waits.map(function(k, i) { return ZMJ.tileName(k) + '×' + p.waitCounts[i]; }).join('、') + '（未见 ' + p.waitTotal + ' 张）</div>'; }).join('');
+      html += '<div class="tileAnalysisNote">按有效摸牌的未见张数加权，进张后平均听 ' + guide.averageWait.toFixed(1) + ' 张；路线只比较牌形。</div>';
+    } else html += guide.shanten === 1 ? '摸到上方有效牌后，调整弃牌即可听牌。正在比较较宽的听口路线…' :
+      '还需至少 ' + guide.shanten + ' 次有效推进才能听牌。先接纳上方有效牌，把 ' + guide.shanten + ' 向听推进到 ' + (guide.shanten - 1) + ' 向听，再重新比较弃牌。';
+    html += '<div class="tileAnalysisNote">普通牌型：' + shantenWords(guide.standardShanten) + '；小七对：' + (guide.sevenPairsShanten === null ? '已有副露，不适用' : shantenWords(guide.sevenPairsShanten)) + '。</div>';
+    var risk = cfg.analyze && sitCache.key === active.key && sitCache.data ? sitCache.data.res : null;
+    html += '<div class="tileAnalysisLabel">这张牌的风险</div>' + (risk ? '<span class="' + riskCls(risk.dealIn(active.kind).prob) + '">采样放铳风险约 ' + (risk.dealIn(active.kind).prob * 100).toFixed(1) + '%</span><span class="tileAnalysisNote">（' + risk.worlds + ' 组，模型估计）</span>' : cfg.analyze ? '风险采样尚未完成。' : '未开启风险采样。') +
+      '<div class="tileAnalysisNote">0 向听就是听牌。有效进张能降低向听，每种未见张数 = 4 − 自己手牌 − 公开牌。未见牌也可能在对手手中；概率是假设均匀分布的下一次自摸基准，牌效不等于安全程度。</div>';
+    var scroll = $('tileAnalysis').firstElementChild, previousScroll = scroll.scrollTop;
+    $('tileAnalysisContent').innerHTML = html; $('tileAnalysis').classList.remove('hidden');
+    $('tileAnalysisClose').onclick = hideTileAnalysis;
+    active.anchor.classList.add('analyzing'); active.anchor.setAttribute('aria-describedby', 'tileAnalysisSummary');
+    positionTileAnalysis(); scroll.scrollTop = previousScroll;
+    if (!paths && guide.shanten === 1 && !guide.paths.length) {
+      clearTimeout(tileAnalysisPaths);
+      tileAnalysisPaths = setTimeout(function() { if (tileAnalysis === active) renderTileAnalysis(true); }, 180);
+    }
+  }
+  function showTileAnalysis(kind, id, anchor, pinned) {
+    hideTileAnalysis(); if (!tileAnalysisAllowed()) return;
+    $('tileAnalysis').firstElementChild.scrollTop = 0;
+    tileAnalysis = { kind:kind, id:id, key:situationKey(), anchor:anchor, game:game, pinned:!!pinned };
+    var active = tileAnalysis;
+    tileAnalysisTimer = setTimeout(function() { if (tileAnalysis === active) renderTileAnalysis(false); }, pinned ? 0 : 100);
+  }
+  function leaveTileAnalysis() {
+    clearTimeout(tileAnalysisLeave);
+    tileAnalysisLeave = setTimeout(function() {
+      if (tileAnalysis && !tileAnalysis.pinned && document.activeElement !== tileAnalysis.anchor && !$('tileAnalysis').matches(':hover')) hideTileAnalysis();
+    }, 180);
+  }
+  $('tileAnalysis').onpointerenter = function() { clearTimeout(tileAnalysisLeave); };
+  $('tileAnalysis').onpointerleave = leaveTileAnalysis;
+  document.addEventListener('pointerdown', function(e) { if (tileAnalysis && !$('tileAnalysis').contains(e.target) && !e.target.closest('.handRow [data-tile-id]')) hideTileAnalysis(); });
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && tileAnalysis) { e.preventDefault(); hideTileAnalysis(); } });
+  if (window.visualViewport) { window.visualViewport.addEventListener('resize', positionTileAnalysis); window.visualViewport.addEventListener('scroll', positionTileAnalysis); }
 
   function renderSituation() {
     if (!liveHints()) { $('situation').textContent = hiddenHintText(); return; }
@@ -3177,6 +3366,10 @@ window.onerror = function (msg, src, line, col) {
           t.setAttribute('aria-pressed', chosen ? 'true' : 'false');
           if (game.online && (NET.pendingAction || NET.status !== 'on')) t.setAttribute('aria-disabled', 'true');
           t.onclick = function () { onDiscardClick(kk, id); };
+          t.onpointerenter = function(e) { if (e.pointerType !== 'touch') showTileAnalysis(kk, id, t, false); };
+          t.onpointerleave = leaveTileAnalysis;
+          t.onfocus = function() { showTileAnalysis(kk, id, t, true); };
+          t.onblur = function(e) { if (!$('tileAnalysis').contains(e.relatedTarget)) hideTileAnalysis(); };
           t.onkeydown = function (e) {
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDiscardClick(kk, id); }
           };
@@ -3216,6 +3409,7 @@ window.onerror = function (msg, src, line, col) {
         bk.appendChild(more);
       }
       var wrap = document.createElement('div');
+      wrap.className='seatCards';
       wrap.style.display = 'flex'; wrap.style.flexDirection = 'column';
       wrap.style.gap = narrow ? '2px' : '4px';
       wrap.style.alignItems = pos === 2 ? 'center' : (pos === 1 ? 'flex-start' : 'flex-end');
@@ -3235,7 +3429,7 @@ window.onerror = function (msg, src, line, col) {
     for (var i = 0; i < n; i++) d.appendChild(tileEl(m.kind, size || 'meldTile'));
     if (m.type === 'gang') {
       var tag = document.createElement('div');
-      tag.style.cssText = 'font-size:9px;color:#f2c14e;align-self:center;padding-left:3px';
+      tag.className='meldTag';
       tag.textContent = m.ming === false && !m.bu ? '暗杠' : (m.bu ? '补杠' : '大明杠');
       d.appendChild(tag);
     }
@@ -3269,11 +3463,32 @@ window.onerror = function (msg, src, line, col) {
   }
 
   // 中央放大展示最新打出的一张牌
+  var riverKey='', SOURCE_INKS=['#6bb9d6','#d8af63','#d88982','#b89ad9'];
+  function renderRiver() {
+    var H=game.hand,river=game.online?H.river:ZMJ.publicDiscards(H),supported=Array.isArray(river),table=$('table');
+    table.classList.toggle('hasRiver',supported);table.classList.toggle('sourceOn',supported&&cfg.discardSource);
+    $('riverArea').classList.toggle('legacyRiver',!supported);$('riverSource').checked=cfg.discardSource;
+    if(!supported){riverKey='';$('riverNote').textContent='服务器版本较旧，更新服务器后可显示按顺序排列的中央弃牌。';return;}
+    var key=game.handNo+':'+game.humanSeat()+':'+cfg.discardSource+':'+JSON.stringify(river)+':'+game.seats.map(function(p){return p.name;}).join('|');
+    if(key===riverKey)return;riverKey=key;
+    var visible=river.filter(function(e){return e.claimedBy==null;}),count=river.length-visible.length;
+    $('riverCount').textContent='中央弃牌 · '+visible.length+' 张';$('riverNote').textContent=count?count+' 张已被碰杠取走，见各家副露区':'';
+    var legend=$('riverLegend');legend.innerHTML='';legend.classList.toggle('hidden',!cfg.discardSource);
+    for(var s=0;s<4;s++){
+      var pos=seatPos(s),ink=SOURCE_INKS[pos],seat=$('seat'+pos);seat.style.setProperty('--seat-ink',ink);
+      var chip=document.createElement('span');chip.className='sourceChip';chip.style.setProperty('--seat-ink',ink);chip.textContent=(game.humanSeat()<0?'':POS_NAME[pos]+' · ')+game.nameOf(s);chip.title=game.nameOf(s);legend.appendChild(chip);
+    }
+    var box=$('riverTiles'),scroll=$('riverScroll'),previous=box.getAttribute('data-last-order'),last=river.length?river[river.length-1].order:0;box.innerHTML='';box.setAttribute('data-last-order',last);
+    visible.forEach(function(e){var entry=document.createElement('div');entry.className='riverEntry'+(e.order===last?' latest':'');entry.dataset.order=e.order;entry.dataset.seat=e.seat;entry.style.setProperty('--seat-ink',SOURCE_INKS[seatPos(e.seat)]);entry.setAttribute('role','listitem');entry.setAttribute('aria-label','第 '+e.order+' 次打出'+ZMJ.tileName(e.kind)+(cfg.discardSource?'，来自 '+game.nameOf(e.seat):''));entry.title=entry.getAttribute('aria-label');entry.appendChild(tileEl(e.kind,'small'));box.appendChild(entry);});
+    if(!visible.length){var empty=document.createElement('div');empty.className='riverEmpty';empty.textContent='打出的牌会按先后顺序，一张张排列在这里。';box.appendChild(empty);}
+    if(String(last)!==previous)requestAnimationFrame(function(){scroll.scrollTop=scroll.scrollHeight;});
+  }
   var lastCenterSig = '';
   var centerRiskPending = false;
   function renderCenterTile(fast) {
     var el = $('centerTile');
     if (!el) return;
+    if($('table').classList.contains('hasRiver')){el.innerHTML='';lastCenterSig='';return;}
     var H = game.hand, ld = H.lastDiscard;
     if (!ld || H.over) { el.innerHTML = ''; lastCenterSig = ''; return; }
     var sig = ld.seat + ':' + ld.kind + ':' + H.players[ld.seat].discards.length;
@@ -3340,6 +3555,7 @@ window.onerror = function (msg, src, line, col) {
   }
 
   function renderCenter(fast) {
+    renderRiver();
     renderCenterTile(fast);
     if (!fast || game.hand.over) renderCoach();
     var H = game.hand;
@@ -3354,6 +3570,7 @@ window.onerror = function (msg, src, line, col) {
     else if (pend) msg.textContent = game.nameOf(pend.from) + ' 打出 ' + ZMJ.tileName(pend.kind);
     else if (H.lastDiscard) msg.textContent = game.nameOf(H.lastDiscard.seat) + ' 打出 ' + ZMJ.tileName(H.lastDiscard.kind);
     else msg.textContent = '';
+    msg.classList.toggle('hidden', $('table').classList.contains('hasRiver') || !msg.textContent || !!$('centerTile').children.length);
     var ba = $('birdArea');
     if (H.over && H.result && H.result.birds && H.result.birds.length) {
       ba.classList.remove('hidden');
@@ -3563,8 +3780,10 @@ window.onerror = function (msg, src, line, col) {
         var chosen = tile.getAttribute('data-tile-id') === tileId;
         tile.classList.toggle('chosen', chosen); tile.setAttribute('aria-pressed', chosen ? 'true' : 'false');
       });
-      renderActions(); return;
+      renderActions();
+      showTileAnalysis(kind, tileId, document.querySelector('.handRow [data-tile-id="' + tileId + '"]'), true); return;
     }
+    hideTileAnalysis();
     if (game.online) {
       var hand = game.hand, seat = game.humanSeat();
       var context = { handNo: game.handNo, turn: hand.turnCount, risk: sitCache.key === key && sitCache.data ? sitCache.data.res : null };
@@ -3864,6 +4083,7 @@ window.onerror = function (msg, src, line, col) {
   function showSettings() {
     var box = $('modalBox');
     box.innerHTML = '<h2>设置</h2>' +
+      '<div class="setRow"><span>弃牌来源颜色（立即生效）</span><select id="setDiscardSource"><option value="1">显示四家颜色</option><option value="0">统一外壳</option></select></div>' +
       '<div class="setRow"><span>转转模式（电脑胡牌换人）</span><select id="setRotate"><option value="1">开启</option><option value="0">关闭（固定四人）</option></select></div>' +
       '<div class="setRow"><span>对手风格</span><select id="setStyle"><option value="ev">实验策略（可能过胡等自摸）</option><option value="greedy">有胡就收</option></select></div>' +
       '<div class="setRow"><span>决策提示</span><select id="setHint"><option value="1">开启</option><option value="0">关闭</option></select></div>' +
@@ -3880,6 +4100,8 @@ window.onerror = function (msg, src, line, col) {
       '<div class="setRow"><span>电脑思考时间</span><select id="setAiThink"><option value="1">1 秒（快）</option><option value="3">3 秒</option><option value="5">5 秒</option></select></div>' +
       '<div class="setRow"><span>随机种子（留空则随机）</span><input id="setSeed" type="text" placeholder="例如 12345" style="width:120px"></div>' +
       '<div class="center"><button class="act" id="btnApply">应用并重开</button> <button class="act pass" id="btnCancel">取消</button></div>';
+    $('setDiscardSource').value=cfg.discardSource?'1':'0';
+    $('setDiscardSource').onchange=function(){cfg.discardSource=this.value==='1';saveConfig();if(game&&game.hand)renderRiver();};
     $('setRotate').value = cfg.rotate ? '1' : '0';
     $('setStyle').value = cfg.claimStyle;
     $('setHint').value = cfg.hint ? '1' : '0';
@@ -3986,7 +4208,8 @@ window.onerror = function (msg, src, line, col) {
     wrap.appendChild(close); box.appendChild(wrap);
     openModal();
   }
-  function startReplay(rec) {
+  function startReplay(rec, back) {
+    rp.back = back || null;
     rp.rec = rec;
     rp.states = ZMJ.replayStates(rec, rec.humanSeat == null ? 0 : rec.humanSeat);
     rp.i = 0;
@@ -4059,7 +4282,7 @@ window.onerror = function (msg, src, line, col) {
     wrap.appendChild(mk('⏮ 开局', function () { rp.i = 0; renderReplay(); }, 'pass'));
     wrap.appendChild(mk('◀ 上一步', function () { if (rp.i > 0) { rp.i--; renderReplay(); } }, 'pass'));
     wrap.appendChild(mk('下一步 ▶', function () { if (rp.i < rp.states.length - 1) { rp.i++; renderReplay(); } }));
-    wrap.appendChild(mk('换一局', function () { showReplayList(); }, 'pass'));
+    wrap.appendChild(mk(rp.back ? '返回账号' : '换一局', function () { if (rp.back) rp.back(); else showReplayList(); }, 'pass'));
     wrap.appendChild(mk('关闭', function () { closeModal(); }, 'pass'));
     box.appendChild(wrap);
     openModal();
@@ -4499,6 +4722,7 @@ window.onerror = function (msg, src, line, col) {
   }
   function renderPendingAction() {
     if (!game || !game.online || !NET.pendingAction) return;
+    hideTileAnalysis();
     cancelOnlineAnalysis();
     riskWorkerQueued = null; riskWorkerWanted = '';
     document.querySelectorAll('.handRow .tile[role="button"]').forEach(function (tile) {
@@ -4537,6 +4761,115 @@ window.onerror = function (msg, src, line, col) {
     parsed.hash = ''; parsed.search = '';
     return parsed.href;
   }
+  // ---------- 账号：开局时固定归属；IndexedDB 待传队列按账号隔离 ----------
+  var ACCOUNT = { user:null, identity:null, supported:null, offline:false, error:'', syncing:false, pending:0, mode:'all', offset:0, view:0, chain:Promise.resolve() };
+  var accountReady=Promise.resolve(), accountDB=null, accountAutoAct=false;
+  try { ACCOUNT.identity=JSON.parse(localStorage.getItem('zmj_account_identity') || 'null'); } catch(e) {}
+  function accountLabels() { ['homeAccount','btnAccount'].forEach(function(id){if($(id))$(id).textContent=ACCOUNT.user?ACCOUNT.user.name+' · 账号':ACCOUNT.offline&&ACCOUNT.identity?ACCOUNT.identity.name+' · 离线':'登录 / 我的账号';}); }
+  async function accountRequest(route,data) {
+    var control=new AbortController(),timeout=setTimeout(function(){control.abort();},10000);
+    try {
+      var res=await fetch('/api/account/'+route,{method:data===undefined?'GET':'POST',credentials:'same-origin',cache:'no-store',headers:data===undefined?{}:{'Content-Type':'application/json','X-ZMJ-Request':'1'},body:data===undefined?undefined:JSON.stringify(data),signal:control.signal});
+      var json;try{json=await res.json();}catch(e){throw Object.assign(Error('此地址尚未提供账号服务，请从新版游戏服务器打开'),{status:404});}
+      if(!res.ok)throw Object.assign(Error(json.error || '账号请求失败'),{status:res.status});return json;
+    } finally {clearTimeout(timeout);}
+  }
+  async function refreshAccount() {
+    if(!/^https?:$/.test(location.protocol)){ACCOUNT.supported=false;accountLabels();return;}
+    try{var data=await accountRequest('me');ACCOUNT.user=data.user;ACCOUNT.identity=data.user;ACCOUNT.offline=false;ACCOUNT.supported=true;
+      if(data.user)localStorage.setItem('zmj_account_identity',JSON.stringify(data.user));else localStorage.removeItem('zmj_account_identity');if(data.user)flushAccount();
+    }catch(e){ACCOUNT.offline=e.status!==404;ACCOUNT.supported=e.status===404?false:null;}accountLabels();
+  }
+  function openAccountDB() {
+    if(!accountDB)accountDB=new Promise(function(resolve,reject){var req=indexedDB.open('zmj_account_outbox',1);req.onupgradeneeded=function(){req.result.createObjectStore('hands',{keyPath:'id'});};req.onsuccess=function(){resolve(req.result);};req.onerror=function(){reject(Error('无法打开本机待同步存档'));};req.onblocked=function(){reject(Error('请关闭其他旧版练牌页面后重试'));};});return accountDB;
+  }
+  async function outboxTask(action,entry) {
+    var db=await openAccountDB();return new Promise(function(resolve,reject){
+      var tx=db.transaction('hands',action==='list'?'readonly':'readwrite'),store=tx.objectStore('hands'),result;
+      if(action==='put')store.put(entry);
+      else if(action==='list'){var list=store.getAll();list.onsuccess=function(){result=list.result;};}
+      else{var req=store.get(entry.id);req.onsuccess=function(){if(req.result&&req.result.seq===entry.seq)store.delete(entry.id);};}
+      tx.oncomplete=function(){resolve(result);};tx.onerror=function(){reject(tx.error);};tx.onabort=function(){reject(tx.error || Error('设备存档失败'));};
+    });
+  }
+  function bindAccountGame(G) {
+    ['startHand','nextHand','humanDiscard','humanClaim','humanGang','humanZimo','autoPlaySeat'].forEach(function(name){var original=G[name];G[name]=function(){
+      if(name==='startHand'||name==='nextHand')accountCheckpoint(G);
+      var H=G.hand,turn=H?H.turnCount:0,eventIndex=H?H.record.events.length:0,result=original.apply(G,arguments);
+      if(result&&G.accountHand&&H===G.hand&&name!=='startHand'&&name!=='nextHand'){
+        var action=name==='humanDiscard'?'discard':name==='humanClaim'?arguments[0]:name==='humanGang'?(arguments[1]==='an'?'angang':'bugang'):name==='humanZimo'?'zimo':'auto';
+        G.accountHand.actions.push({seat:G.accountHand.seat,act:accountAutoAct?'auto':action,action:action,kind:Number.isInteger(arguments[0])?arguments[0]:Number.isInteger(arguments[1])?arguments[1]:null,eventIndex:eventIndex,at:Date.now()});
+        if(action==='discard'&&!accountAutoAct)G.accountHand.manualTurns.push(turn);
+      }
+      accountCheckpoint(G);return result;
+    };});
+  }
+  function accountCheckpoint(G) {
+    if(!G||G.online||!G.hand||G.humanSeat()<0)return;
+    var H=G.hand,m=G.accountHand;
+    if(!m||m.record!==H.record){var owner=ACCOUNT.user || (ACCOUNT.offline||ACCOUNT.supported===null?ACCOUNT.identity:null);m=G.accountHand={record:H.record,owner:owner?owner.id:null,id:Date.now().toString(36)+'_'+Math.random().toString(36).slice(2)+'_'+Math.random().toString(36).slice(2),startedAt:Date.now(),manualTurns:[],actions:[],seq:0,sig:'',names:G.seats.map(function(p){return p.name;}),seat:G.humanSeat(),learningMode:cfg.learningMode};}
+    if(!m.owner)return;var sig=H.record.events.length+':'+H.over+':'+m.actions.length;if(sig===m.sig)return;m.sig=sig;
+    var record=JSON.parse(JSON.stringify(H.record));record.names=m.names;record.no=G.handNo;record.humanSeat=m.seat;record.result=H.over?JSON.parse(JSON.stringify(G.lastResult)):null;
+    var entry={id:m.id,owner:m.owner,seq:++m.seq,body:{id:m.id,owner:m.owner,startedAt:m.startedAt,status:H.over?'completed':'unfinished',record:record,actions:m.actions.slice(),manualTurns:m.manualTurns.slice(),learningMode:m.learningMode}};
+    ACCOUNT.chain=ACCOUNT.chain.then(function(){return outboxTask('put',entry);}).then(function(){flushAccount();},function(){ACCOUNT.error='本机存档失败，请保留页面并导出牌谱';accountSyncLabel();});
+  }
+  function accountSyncLabel(){if($('accountSync')){$('accountSync').textContent=NET.archiveError?'联机存档写入失败，服务器正在重试，请保留本局导出牌谱':ACCOUNT.error || (ACCOUNT.syncing?'正在同步对局…':ACCOUNT.pending?'待同步 '+ACCOUNT.pending+' 局；联网并登录原账号后自动重试':'本账号待同步队列已清空');$('accountSync').classList.toggle('accountError',!!ACCOUNT.error||!!NET.archiveError);}}
+  async function flushAccount(){
+    if(ACCOUNT.syncing||!ACCOUNT.user||ACCOUNT.supported!==true)return;ACCOUNT.syncing=true;accountSyncLabel();
+    try{var owner=ACCOUNT.user.id;
+      while(ACCOUNT.user&&ACCOUNT.user.id===owner){var entries=(await outboxTask('list')).filter(function(e){return e.owner===owner;});ACCOUNT.pending=entries.length;if(!entries.length)break;
+        for(var entry of entries){if(!ACCOUNT.user||ACCOUNT.user.id!==owner)break;await accountRequest('solo',entry.body);await outboxTask('ack',entry);ACCOUNT.pending--;}
+      }
+      ACCOUNT.error='';
+    }catch(e){ACCOUNT.error=e.status===401?'请重新登录，待传牌谱仍保存在本机':e.message || '同步失败，稍后自动重试';}
+    finally{ACCOUNT.syncing=false;accountSyncLabel();}
+  }
+  function accountConnectionChanged(){if(!NET.ws){if(NET.room)netConnect();return;}var ws=NET.ws;NET.ws=null;ws.close();NET.status='off';clearTimeout(NET.probeTimer);clearPendingAction();if(NET.room)netConnect();else netBar();}
+  function accountDate(value){return new Date(value).toLocaleString('zh-CN',{hour12:false});}
+  function accountMode(row){return row.mode==='human'?'真人同桌（可含电脑）':row.source==='server'?'联机人机':'单机人机';}
+  function accountStatus(row){return row.status==='completed'?'已结束':row.status==='playing'?'进行中':row.status==='interrupted'?'中断存档':'未完成存档';}
+  function accountMessage(text){if($('accountMessage'))$('accountMessage').textContent=text;}
+  async function showAccount(){
+    var view=++ACCOUNT.view,box=$('modalBox');box.innerHTML='<div id="accountPanel"><h2>我的账号</h2><p class="practiceNote">正在读取账号与对局…</p></div>';openModal();
+    await refreshAccount();if(view!==ACCOUNT.view||!$('accountPanel'))return;
+    if(ACCOUNT.supported!==true){box.innerHTML='<div id="accountPanel"><h2>账号需要连接游戏服务器</h2><p class="practiceNote">请从运行新版 Node 服务器的游戏地址打开。GitHub Pages 和离线文件仍可作为游客练牌。</p><p class="practiceNote">账号和完整对局保存在该服务器的数据库；不同服务器的数据各自独立。</p><button class="act" id="accountRetry">重试连接</button></div>';$('accountRetry').onclick=showAccount;return;}
+    if(!ACCOUNT.user){showAccountAuth('login');return;}await ACCOUNT.chain;await flushAccount();
+    try{var data=await Promise.all([accountRequest('dashboard?mode='+ACCOUNT.mode),accountRequest('matches?mode='+ACCOUNT.mode+'&offset='+ACCOUNT.offset)]);if(view===ACCOUNT.view&&$('accountPanel'))renderAccountDashboard(data[0],data[1]);}
+    catch(e){if(e.status===401){ACCOUNT.user=null;showAccountAuth('login');}else{box.innerHTML='<div id="accountPanel"><h2>我的账号</h2><p class="practiceNote accountError">'+netEsc(e.message)+'</p><button class="mini" id="accountRetry">重试</button></div>';$('accountRetry').onclick=showAccount;}}
+  }
+  function showAccountAuth(mode){
+    var reg=mode==='register';$('modalBox').innerHTML='<div id="accountPanel"><h2>'+(reg?'创建你的账号':'欢迎回到练牌室')+'</h2><p class="practiceNote">登录后自动保存新开的对局，换设备可查看自己的战绩与完整牌谱。</p><div class="accountTabs"><button class="mini" id="accountLoginTab" aria-pressed="'+!reg+'">登录</button><button class="mini" id="accountRegisterTab" aria-pressed="'+reg+'">创建账号</button></div><form class="accountForm" id="accountForm"><label>用户名<input id="accountName" name="username" autocomplete="username" maxlength="32" required placeholder="2–16 个汉字、字母、数字或下划线"></label><label>密码<input id="accountPassword" name="password" type="password" autocomplete="'+(reg?'new-password':'current-password')+'" minlength="10" maxlength="128" required placeholder="10–128 个字符"></label>'+(reg?'<label>确认密码<input id="accountConfirm" type="password" autocomplete="new-password" minlength="10" maxlength="128" required></label>':'')+'<div id="accountMessage" class="accountSync accountError" role="status"></div><button class="act" id="accountSubmit">'+(reg?'创建并登录':'登录')+'</button></form><p class="practiceNote">用户名全站唯一，英文不区分大小写，全角字符会统一处理。当前游客局不追加入账，账号从下一局开始记录。请妥善保存密码，目前通过原密码修改。</p></div>';
+    $('accountLoginTab').onclick=function(){showAccountAuth('login');};$('accountRegisterTab').onclick=function(){showAccountAuth('register');};
+    $('accountForm').onsubmit=async function(event){event.preventDefault();var name=$('accountName').value,pass=$('accountPassword').value;
+      if(reg&&pass!==$('accountConfirm').value){accountMessage('两次密码不一致');return;}$('accountSubmit').disabled=true;accountMessage('正在验证，请稍候…');
+      try{var data=await accountRequest(reg?'register':'login',{name:name,password:pass});ACCOUNT.user=data.user;ACCOUNT.identity=data.user;localStorage.setItem('zmj_account_identity',JSON.stringify(data.user));ACCOUNT.mode='all';ACCOUNT.offset=0;accountLabels();accountConnectionChanged();showAccount();}
+      catch(e){accountMessage(e.message);if($('accountSubmit'))$('accountSubmit').disabled=false;}
+    };
+  }
+  function renderAccountDashboard(data,history){
+    var s=data.summary,n=s.hands,metrics=[['已结束对局',n+' 局'],['和了率',n?pct(s.wins/n):'—'],['放铳率',n?pct(s.dealIn/n):'—'],['累计收支',money(s.net)],['自摸',s.zimo+' 局'],['荒庄率',n?pct(s.draws/n):'—'],['基础牌效一致率',s.discards?pct(s.same/s.discards):'—'],['首次听牌平均进张',s.tenpaiN?(s.tenpaiOutsSum/s.tenpaiN).toFixed(1)+' 张':'—'],['手动弃牌样本',s.discards+' 次']];
+    var html='<div id="accountPanel"><div class="accountHeader"><div><h2>'+netEsc(data.user.name)+' 的练牌档案</h2><span class="practiceNote">加入于 '+netEsc(new Date(data.user.createdAt).toLocaleDateString('zh-CN'))+'</span></div><button class="mini" id="accountRefresh">刷新数据</button></div><div class="accountTabs">';
+    [['all','全部'],['ai','人机 · '+data.groups.ai],['human','真人 · '+data.groups.human]].forEach(function(tab){html+='<button class="mini" data-account-mode="'+tab[0]+'" aria-pressed="'+(ACCOUNT.mode===tab[0])+'">'+tab[1]+'</button>';});
+    html+='</div><div id="accountSync" class="accountSync" role="status"></div><div class="accountGrid">'+metrics.map(function(m){return '<div class="accountMetric"><b>'+m[1]+'</b><span>'+m[0]+'</span></div>';}).join('')+'</div>';
+    if(s.pendingAnalysis)html+='<p class="practiceNote">'+s.pendingAnalysis+' 局正在后台分析，稍后刷新查看牌效数据。</p>';
+    html+='<h3>最近 '+data.recent.length+' 局收支</h3>'+(data.recent.length?sparkline(data.recent.map(function(r){return r.delta;})):'<div class="accountEmpty">第一局结束后，这里会出现你的收支变化。</div>')+'<details class="accountMethod"><summary>如何理解这些数据</summary><p>战绩只统计已结束且自己上桌的对局，等待区不计入。人机包括单机和只有你一位真人的联机桌；真人同桌指至少两位真人，可有电脑补位。掉线托管仍归原座位。</p><p>基础牌效按当时公开信息比较向听和有效进张，只分析手动弃牌。合理防守也可能降低一致率，该指标不等于整体实力。首次听牌进张采用首次手动弃牌形成听牌时的未见有效张数，当前有 '+s.tenpaiN+' 局样本；未完成或中断 '+data.unfinished+' 局不计入战绩。收支为游戏内记分。</p><p>单机牌谱由本机同步，联机由服务器归档。联机结束后才开放完整暗牌，不同服务器独立保存账号。</p></details><h3>完整对局 · '+history.total+' 局</h3><div class="accountHistory" id="accountHistory"></div><div class="accountTabs"><button class="mini" id="accountPrev" '+(!history.offset?'disabled':'')+'>上一页</button><span class="practiceNote">第 '+(Math.floor(history.offset/20)+1)+' 页</span><button class="mini" id="accountNext" '+(history.offset+20>=history.total?'disabled':'')+'>下一页</button></div><details class="accountMethod"><summary>修改密码</summary><form class="accountForm" id="accountPasswordForm"><label>当前密码<input id="accountOldPass" type="password" autocomplete="current-password" required minlength="10" maxlength="128"></label><label>新密码<input id="accountNewPass" type="password" autocomplete="new-password" required minlength="10" maxlength="128"></label><button class="mini" id="accountChangePass">保存新密码</button><div id="accountMessage" role="status"></div></form></details><div class="practiceFooter"><button class="mini" id="accountLogout">'+(NET.room?'退出账号并离开房间':'退出账号')+'</button></div></div>';
+    $('modalBox').innerHTML=html;accountSyncLabel();
+    document.querySelectorAll('[data-account-mode]').forEach(function(b){b.onclick=function(){ACCOUNT.mode=this.dataset.accountMode;ACCOUNT.offset=0;showAccount();};});
+    if(!history.items.length)$('accountHistory').innerHTML='<div class="accountEmpty">还没有对局存档。登录后新开一局即可开始记录。</div>';
+    history.items.forEach(function(row){var b=document.createElement('button');b.className='mini accountMatch';var r=row.result,title=r?String(r.title || (r.type==='draw'?'荒庄':'已结束'))+' · 我 '+money(r.deltas[row.seat] || 0):accountStatus(row);b.innerHTML=netEsc(title)+'<small>'+netEsc(accountDate(row.startedAt)+' · '+accountMode(row)+' · '+row.events+' 步 · '+accountStatus(row))+'</small>';b.onclick=function(){showAccountMatch(row.id);};$('accountHistory').appendChild(b);});
+    $('accountRefresh').onclick=showAccount;$('accountPrev').onclick=function(){ACCOUNT.offset=Math.max(0,ACCOUNT.offset-20);showAccount();};$('accountNext').onclick=function(){ACCOUNT.offset+=20;showAccount();};
+    $('accountLogout').onclick=async function(){this.disabled=true;try{await ACCOUNT.chain;await flushAccount();await accountRequest('logout',{});if(NET.room)netLeave(true);accountConnectionChanged();ACCOUNT.user=null;ACCOUNT.identity=null;localStorage.removeItem('zmj_account_identity');accountLabels();showAccountAuth('login');}catch(e){ACCOUNT.error=e.message;accountSyncLabel();if($('accountLogout'))$('accountLogout').disabled=false;}};
+    $('accountPasswordForm').onsubmit=async function(event){event.preventDefault();$('accountChangePass').disabled=true;try{await accountRequest('password',{oldPassword:$('accountOldPass').value,password:$('accountNewPass').value});accountConnectionChanged();accountMessage('密码已更新，其他设备需要重新登录');$('accountOldPass').value='';$('accountNewPass').value='';}catch(e){accountMessage(e.message);}if($('accountChangePass'))$('accountChangePass').disabled=false;};
+  }
+  async function showAccountMatch(id){
+    var view=++ACCOUNT.view;$('modalBox').innerHTML='<div id="accountPanel"><h2>对局详情</h2><p class="practiceNote">正在读取完整牌谱…</p></div>';
+    try{var data=await accountRequest('matches/'+encodeURIComponent(id));if(view!==ACCOUNT.view||!$('accountPanel'))return;var r=data.record;
+      $('modalBox').innerHTML='<div id="accountPanel"><h2>'+netEsc(accountMode(data))+' · '+netEsc(accountStatus(data))+'</h2><p class="practiceNote">'+netEsc(accountDate(data.startedAt))+'<br>'+netEsc(r.names.join(' / '))+'<br>共 '+r.events.length+' 步摸打与碰杠。'+(r.result?netEsc(r.result.title || '')+'，我的收支 '+money(r.result.deltas[r.humanSeat] || 0):'未完成对局保留已发生的步骤，不计入胜率。')+'</p><div class="practiceFooter"><button class="act" id="accountReplay">逐手回放</button><button class="mini" id="accountDownload">下载完整牌谱</button><button class="mini" id="accountBack">返回账号</button></div></div>';
+      $('accountBack').onclick=showAccount;$('accountReplay').onclick=function(){startReplay(r,showAccount);};$('accountDownload').onclick=function(){download('mahjong-'+data.id+'.json',JSON.stringify(data,null,2),'application/json');};
+    }catch(e){if(view===ACCOUNT.view&&$('accountPanel')){$('modalBox').innerHTML='<div id="accountPanel"><h2>对局详情</h2><p class="practiceNote">'+netEsc(e.message)+'</p><button class="mini" id="accountBack">返回账号</button></div>';$('accountBack').onclick=showAccount;}}
+  }
+  window.addEventListener('online',refreshAccount);setInterval(function(){if(ACCOUNT.user)flushAccount();},15000);
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden'&&game&&!game.online)accountCheckpoint(game);});
   var netBarEl = null;
   function netBar() {
     if (!netBarEl) {
@@ -4626,8 +4959,12 @@ window.onerror = function (msg, src, line, col) {
     try { ws = new WebSocket(url); }
     catch (e) { NET.status = 'error'; NET.err = '服务器地址不对：' + url; netBar(); if ($('netBox')) renderNet(); return; }
     NET.ws = ws;
+    clearTimeout(NET.connectTimer);NET.authError=false;
+    var connectedThisAttempt=false;
+    NET.connectTimer=setTimeout(function(){if(NET.ws!==ws||ws.readyState===1)return;NET.status='error';NET.err='连接超时：'+url+'。请确认服务器已启动，或连接本页服务器。';ws.close();netBar();if($('netBox'))renderNet();},8000);
     ws.onopen = function () {
       if (NET.ws !== ws) return;
+      connectedThisAttempt=true;clearTimeout(NET.connectTimer);
       NET.status = 'on'; NET.retry = 0; NET.err = ''; NET.everConnected = true;
       NET.roundTrip = null; NET.lastConfirm = null; NET.serverMs = null; NET.probeUnsupported = false; clearPendingAction(); netProbe();
       netBar();
@@ -4644,6 +4981,7 @@ window.onerror = function (msg, src, line, col) {
     ws.onclose = function (event) {
       if (NET.ws !== ws) return;
       NET.ws = null;
+      clearTimeout(NET.connectTimer);
       clearPendingAction(); clearTimeout(NET.probeTimer); NET.probe = null; cancelOnlineAnalysis();
       stopRiskWorker();
       NET.pendingReviews = {};
@@ -4651,11 +4989,11 @@ window.onerror = function (msg, src, line, col) {
       NET.status = 'error';
       if (game && game.online && game.hand) render();
       // 从没连上过 = 地址不对或没有服务；连上过又断 = 掉线。两种提示不能混。
-      NET.err = event.code===1008 ? '连接因流量或接收限制断开，请稍后重连。' : NET.everConnected
+      NET.err = NET.authError ? '账号登录已过期，请先重新登录再接回原座位。' : event.code===1008 ? '连接因流量或接收限制断开，请稍后重连。' : connectedThisAttempt
         ? '与服务器断开了，正在自动重连…'
         : '连不上 ' + url + '。这个网页本身不带牌局，需要有一台电脑在跑 node server.js，把它的地址填在下面。';
       netBar();
-      if (NET.room && NET.retry < 5) {          // 掉线自动重连
+      if (!NET.authError && NET.room && NET.retry < 5) {          // 掉线自动重连
         NET.retry++;
         setTimeout(function () { if (NET.room) netConnect(); }, 800 * NET.retry);
       } else if (NET.room) {
@@ -4741,6 +5079,8 @@ window.onerror = function (msg, src, line, col) {
     };
     P.applyView = function (v) {
       NET.state = v;
+      if(v.archiveError&&!NET.archiveError)netToast('联机存档暂时写入失败，服务器正在重试，请保留本局牌谱');
+      NET.archiveError=!!v.archiveError;accountSyncLabel();
       P.mySeat = (v.you && typeof v.you.seat === 'number') ? v.you.seat : -1;
       var rs = (v.room && v.room.seats) ? v.room.seats : [];
       P.seats = [];
@@ -4787,6 +5127,7 @@ window.onerror = function (msg, src, line, col) {
         wall: { length: h.wallLeft },                          // 牌墙只给张数，顺序不出服务器
         turn: h.turn, lastDraw: h.lastDraw, lastDiscard: h.lastDiscard,
         turnCount: h.turnCount, over: !!h.over,
+        river: Array.isArray(h.river)?h.river:null,
         result: v.result || null,
         revealed: h.over && Array.isArray(h.revealed)?h.revealed:null,
         birds: (v.result && v.result.birds) ? v.result.birds : []
@@ -4840,6 +5181,7 @@ window.onerror = function (msg, src, line, col) {
     }
     if (m.t === 'left') { NET.room = ''; NET.state = null; netBar(); if ($('netBox')) renderNet(); return; }
     if (m.t === 'err') {
+      if(m.code==='auth'){NET.authError=true;if(NET.ws)NET.ws.close(1008,'login required');}
       if (m.requestId) delete NET.pendingReviews[m.requestId];
       if (NET.pendingAction && m.requestId === NET.pendingAction.requestId) { clearPendingAction(); if (game && game.online) render(); }
       netToast(m.msg); NET.err = m.msg; if ($('netBox')) renderNet(); return;
@@ -4892,6 +5234,8 @@ window.onerror = function (msg, src, line, col) {
     if (!$('netBox')) return;
     var box = $('netBox');
     var h = '<div id="netLatency" class="practiceNote">' + netEsc(NET.status === 'on' ? netDiagnostics() : '连接后可查看网络往返与操作确认耗时') + '</div>';
+    var target;try{target=netURL();}catch(e){target=NET.server || location.origin;}
+    h+='<div class="practiceNote" style="overflow-wrap:anywhere;font-size:11px">连接地址：'+netEsc(target)+'</div>';
     if (NET.status !== 'on') {
       h += '<div style="font-size:13px;color:#cfd8d3;line-height:1.7;margin-bottom:8px">' +
         '联机需要一台跑着 <b style="color:#f2c14e">node server.js</b> 的电脑（局域网里任意一台就行）。' +
@@ -4902,6 +5246,8 @@ window.onerror = function (msg, src, line, col) {
         'style="width:100%;box-sizing:border-box;padding:9px;border-radius:9px;border:1px solid #33584a;' +
         'background:rgba(0,0,0,.3);color:#e8f3ec;font-size:14px">';
       h += '<div class="center" style="margin-top:12px"><button class="act" id="netRetry">重新连接</button> ' +
+        (ACCOUNT.supported===true?'<button class="mini" id="netCurrentServer">连接本页服务器</button> ':'')+
+        (NET.authError?'<button class="mini" id="netLogin">重新登录账号</button> ':'')+
         '<button class="act pass" id="netClose">关闭</button></div>';
       box.innerHTML = h;
       $('netRetry').onclick = function () {
@@ -4913,6 +5259,8 @@ window.onerror = function (msg, src, line, col) {
         netConnect();
       };
       $('netClose').onclick = function () { closeModal(); };
+      if($('netLogin'))$('netLogin').onclick=showAccount;
+      if($('netCurrentServer'))$('netCurrentServer').onclick=function(){netLeave(true);var old=NET.ws;NET.ws=null;if(old)old.close();NET.server='';netSaveCfg();netConnect();};
       return;
     }
     if (!NET.room) {
@@ -5015,6 +5363,8 @@ window.onerror = function (msg, src, line, col) {
     $('modalBox').innerHTML = '<h2>联机打牌</h2><div id="netBox"></div>';
   }
 
+  // 与离线缓存同步，保留远端新增的首页版本标识。
+  var BUILD = 'v27';
   // ---------- 主界面：先选单机还是联机 ----------
   function showHome() {
     if (!STATS) loadStats();
@@ -5028,7 +5378,7 @@ window.onerror = function (msg, src, line, col) {
       : '还没有练习记录：打几局之后这里会显示你的和了率、放铳率和收支';
     el.innerHTML =
       '<div class="homeWrap">' +
-        '<div class="homeHeader"><div class="homeBrand"><span class="brandMark" aria-hidden="true">转</span>转转麻将<small>练牌室</small></div><span class="homeStamp">静下心，练一手好牌</span></div>' +
+        '<div class="homeHeader"><div class="homeBrand"><span class="brandMark" aria-hidden="true">转</span>转转麻将<small>练牌室</small></div><div class="homeAccountControls"><span class="homeStamp">静下心，练一手好牌</span><button class="mini" id="homeAccount">登录 / 我的账号</button></div></div>' +
         '<div class="homeHero"><div><p class="homeEyebrow">你的日常练牌时光</p><h1 class="homeTitle">把每一手，<br><em>打得更明白。</em></h1>' +
         '<p class="homeSub">从一张弃牌开始，读懂向听与进张。<br>在这里，慢慢找到自己的牌感。</p><div class="homeFeatures"><span>有依据的讲解</span><span>独立思考</span><span>打完再复盘</span></div></div>' +
         '<div class="homeArt" aria-hidden="true">' + tileEl(3, 'big').outerHTML + tileEl(13, 'big').outerHTML + tileEl(19, 'big').outerHTML + '<span class="homeArtCaption">万 · 条 · 筒</span></div></div>' +
@@ -5051,13 +5401,14 @@ window.onerror = function (msg, src, line, col) {
           '</button>' +
         '</div>' +
         '<div class="homeBottom"><div><div class="homeStatLabel">我的练习足迹</div><div class="homeStat">' + stat + '</div></div>' +
-        '<div class="homeRule">108 张 · 万 / 条 / 筒 · 无字牌<br>不能吃，可碰可杠 · 小七对与平胡同价<br>收炮 5+鸟钱，自摸每家 10+鸟钱</div></div>' +
+        '<div class="homeRule">108 张 · 万 / 条 / 筒 · 无字牌<br>不能吃，可碰可杠 · 小七对与平胡同价<br>收炮 5+鸟钱，自摸每家 10+鸟钱<br><span id="buildVersion">版本 ' + BUILD + '</span></div></div>' +
       '</div>';
     el.classList.remove('hidden');
     syncLayers();
     $('homePractice').onclick = function () { hideHome(); startPractice(); };
     if (game && !game.online && game.hand && !game.hand.over) $('homeSolo').querySelector('.homeGo').textContent = '继续本局';
     clearTimeout(timer);                      // 菜单期间不推进牌局
+    $('homeAccount').onclick = showAccount; accountLabels();
     $('homeSolo').onclick = function () {
       hideHome();
       if (game && game.online) netLeave(true);  // 从联机切回单机
@@ -5069,6 +5420,8 @@ window.onerror = function (msg, src, line, col) {
   function hideHome() { var el = $('home'); if (el) el.classList.add('hidden'); syncLayers(); }
 
   $('btnExport').onclick = showExport;
+  $('riverSource').onchange=function(){cfg.discardSource=this.checked;saveConfig();renderRiver();};
+  $('btnAccount').onclick = showAccount;
   $('btnStats').onclick = showStats;
   $('btnPractice').onclick = startPractice;
   $('btnDojo').onclick = function () { dojoNew(); };
@@ -5127,6 +5480,7 @@ window.onerror = function (msg, src, line, col) {
   if ($('boot')) $('boot').classList.add('hidden');
   updateRotate();
   showHome();          // 先出主界面，由用户选单机还是联机
+  accountReady = refreshAccount();
 })();
 </script>
 <script>

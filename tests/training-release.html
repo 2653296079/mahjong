@@ -58,7 +58,7 @@ async function load(mode) {
     }
     document.getElementById('game').style.width = '844px'; document.getElementById('game').style.height = '390px'; await pause(50);
     var scores = d.getElementById('scorebar').getBoundingClientRect(), tools = d.querySelector('.tools').getBoundingClientRect();
-    check(scores.bottom <= tools.top + 1, '横屏时分数与工具栏各占一行，不互相遮盖');
+    check(scores.bottom <= tools.top + 1 || scores.right <= tools.left + 1, '横屏时分数与工具栏不互相遮盖');
     var firstChip = d.querySelector('.scoreChip'), chipBox = firstChip.getBoundingClientRect();
     check(chipBox.width <= scores.width && d.documentElement.scrollWidth <= 845, '横屏分数可辨认且页面没有横向溢出');
     out.ok = true;

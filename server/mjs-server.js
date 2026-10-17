@@ -26,6 +26,7 @@ const { upgrade } = require('./ws-lite');
 const { RoomStore } = require('./rooms');
 const { readLimits, TokenBucket } = require('./limits');
 const { performance } = require('node:perf_hooks');
+const { cookieToken, sameOrigin } = require('./account-api');
 
 const HEARTBEAT_MS = 25000;
 const TICK_MS = 500;
@@ -35,7 +36,7 @@ function attach(server, opts) {
   opts = opts || {};
   const wsPath = opts.path || '/ws';
   const limits = readLimits(opts.limits);
-  const store = new RoomStore(Object.assign({},opts.room,{maxRooms:limits.maxRooms}));
+  const store = new RoomStore(Object.assign({},opts.room,{maxRooms:limits.maxRooms}, opts.accounts ? { archive: room => opts.accounts.syncRoom(room) } : {}));
   const sessions = new Set();
   const pumps = new Map();
   function needsPump(room) {
@@ -77,6 +78,8 @@ function attach(server, opts) {
 
   // ---------- 升级请求 ----------
   server.on('upgrade', (req, socket, head) => {
+    // 静态站点仍可跨站以游客身份联机；携带账号 Cookie 的连接必须同源。
+    if (opts.accounts && cookieToken(req) && !sameOrigin(req)) { socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'); return; }
     let url = '/';
     try { url = decodeURIComponent(String(req.url || '/').split('?')[0]); } catch (e) { url = '/'; }
     if (url !== wsPath) {
@@ -90,6 +93,8 @@ function attach(server, opts) {
     const conn = upgrade(req, socket, head, { path: wsPath, maxMessageBytes:limits.maxMessageBytes, maxPendingBytes:limits.maxPendingBytes });
     if (!conn) return;
     const session = { conn: conn, member: null, room: null, alive: true, joinedAt: Date.now() };
+    session.accountToken = cookieToken(req);
+    session.account = opts.accounts ? opts.accounts.userForToken(session.accountToken) : null;
     session.budget = new TokenBucket(limits.messageRate,limits.messageBurst,Date.now());
     sessions.add(session);
     conn.on('message', (raw) => onMessage(session, raw));
@@ -114,7 +119,7 @@ function attach(server, opts) {
     try { msg = JSON.parse(raw); } catch (e) { return send(session, { t: 'err', msg: '消息不是合法 JSON' }); }
     if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return send(session,{t:'err',msg:'消息必须是一个指令对象'});
     try { handle(session, msg); }
-    catch (e) { send(session, { t: 'err', msg: String((e && e.message) || e), requestId: typeof msg.requestId === 'string' ? msg.requestId : undefined }); }
+    catch (e) { send(session, { t: 'err', msg: String((e && e.message) || e), code: e.code==='auth'?'auth':undefined, requestId: typeof msg.requestId === 'string' ? msg.requestId : undefined }); }
   }
 
   function needRoom(session) {
@@ -124,6 +129,7 @@ function attach(server, opts) {
   }
 
   function handle(session, msg) {
+    if (opts.accounts && session.account && !opts.accounts.userForToken(session.accountToken)) { send(session, { t: 'err', msg: '登录已过期，请重新登录', code: 'auth' }); session.conn.close(1008, 'account session expired'); return; }
     switch (msg.t) {
       case 'ping': return send(session, { t: 'pong', at: Date.now(), probe: Number.isSafeInteger(msg.probe) ? msg.probe : undefined });
       case 'rooms': return send(session, { t: 'rooms', rooms: store.list() });
@@ -184,9 +190,13 @@ function attach(server, opts) {
     }
     // 同一连接重复点击进房只刷新状态；重连后旧连接不再拥有该座位。
     const sameMember = session.room === room && session.member && session.member.conn === session && !session.member.gone;
-    const previous = sameMember ? session.member : msg.token && room.memberByToken(msg.token);
+    const accountMember = session.account && room.members.find(m => m.accountId === session.account.id);
+    const previous = sameMember ? session.member : accountMember || msg.token && room.memberByToken(msg.token);
+    if (previous && previous.accountId && (!session.account || previous.accountId !== session.account.id)) throw Object.assign(new Error('请登录此座位所属账号后重连'),{code:'auth'});
     const oldSession = previous && previous.conn;
-    const member = sameMember ? session.member : room.join(msg.name, msg.token);
+    const name = session.account ? session.account.name : opts.accounts ? '游客·' + String(msg.name || '牌友').slice(0,9) : msg.name;
+    const member = sameMember ? session.member : room.join(name, previous ? previous.token : msg.token);
+    if (session.account) member.accountId = session.account.id;
     // 目标房间满员时保留原房间，不能先退房再发现加入失败。
     if (session.room && session.room !== room) doLeave(session);
     member.conn = session;
@@ -229,10 +239,12 @@ function attach(server, opts) {
     const now = Date.now();
     for (const room of store.rooms.values()) {
       if (room.tick(now)) broadcast(room);
+      if (room.archiveError) room.archive();
     }
   }, TICK_MS);
 
   const sweeper = setInterval(() => {
+    if (opts.accounts) for (const room of store.rooms.values()) if (room.onlineCount() === 0 && Date.now() - Math.max(room.lastActive, room.createdAt) > 120000) opts.accounts.interruptRoom(room);
     store.sweep(Date.now(), 2 * 60 * 1000);
     // 房间里一个人都不剩了，直接拆掉，别留在列表里
     for (const room of Array.from(store.rooms.values())) {
@@ -255,6 +267,7 @@ function attach(server, opts) {
       };
     },
     close() {
+      if (opts.accounts) for (const room of store.rooms.values()) { room.archive(); opts.accounts.interruptRoom(room); }
       clearInterval(heartbeat); clearInterval(ticker); clearInterval(sweeper);
       for (const task of pumps.values()) clearImmediate(task);
       pumps.clear();

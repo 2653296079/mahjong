@@ -1,0 +1,63 @@
+<!doctype html><meta charset="utf-8"><title>中央牌河与逐张讲解验收</title>
+<pre id="log"></pre><iframe id="game" style="width:1366px;height:900px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]},f=document.getElementById('game');
+function check(ok,msg){if(!ok)throw Error(msg);out.steps.push(msg);}
+function pause(ms){return new Promise(r=>setTimeout(r,ms));}
+async function until(fn,label){for(var i=0;i<160;i++){if(fn())return;await pause(20);}throw Error('等待超时：'+label);}
+async function paint(){await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));}
+(async function(){try{
+ localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:20261017,sound:false,analyze:false,turnTime:0,aiThink:5,discardSource:true,learningMode:'guided'}));localStorage.setItem('zmj_noRotate','1');
+ await new Promise(r=>{f.onload=r;f.src='/index.html';});var w=f.contentWindow,d=w.document;d.getElementById('homeSolo').click();var g=w.__zmjGame;
+ for(var i=0;i<220&&!g.hand.over;i++){
+  if(g.hasPendingResolve())g.resolvePending();else if(g.pendingAwaits().length)g.autoPlaySeat(g.pendingAwaits()[0].seat);else g.aiStep();
+  if(g.hand.record.events.filter(e=>e.t==='x').length>=12&&g.awaiting&&g.awaiting.type==='turn')break;
+ }
+ w.dispatchEvent(new w.Event('resize'));await paint();
+ var river=w.ZMJ.publicDiscards(g.hand),visible=river.filter(e=>e.claimedBy==null),entries=Array.from(d.querySelectorAll('.riverEntry'));
+ check(visible.length>=8&&entries.length===visible.length,'中央逐粒累积弃牌，数量与实际对局一致');
+ check(entries.every((e,i)=>+e.dataset.order===visible[i].order&&+e.dataset.seat===visible[i].seat),'中央牌河遵循真实出牌先后顺序');
+ check(d.querySelectorAll('.sourceChip').length===4&&new Set(Array.from(d.querySelectorAll('.sourceChip')).map(e=>e.style.getPropertyValue('--seat-ink'))).size===4,'四家来源使用四种外壳颜色及名称图例');
+ var handBefore=JSON.stringify(g.hand),toggle=d.getElementById('riverSource');toggle.click();
+ check(!d.getElementById('table').classList.contains('sourceOn')&&Array.from(d.querySelectorAll('.riverEntry')).every(e=>!/来自/.test(e.getAttribute('aria-label'))),'隐藏来源后关闭颜色和来源文案');
+ check(JSON.stringify(g.hand)===handBefore,'切换来源显示不改变牌局');
+ d.getElementById('btnSettings').click();check(d.getElementById('setDiscardSource').value==='0','设置与中央来源开关一致');
+ d.getElementById('setDiscardSource').value='1';d.getElementById('setDiscardSource').dispatchEvent(new w.Event('change'));d.getElementById('btnCancel').click();
+ check(d.getElementById('table').classList.contains('sourceOn')&&JSON.stringify(g.hand)===handBefore,'设置中的来源开关立即生效且不重开对局');
+ // 各家副露单独布置，验证窄屏下四张杠牌也不会侵入中央。
+ g.hand.players[1].melds=[{type:'peng',kind:6,from:2},{type:'gang',kind:10,ming:true,from:3}];
+ g.hand.players[2].melds=[{type:'gang',kind:19,ming:false}];g.hand.players[3].melds=[{type:'gang',kind:22,ming:true,bu:true}];
+ for(var dims of [[1366,900],[730,545],[390,844],[844,390]]){
+  f.style.width=dims[0]+'px';f.style.height=dims[1]+'px';w.dispatchEvent(new w.Event('resize'));await paint();
+  var bad=[];[1,2,3].forEach(s=>{var seat=d.getElementById('seat'+s),r=seat.getBoundingClientRect(),clip=seat.querySelector('.seatCards'),b=clip.getBoundingClientRect();if(!(b.left>=r.left-1&&b.right<=r.right+1&&b.top>=r.top-1&&b.bottom<=r.bottom+1&&w.getComputedStyle(clip).overflowY==='auto'))bad.push(s);Array.from(seat.querySelectorAll('.meld .tile')).forEach(t=>{var tbox=t.getBoundingClientRect();if(tbox.left<r.left-1||tbox.right>r.right+1)bad.push(s);});});
+  check(!bad.length,dims.join('×')+' 碰杠留在所属座位范围'+(bad.length?JSON.stringify(bad):''));
+ }
+ // 用真实训练局面做独立数值对照，鼠标悬停、焦点、触屏都走实际 UI 事件。
+ var H=w.ZMJ.practiceHand('wide-1');g.hand.players=H.players;g.hand.lastDraw=H.lastDraw;g.hand.turn=0;g.awaiting={type:'turn',seat:0,options:{canZimo:false,anGang:[],buGang:[]}};
+ f.style.width='1366px';f.style.height='900px';w.dispatchEvent(new w.Event('resize'));await paint();
+ var tiles=Array.from(d.querySelectorAll('.handRow [role=button]')),tile=tiles[0],kind=+tile.dataset.tileId.split(':')[0],id=tile.dataset.tileId,guide=w.ZMJ.trainingGuide(g.hand,0,kind,true),riskCalls=0;
+ w.ZMJ.analyzeSituation=function(){riskCalls++;throw Error('不应由悬停启动采样');};
+ tile.dispatchEvent(new w.PointerEvent('pointerenter',{pointerType:'mouse'}));await until(()=>!d.getElementById('tileAnalysis').classList.contains('hidden'),'悬停面板');await pause(250);
+ var box=d.getElementById('tileAnalysis'),text=box.textContent;
+ check(text.includes('打出 '+w.ZMJ.tileName(kind))&&text.includes(guide.total+' ÷ '+guide.unknown)&&text.includes((guide.chanceNext*100).toFixed(1)+'%'),'悬停的是具体手牌，向听进张概率与独立引擎参照一致');
+ check(text.includes('普通牌型')&&text.includes('小七对')&&text.includes('未开启风险采样'),'同时解释做牌路线与风险口径，不伪造风险数值');
+ check(riskCalls===0,'逐张讲解不触发同步风险采样');
+ check(!guide.paths.length||text.includes('→ 听'),'一向听补充摸牌、弃牌与宽听路线');
+ for(var dims of [[1366,900],[390,844],[844,390]]){
+  f.style.width=dims[0]+'px';f.style.height=dims[1]+'px';w.dispatchEvent(new w.Event('resize'));await paint();
+  var b=box.getBoundingClientRect(),r=d.querySelector('.handRow [data-tile-id="'+id+'"]').getBoundingClientRect();
+  check(b.left>=0&&b.right<=dims[0]+1&&b.top>=0&&b.bottom<=r.top-5,dims.join('×')+' 讲解贴近手牌且不遮住手牌、不溢出屏幕');
+ }
+ d.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));check(box.classList.contains('hidden'),'Escape 可收起逐张分析');
+ tile=d.querySelector('.handRow [data-tile-id="'+id+'"]');tile.focus();await until(()=>!box.classList.contains('hidden'),'键盘聚焦');
+ check(tile.getAttribute('aria-describedby')==='tileAnalysisSummary','键盘聚焦提供同一张牌的说明及无障碍关联');
+ var same=d.querySelectorAll('.handRow [aria-label="'+tile.getAttribute('aria-label')+'"]');
+ tile.blur();d.getElementById('tileAnalysisClose')?.click();var before=JSON.stringify(g.hand);tile.click();await until(()=>!box.classList.contains('hidden'),'触屏首次点选');
+ check(JSON.stringify(g.hand)===before&&d.querySelectorAll('.handRow .chosen').length===1,'触屏第一次只选中一张并展示讲解，不自动出牌');
+ g.hand.turnCount++;w.dispatchEvent(new w.Event('resize'));check(box.classList.contains('hidden'),'公开局面变化即清除旧讲解');
+ d.getElementById('btnSettings').click();d.getElementById('setLearningMode').value='exam';d.getElementById('btnApply').click();
+ tile=d.querySelector('.handRow [role=button]');tile.focus();tile.dispatchEvent(new w.PointerEvent('pointerenter',{pointerType:'mouse'}));await pause(200);
+ check(box.classList.contains('hidden'),'测验模式不通过悬停或焦点泄露答案');
+ out.ok=true;
+}catch(e){out.errors.push(e.message);}document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));})();
+</script>

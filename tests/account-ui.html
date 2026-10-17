@@ -1,0 +1,40 @@
+<!doctype html><meta charset="utf-8"><title>账号与完整存档验收</title>
+<pre id="log"></pre><iframe id="game" style="width:390px;height:844px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]},f=document.getElementById('game'),w,d;
+function check(ok,msg){if(!ok)throw Error(msg);out.steps.push(msg);}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+async function until(fn){for(var i=0;i<300;i++){if(await fn())return;await sleep(30);}throw Error('等待超时');}
+async function api(route,data){var r=await fetch('/api/account/'+route,{method:data===undefined?'GET':'POST',headers:data===undefined?{}:{'Content-Type':'application/json','X-ZMJ-Request':'1'},body:data===undefined?undefined:JSON.stringify(data)});return r.json();}
+async function load(){await new Promise(r=>{f.onload=r;f.src='/index.html?account-test='+Date.now();});w=f.contentWindow;d=w.document;}
+async function openAccount(){var b=d.getElementById('homeAccount');if(!d.getElementById('home').classList.contains('hidden'))b.click();else{d.querySelector('#moreTools summary').click();d.getElementById('btnAccount').click();}await until(()=>d.getElementById('accountRegisterTab')||d.getElementById('accountHistory'));}
+async function register(name){d.getElementById('accountRegisterTab').click();d.getElementById('accountName').value=name;d.getElementById('accountPassword').value='Account-UI-2026';d.getElementById('accountConfirm').value='Account-UI-2026';d.getElementById('accountSubmit').click();await until(()=>d.getElementById('accountHistory'));}
+async function drive(g){for(var n=0;n<3000&&!g.hand.over;n++){if(g.hasPendingResolve())g.resolvePending();else if(g.awaiting){var a=g.awaiting;if(a.type==='turn'){if(a.options.canZimo)g.humanZimo();else g.humanDiscard(g.evaluateDiscards(a.seat)[0].kind);}else g.autoPlaySeat(a.seat);}else g.aiStep();if(n%40===0)await sleep(0);}w.dispatchEvent(new w.Event('resize'));check(g.hand.over,'实际引擎完整走到结算');}
+function socket(){var ws=new WebSocket('ws://'+location.host+'/ws'),client={ws,m:[]};ws.onmessage=e=>client.m.push(JSON.parse(e.data));return client;}
+(async function(){try{
+ localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:20261017,sound:false,analyze:false,turnTime:0,rotate:false}));localStorage.setItem('zmj_noRotate','1');
+ await load();check(!!d.getElementById('homeAccount'),'首页可进入账号');await openAccount();await register('账号验收甲');
+ check(!document.cookie.includes('zmj_session'),'登录会话不暴露给脚本');check(d.getElementById('accountPanel').textContent.includes('0 局'),'新账号显示空战绩');
+ for(var width of [360,390,1366]){f.style.width=width+'px';await sleep(30);check(d.documentElement.scrollWidth<=width+1,width+' 宽账号面板不溢出');}f.style.width='390px';
+ d.getElementById('modalDismiss').click();d.getElementById('homeSolo').click();var g=w.__zmjGame;
+ var tile=d.querySelector('.handRow .clickable');tile.click();if(g.hand.record.events.length===1)tile.click();
+ await drive(g);var steps=g.hand.record.events.length;
+ await until(async()=>{var x=await api('dashboard');return x.summary.hands===1&&x.summary.pendingAnalysis===0;});
+ check(true,'单机自动入库并在后台完成牌效分析');var history=await api('matches'),detail=await api('matches/'+encodeURIComponent(history.items[0].id));
+ check(detail.record.events.length===steps&&detail.record.initial.length===4&&detail.record.birds.length===6,'数据库保存四家起手、所有摸打及鸟牌');
+ await openAccount();check(d.getElementById('accountHistory').children.length===1,'账号面板列出完整对局');
+ d.querySelector('.accountMatch').click();await until(()=>d.getElementById('accountReplay'));d.getElementById('accountReplay').click();check(d.getElementById('modalBox').textContent.includes('第 0 /'),'历史牌谱可进入逐手回放');
+ Array.from(d.querySelectorAll('#modalBox button')).find(b=>b.textContent==='下一步 ▶').click();check(d.getElementById('modalBox').textContent.includes('第 1 /'),'回放能推进到下一步');
+ Array.from(d.querySelectorAll('#modalBox button')).find(b=>b.textContent==='返回账号').click();await until(()=>d.getElementById('accountHistory'));
+ d.querySelector('[data-account-mode="human"]').click();await until(()=>d.getElementById('accountHistory')&&!d.querySelector('.accountMatch'));check(!d.getElementById('accountPanel').textContent.includes('NaN'),'真人与人机独立统计，空样本不显示 NaN');
+ d.getElementById('modalDismiss').click();var original=w.fetch;w.fetch=function(url,options){if(String(url).includes('/api/account/solo'))return Promise.reject(Error('模拟断网'));return original.call(w,url,options);};g.nextHand();await drive(g);
+ await until(async()=>{var db=await new Promise((resolve,reject)=>{var req=w.indexedDB.open('zmj_account_outbox',1);req.onsuccess=()=>resolve(req.result);req.onerror=reject;});var rows=await new Promise(r=>{var q=db.transaction('hands').objectStore('hands').getAll();q.onsuccess=()=>r(q.result);});db.close();return rows.some(e=>e.body.status==='completed');});
+ check(true,'断网后完整终局保存在 IndexedDB 待传队列');await load();await until(async()=>{var x=await api('dashboard');return x.summary.hands===2&&x.summary.pendingAnalysis===0;});check(true,'刷新重开后自动补传，重复同步不重复计局');
+ var live=socket();await until(()=>live.ws.readyState===1);live.ws.send(JSON.stringify({t:'join',room:'6354',name:'伪造身份'}));await until(()=>live.m.some(m=>m.t==='joined'));var joined=live.m.find(m=>m.t==='joined');check(joined.you==='账号验收甲','WebSocket 使用登录身份，忽略伪造名字');
+ await openAccount();d.getElementById('accountLogout').click();await until(()=>d.getElementById('accountRegisterTab'));live.ws.send(JSON.stringify({t:'ping'}));await until(()=>live.m.some(m=>m.code==='auth'));check(true,'退出账号后原联机会话失效');
+ var thief=socket();await until(()=>thief.ws.readyState===1);thief.ws.send(JSON.stringify({t:'join',room:'6354',token:joined.token}));await until(()=>thief.m.some(m=>m.t==='err'));check(thief.m.some(m=>m.t==='err'&&m.msg.includes('所属账号')),'仅有房间重连令牌不能盗用账号座位');thief.ws.close();live.ws.close();
+ await register('账号验收乙');check((await api('dashboard')).summary.hands===0,'切换到新账号不继承其他人的战绩');
+ var privateRow=(await api('matches/'+encodeURIComponent(history.items[0].id)));check(!!privateRow.error,'另一账号不能读取他人的完整牌谱');
+ out.ok=true;
+}catch(e){out.errors.push(e.message+' '+e.stack);}document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));})();
+</script>

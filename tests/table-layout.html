@@ -1,0 +1,24 @@
+<!doctype html><meta charset="utf-8"><title>出牌后布局验收</title>
+<pre id="log"></pre><iframe id="game" style="width:730px;height:545px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]};
+function check(ok,msg){if(!ok)throw Error(msg);out.steps.push(msg);}
+var f=document.getElementById('game');
+function paint(){return new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));}
+(async function(){try{
+ localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:20261016,sound:false,analyze:false,turnTime:0}));localStorage.setItem('zmj_noRotate','1');
+ await new Promise(r=>{f.onload=r;f.src='/index.html';});var w=f.contentWindow,d=w.document;d.getElementById('homeSolo').click();var g=w.__zmjGame;
+ // 走过若干轮实际摸打，让牌河和中央最新出牌都出现。
+ for(var i=0;i<8&&!g.hand.over;i++){if(g.hasPendingResolve())g.resolvePending();else if(g.pendingAwaits().length)g.autoPlaySeat(g.pendingAwaits()[0].seat);else g.aiStep();}
+ check(g.hand.lastDiscard!=null&&!g.hand.over,'实际出牌后存在最新出牌和牌河');
+ for(var dims of [[1460,1090],[730,545],[900,650],[1366,768],[390,844],[844,390]]){
+  f.style.width=dims[0]+'px';f.style.height=dims[1]+'px';w.dispatchEvent(new w.Event('resize'));await paint();
+  var center=d.getElementById('center').getBoundingClientRect(),seat=d.getElementById('seat0').getBoundingClientRect();
+  var children=Array.from(d.querySelectorAll('#center>*')).filter(el=>getComputedStyle(el).display!=='none'&&el.getBoundingClientRect().height>0);
+  check(children.every(el=>{var r=el.getBoundingClientRect();return r.top>=center.top-1&&r.bottom<=center.bottom+1;}),dims.join('×')+' 中央讲解及出牌都在中央区域内');
+  check(center.bottom<=seat.top+1,dims.join('×')+' 中央区域不与自己的座位重叠');
+  check(d.getElementById('centerMsg').classList.contains('hidden'),dims.join('×')+' 最新出牌文字不重复占一行');
+ }
+ out.ok=true;
+}catch(e){out.errors.push(e.message);}document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));})();
+</script>

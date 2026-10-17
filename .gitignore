@@ -10,3 +10,8 @@ tools/
 *.pem
 *.p12
 *.pfx
+# 账号数据库与本地对局，不能提交或当作静态资源发布
+data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

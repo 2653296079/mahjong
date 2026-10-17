@@ -8,6 +8,10 @@ const os = require('os');
 const online = require('./server/mjs-server');   // 联机房间（WebSocket）
 const { gzip } = require('node:zlib');
 const { loadCore } = require('./server/rooms');
+const { AccountStore } = require('./server/account-store');
+const { createAccountAPI } = require('./server/account-api');
+const accounts = new AccountStore(process.env.MAHJONG_DB_PATH || path.join(__dirname, 'data', 'mahjong.sqlite'));
+const accountAPI = createAccountAPI(accounts);
 
 const port = Number(process.argv[2] || 8000);
 const bindHost=process.env.MAHJONG_HOST||'0.0.0.0';
@@ -45,7 +49,8 @@ function acceptsGzip(header) {
   return (explicit || wildcard || {quality:0}).quality > 0;
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
+  if ((req.url || '').startsWith('/api/')) { await accountAPI(req, res); return; }
   let urlPath;
   try {
     urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
@@ -100,7 +105,7 @@ const limits={};
 for(const [key,envName]of Object.entries({maxSessions:'MAHJONG_MAX_SESSIONS',maxRooms:'MAHJONG_MAX_ROOMS',messageRate:'MAHJONG_MESSAGE_RATE',messageBurst:'MAHJONG_MESSAGE_BURST'})){
   if(process.env[envName]!==undefined)limits[key]=Number(process.env[envName]);
 }
-const hub = online.attach(server,{limits});
+const hub = online.attach(server,{limits, accounts});
 
 server.listen(port, bindHost, () => {
   const ips = localIPs();
@@ -139,7 +144,7 @@ let stopping=false;
 function stop() {
   if(stopping)return;stopping=true;
   try { hub.close(); } catch (e) {}
-  server.close(()=>process.exit(0));
+  server.close(()=>{try { accounts.close(); } catch(e) {} process.exit(0);});
   const deadline=setTimeout(()=>process.exit(1),5000);deadline.unref();
 }
 process.on('SIGINT',stop);

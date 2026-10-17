@@ -33,6 +33,7 @@ async function size(w,h){frame.style.width=w+'px';frame.style.height=h+'px';awai
   check(d.activeElement===d.querySelector('#moreTools summary'),'关闭设置后焦点回到可见的更多入口');
   var handBefore=JSON.stringify(w.__zmjGame.hand);
   d.querySelector('#moreTools summary').click();d.getElementById('btnTileArt').click();
+  await Promise.all(d.getElementById('modalBox').getAnimations().map(function(a){return a.finished;}));
   for(var width of [360,390,430,1366]){
     await size(width,844);
     check(d.documentElement.scrollWidth<=width+1&&Array.from(d.querySelectorAll('.tileAtlasRow .tile')).every(function(el){var b=el.getBoundingClientRect();return b.width>=24&&b.left>=0&&b.right<=width;}),width+' 宽牌面一览完整显示三门牌，无横向溢出');

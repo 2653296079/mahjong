@@ -57,6 +57,13 @@ class Room {
     this.createdAt = Date.now();
     this.lastActive = Date.now();
     this.chat = [];
+    this.accountActions = [];
+  }
+
+  archive() {
+    if (!this.opts.archive) return;
+    try { this.opts.archive(this); this.archiveError = false; }
+    catch (e) { this.archiveError = true; console.error('[archive] write failed:', e.code || e.name); }
   }
 
   // ---------- 查询 ----------
@@ -99,7 +106,7 @@ class Room {
     if (back) {
       back.conn = null;
       back.reconnect = true;
-      if (name) back.name = String(name).slice(0, 12);
+      if (name) back.name = String(name).slice(0, 16);
       this.lastActive = Date.now();
       return back;
     }
@@ -107,7 +114,7 @@ class Room {
     const m = {
       pid: newId('p'),
       token: crypto.randomBytes(24).toString('hex'),
-      name: (String(name || '').trim().slice(0, 12)) || ('玩家' + (this.members.length + 1)),
+      name: (String(name || '').trim().slice(0, 16)) || ('玩家' + (this.members.length + 1)),
       conn: null, joinedAt: Date.now(), gone: false
     };
     this.members.push(m);
@@ -152,8 +159,9 @@ class Room {
     for (let i = 0; i < need; i++) {
       roster.push({ id: newId('b'), name: this.botName(i), isHuman: false, style: this.opts.botStyle });
     }
-    this.game = core.createGame({ roster: roster, rotate: true });
+    this.game = core.createGame({ roster: roster, rotate: true, seed: this.opts.seed });
     this.game.startHand();
+    this.archive();
     this.rev++;
     this.pump();
     return this.game;
@@ -177,7 +185,7 @@ class Room {
         // 掉线/已离开的真人：服务器按电脑思路替他打完这一手，牌局不会卡死
         let took = false;
         for (const a of awaits) {
-          if (!this.isLiveHuman(a.seat)) { G.autoPlaySeat(a.seat); took = true; break; }
+          if (!this.isLiveHuman(a.seat)) { this.accountActions.push({ seat: a.seat, act: 'auto', eventIndex: G.hand.record.events.length, at: Date.now() }); G.autoPlaySeat(a.seat); took = true; break; }
         }
         if (took) continue;
         break;                    // 剩下的都在线，等他们自己操作
@@ -185,6 +193,7 @@ class Room {
       if (!G.aiStep()) break;
     }
     this.rev++;
+    this.archive();
   }
 
   /**
@@ -241,6 +250,7 @@ class Room {
     if (['discard', 'angang', 'bugang'].includes(a && a.act) &&
         (!Number.isInteger(a.kind) || a.kind < 0 || a.kind >= 27)) throw new Error('牌编号不合法');
     let ok = false;
+    const eventIndex = G.hand.record.events.length;
     switch (a && a.act) {
       case 'discard': ok = G.humanDiscard(a.kind | 0, seat); break;
       case 'hu':   ok = G.humanClaim('hu', a.kind, seat); break;
@@ -253,9 +263,10 @@ class Room {
       default: throw new Error('未知操作');
     }
     if (!ok) throw new Error('这个操作现在不合法');
+    this.accountActions.push({ seat, act: a.act, kind: Number.isInteger(a.kind) ? a.kind : null, eventIndex, at: Date.now() });
     this.awaitSince = 0;
     this.lastActive = Date.now();
-    if (opts && opts.deferPump) this.rev++;
+    if (opts && opts.deferPump) { this.rev++; this.archive(); }
     else this.pump();
   }
 
@@ -276,7 +287,9 @@ class Room {
     this.nextAt = 0;
     this.awaitSince = 0;
     this.releaseAbandonedSeats();
+    this.accountActions = [];
     G.nextHand();
+    this.archive();
     this.pump();
     this.rev++;
   }
@@ -295,7 +308,7 @@ class Room {
     if (!this.awaitSince) { this.awaitSince = now; return false; }
     if (now - this.awaitSince < this.opts.turnTimeout) return false;
     // 挂机太久：替所有待决座位打一手，别让一个人把整桌卡住
-    for (const a of awaits) G.autoPlaySeat(a.seat);
+    for (const a of awaits) { this.accountActions.push({ seat: a.seat, act: 'auto', eventIndex: G.hand.record.events.length, at: now }); G.autoPlaySeat(a.seat); }
     this.awaitSince = 0;
     this.pump();
     return true;
@@ -309,7 +322,7 @@ class Room {
    */
   viewFor(m) {
     const G = this.game;
-    const out = { t: 'state', rev: this.rev, room: this.info() };
+    const out = { t: 'state', rev: this.rev, room: this.info(), archiveError: !!this.archiveError };
     if (!G || !G.hand) { out.you = { pid: m.pid, seat: -1, queued: false }; return out; }
     const H = G.hand;
     const seat = G.seatOfId(m.pid);
@@ -334,6 +347,7 @@ class Room {
       wallLeft: H.wall.length, over: !!H.over,
       lastDiscard: H.lastDiscard ? { seat: H.lastDiscard.seat, kind: H.lastDiscard.kind } : null,
       lastDraw: (seat >= 0 && H.turn === seat) ? H.lastDraw : null,
+      river: loadCore().publicDiscards(H),
       players: players,
       mine: mine ? {
         seat: seat,

@@ -17,6 +17,8 @@ const ARGS = process.argv.slice(2);
 const PAGE = (ARGS.filter((a) => a.indexOf('--') !== 0)[0] || 'pages-compat').replace(/\.html$/, '');
 const PROFILE = fs.mkdtempSync(path.join(os.tmpdir(), 'zmj-pages-test-'));
 const WITH_HUB = ARGS.indexOf('--hub') >= 0;   // 需要联机时才接上 WebSocket 服务
+const ACCOUNTS = ARGS.includes('--accounts') ? new (require('../server/account-store').AccountStore)(':memory:') : null;
+const accountAPI = ACCOUNTS ? require('../server/account-api').createAccountAPI(ACCOUNTS) : null;
 const EDGE = ['C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
               'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
               '/usr/bin/google-chrome', '/usr/bin/chromium'].filter((p) => fs.existsSync(p))[0];
@@ -27,7 +29,8 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
 let result = null;
 
 // 注意：这里刻意不接联机服务，只有静态文件 + 测试回传通道
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
+  if (accountAPI && req.url.startsWith('/api/')) { await accountAPI(req,res); return; }
   const url = req.url.split('?')[0];
   if (url === '/__result') {
     result = decodeURIComponent((req.url.split('?d=')[1] || ''));
@@ -43,11 +46,11 @@ const server = http.createServer((req, res) => {
 });
 
 let hub = null;
-if (WITH_HUB) hub = require(path.join(ROOT, 'server', 'mjs-server.js')).attach(server);
+if (WITH_HUB || ACCOUNTS) hub = require(path.join(ROOT, 'server', 'mjs-server.js')).attach(server,{accounts:ACCOUNTS});
 
 server.listen(PORT, '127.0.0.1', () => {
   const base = 'http://127.0.0.1:' + PORT;
-  console.log((WITH_HUB ? '带联机服务的服务器' : '纯静态服务器') + ': ' + base + '  测试页: tests/' + PAGE + '.html');
+  console.log((WITH_HUB || ACCOUNTS ? '带联机服务的服务器' : '纯静态服务器') + ': ' + base + '  测试页: tests/' + PAGE + '.html');
   if (hub) {
     // 造一个「开局后人都走光」的废弃房，验证它不会出现在房间里列表
     const ghost = hub.store.create('9999');
@@ -58,7 +61,7 @@ server.listen(PORT, '127.0.0.1', () => {
     console.log('已造废弃房 9999（开局后无人）');
   }
   const child = execFile(EDGE, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
-    ...(PAGE === 'selection-ui' ? ['--touch-events=enabled'] : []),
+    ...(['selection-ui','river-hover-ui'].includes(PAGE) ? ['--touch-events=enabled'] : []),
     '--user-data-dir=' + PROFILE,
     base + '/tests/' + PAGE + '.html'], { timeout: 120000 }, () => {});
   const t0 = Date.now();
@@ -70,6 +73,7 @@ server.listen(PORT, '127.0.0.1', () => {
       let ok = false;
       try { ok = JSON.parse(result).ok === true; } catch (e) {}
       try { child.kill(); } catch (e) {}
+      if (hub) hub.close(); if (ACCOUNTS) ACCOUNTS.close();
       server.close();
       process.exit(ok ? 0 : 1);
     }

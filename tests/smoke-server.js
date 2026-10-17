@@ -5,7 +5,7 @@ const http = require('http');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const PORT = 8137;
-const child = spawn(process.execPath, ['server.js', String(PORT)], { cwd: ROOT });
+const child = spawn(process.execPath, ['server.js', String(PORT)], { cwd: ROOT, env: {...process.env, MAHJONG_DB_PATH:':memory:'} });
 let out = '';
 child.stdout.on('data', (d) => { out += d; });
 child.stderr.on('data', (d) => { out += d; });
@@ -40,6 +40,8 @@ function get(url, headers, method) {
     console.log('首页压缩体积：'+page.body.length+' → '+packed.body.length+' 字节');
     const js = await get('http://127.0.0.1:' + PORT + '/server/rooms.js');
     if (js.code !== 404) problems.push('服务端源码不该被公开访问，实际 ' + js.code);
+    const db=await get('http://127.0.0.1:'+PORT+'/data/mahjong.sqlite');
+    if(db.code!==404)problems.push('账号数据库不该被公开访问');
     const sw = await get('http://127.0.0.1:' + PORT + '/sw.js');
     if (sw.code !== 200) problems.push('sw.js 应该可访问');
     const health=await get('http://127.0.0.1:'+PORT+'/healthz');
