@@ -2478,39 +2478,40 @@ window.onerror = function (msg, src, line, col) {
 
   // ---------- 小工具 ----------
   // ---------- 麻将牌图案：独立 SVG，采用清楚的刻纹和红绿蓝墨色 ----------
-  var CN_NUM = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
+  var CN_NUM = ['一', '二', '三', '四', '伍', '六', '七', '八', '九'];
   var WAN_FONT = "'KaiTi','STKaiti','Kaiti SC','Songti SC','SimSun','Noto Serif CJK SC','Source Han Serif SC',serif";
   var DOT_LAYOUT = {
-    2: { r: 10, pts: [[24, 17], [24, 47]], colors: 'gb' },
-    3: { r: 8.6, pts: [[12, 14], [24, 32], [36, 50]], colors: 'bgr' },
-    4: { r: 8.7, pts: [[13, 17], [35, 17], [13, 47], [35, 47]], colors: 'bbbb' },
-    5: { r: 7.8, pts: [[12, 14], [36, 14], [24, 32], [12, 50], [36, 50]], colors: 'bbrbb' },
+    2: { r: 10, pts: [[24, 17], [24, 47]], colors: 'kg' },
+    3: { r: 8.6, pts: [[12, 14], [24, 32], [36, 50]], colors: 'grk' },
+    4: { r: 8.7, pts: [[13, 17], [35, 17], [13, 47], [35, 47]], colors: 'gggg' },
+    5: { r: 7.8, pts: [[12, 14], [36, 14], [24, 32], [12, 50], [36, 50]], colors: 'ggrgg' },
     6: { r: 7.5, pts: [[14, 12], [34, 12], [14, 32], [34, 32], [14, 52], [34, 52]], colors: 'ggrrrr' },
-    7: { r: 5.8, pts: [[10, 8], [24, 20], [38, 32], [14, 44], [34, 44], [14, 57], [34, 57]], colors: 'bbbrrrr' },
-    8: { r: 6.4, pts: [[14, 10], [34, 10], [14, 25], [34, 25], [14, 40], [34, 40], [14, 55], [34, 55]], colors: 'bbbbbbbb' },
-    9: { r: 5.5, pts: [[11, 13], [24, 13], [37, 13], [11, 32], [24, 32], [37, 32], [11, 51], [24, 51], [37, 51]], colors: 'bbbrrrggg' }
+    7: { r: 5.8, pts: [[10, 8], [24, 20], [38, 32], [14, 44], [34, 44], [14, 57], [34, 57]], colors: 'gggrrrr' },
+    8: { r: 6.4, pts: [[14, 10], [34, 10], [14, 25], [34, 25], [14, 40], [34, 40], [14, 55], [34, 55]], colors: 'kkkkkkkk' },
+    9: { r: 5.5, pts: [[11, 13], [24, 13], [37, 13], [11, 32], [24, 32], [37, 32], [11, 51], [24, 51], [37, 51]], colors: 'kkkrrrggg' }
   };
   var STICK_LAYOUT = {
     2: { L: 22, W: 9.4, pts: [[24, 17], [24, 47]], accent: [] },
     3: { L: 24, W: 8, pts: [[24, 17], [14, 47], [34, 47]], accent: [] },
     4: { L: 24, W: 8, pts: [[14, 17], [34, 17], [14, 47], [34, 47]], accent: [] },
     5: { L: 22, W: 7.6, pts: [[12, 16], [36, 16], [24, 32], [12, 48], [36, 48]], accent: [2] },
-    6: { L: 16, W: 8.2, pts: [[14, 12], [34, 12], [14, 32], [34, 32], [14, 52], [34, 52]], accent: [] },
-    7: { L: 13, W: 7.6, pts: [[24, 9], [14, 25], [34, 25], [14, 41], [34, 41], [14, 57], [34, 57]], accent: [0] },
-    8: { L: 22, W: 4.8, pts: [[8, 17], [17, 16, -38], [31, 16, 38], [40, 17], [8, 47], [17, 48, 38], [31, 48, -38], [40, 47]], accent: [] },
+    6: { L: 22, W: 7.2, pts: [[11, 17], [24, 17], [37, 17], [11, 47], [24, 47], [37, 47]], accent: [] },
+    7: { L: 16, W: 7.2, pts: [[24, 9], [11, 30], [24, 30], [37, 30], [11, 52], [24, 52], [37, 52]], accent: [0] },
+    8: { L: 22, W: 4.8, pts: [[8, 17], [17, 18, 38], [31, 18, -38], [40, 17], [8, 47], [17, 46, -38], [31, 46, 38], [40, 47]], accent: [] },
     9: { L: 16, W: 6.7, pts: [[11, 12], [24, 12], [37, 12], [11, 32], [24, 32], [37, 32], [11, 52], [24, 52], [37, 52]], accent: [1, 4, 7] }
   };
   function svgWrap(inner) {
     return '<svg viewBox="0 0 48 64" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">' + inner + '</svg>';
   }
-  var TILE_INKS = { b: '#254e83', g: '#166149', r: '#b62f38' };
+  // 与同一套中式实物牌对照：黑、绿、红三色；k 为黑墨。
+  var TILE_INKS = { k: '#242725', g: '#166149', r: '#b62f38' };
   // 两道同色套环，保留白心；小牌不依赖微小高光辨认。
   function dotSvg(cx, cy, r, color) {
     return '<g transform="translate(' + cx + ' ' + cy + ')" fill="' + TILE_INKS[color] + '">' +
       '<circle r="' + r + '"/><circle r="' + (r * .72).toFixed(2) + '" fill="#f8f2e2"/>' +
       '<circle r="' + (r * .49).toFixed(2) + '"/><circle r="' + (r * .25).toFixed(2) + '" fill="#f8f2e2"/></g>';
   }
-  // 竹身始终连续，深色竹节不会将一根切成几根；八条为上 M、下 W 的八根竹。
+  // 竹身始终连续，深色竹节不会将一根切成几根；八条为上 W、下 M 的八根竹。
   function stickSvg(cx, cy, L, W, accent, angle) {
     var x = W / 2, y = L / 2, ink = TILE_INKS[accent ? 'r' : 'g'];
     function f(n) { return +n.toFixed(2); }
@@ -2525,24 +2526,24 @@ window.onerror = function (msg, src, line, col) {
   }
   // 幺鸡：侧身、长尾与一小笔朱红冠，避免缩小后像空心圆。
   function birdSvg() {
-    return '<g fill="#166149">' +
-      '<path d="M18 40Q15 50 7 57Q18 57 23 47L20 60Q30 57 31 43Z"/>' +
+    return '<g fill="#242725">' +
+      '<path d="M18 40Q15 50 7 57Q18 57 23 47L20 60Q30 57 31 43Z" fill="#166149"/>' +
       '<path d="M23 25C20 23 15 26 13 31C9 39 14 47 23 47C32 47 37 40 34 31C33 27 29 25 28 23C28 21 33 22 35 18C37 12 31 8 26 11C22 14 25 20 23 25Z"/>' +
       '<path d="M26 11Q22 8 25 5Q30 5 32 10Z" fill="#b62f38"/>' +
-      '<path d="M35 15L42 18L35 20Z" fill="#a36d35"/>' +
+      '<path d="M35 15L42 18L35 20Z"/>' +
       '<circle cx="31.5" cy="15" r="1.6" fill="#f8f2e2"/><circle cx="31.8" cy="15" r=".8" fill="#173c30"/>' +
       '<path d="M22 28C13 29 13 40 22 42C29 39 31 31 26 28Z" fill="#f8f2e2"/>' +
       '<path d="M22 31Q16 34 21 39M26 32Q22 37 24 38M18 46L14 53M22 48L24 54" fill="none" stroke="#166149" stroke-width="1.7" stroke-linecap="round"/>' +
-      '<path d="M30 45L32 55M28 55H37" fill="none" stroke="#a36d35" stroke-width="1.8" stroke-linecap="round"/></g>';
+      '<path d="M30 45L32 55M28 55H37" fill="none" stroke="#242725" stroke-width="1.8" stroke-linecap="round"/></g>';
   }
   function oneDotSvg() {
     var petals = '';
     for (var i = 0; i < 8; i++) petals += '<path d="M24 16C19 21 19 26 24 29C29 26 29 21 24 16Z" transform="rotate(' + i * 45 + ' 24 32)"/>';
-    return '<g fill="#254e83"><circle cx="24" cy="32" r="18" fill="none" stroke="#254e83" stroke-width="1.8"/>' +
+    return '<g fill="#166149"><circle cx="24" cy="32" r="18" fill="none" stroke="#166149" stroke-width="1.8"/>' +
       petals + '<circle cx="24" cy="32" r="7.1" fill="#f8f2e2"/><circle cx="24" cy="32" r="5.7" fill="#b62f38"/>' +
       '<circle cx="24" cy="32" r="3.2" fill="#f8f2e2"/><circle cx="24" cy="32" r="1.3" fill="#b62f38"/></g>';
   }
-  // 万字统一墨色，取消多层偏移字影。
+  // 中式实物万子：上方数字黑墨、下方萬字朱红。
   function wanSvg(n) {
     var num = CN_NUM[n - 1];
     function t(x, y, size, ch, fill, extra) {
@@ -2550,8 +2551,8 @@ window.onerror = function (msg, src, line, col) {
         'font-family="' + WAN_FONT + '" fill="' + fill + '"' + (extra || '') + '>' + ch + '</text>';
     }
     return '<g>' +
-      t(24, 29, 29, num, '#b62f38') +
-      t(24, 58, 26, '萬', '#b62f38') +
+      t(24, 29, 29, num, TILE_INKS.k) +
+      t(24, 58, 26, '萬', TILE_INKS.r) +
       '</g>';
   }
   var FACE_CACHE = [];
