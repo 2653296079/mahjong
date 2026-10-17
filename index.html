@@ -4131,6 +4131,9 @@ window.onerror = function (msg, src, line, col) {
     $('modalBox').innerHTML = '<h2>联机打牌</h2><div id="netBox"></div>';
   }
 
+  // 版本号：改页面时和 sw.js 的 CACHE 一起递增，方便确认浏览器拿到的是不是最新版
+  var BUILD = 'v16';
+
   // ---------- 主界面：先选单机还是联机 ----------
   function injectHomeCss() {
     if (document.getElementById('homeCss')) return;
@@ -4184,6 +4187,7 @@ window.onerror = function (msg, src, line, col) {
         '</div>' +
         '<div class="homeStat">' + stat + '</div>' +
         '<div class="homeRule">108 张（万/条/筒 1-9，无字牌）· 不能吃，可碰可杠 · 小七对和平胡同价 · 收炮 5+鸟钱，自摸每家 10+鸟钱</div>' +
+        '<div style="margin-top:10px;font-size:11px;color:#5f7a6b">版本 ' + BUILD + '</div>' +
       '</div>';
     el.classList.remove('hidden');
     clearTimeout(timer);                      // 菜单期间不推进牌局
