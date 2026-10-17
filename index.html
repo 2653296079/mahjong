@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="转转麻将">
 <meta name="theme-color" content="#123f38">
+<meta name="mahjong-online-url" content="https://frp-way.com:20466/">
 <title>转转麻将 · 练牌室</title>
 <style>
 :root{
@@ -580,6 +581,7 @@ main{background:#102c28;gap:0}
 .tileAnalysisTiles{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}.tileAnalysisTiles span{background:#fffdf6;border:1px solid #d5d7c5;border-radius:5px;padding:2px 6px;white-space:nowrap;font-size:12px}
 .tileAnalysisLabel{margin:12px 0 3px;font-size:11px;color:#6b775c;letter-spacing:1px;font-weight:600}.tileAnalysisMath{font-size:12px;background:#e5ebdc;border-radius:7px;padding:7px 9px;margin-top:8px}.tileAnalysisPath{border-bottom:1px solid #d7ddcb;padding:5px 0;font-size:12px}.tileAnalysisNote{font-size:11px;line-height:1.6;color:#6a7466;margin-top:7px}#tileAnalysis .risk-hi{color:#ab503d}#tileAnalysis .risk-mid{color:#946622}#tileAnalysis .risk-lo{color:#247456}
 .handRow .tile.analyzing{outline:2px solid #efdc9c;outline-offset:2px}.handRow .tile.analyzing:not(.chosen){transform:translateY(-5px)}
+.lobbySummary{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid #b0c29440;border-radius:12px;padding:14px 16px;margin:12px 0;background:#204d3e}.lobbyIdentity{min-width:0;overflow-wrap:anywhere}.lobbyIdentity b{display:block;font-size:19px;color:#f3dfb4}.lobbyIdentity small,.lobbySummary small{color:#bfd0b9;font-size:11px}.lobbyPeople{font-size:14px;color:#f3dfb4}.lobbyPeople b{font-size:25px;margin-right:3px}.homeOnlineStatus{font-size:11px;color:#d9c79e;line-height:1.7}#netBar{max-width:260px;overflow:hidden}#netBar>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.netConnectionSettings{font-size:11px;color:#b7cbb3;overflow-wrap:anywhere;margin:12px 0}.netConnectionSettings summary{cursor:pointer}.netConnectionSettings input{width:100%;padding:9px;margin:8px 0;background:#173e33;border:1px solid #718568;color:#f3e9d2;border-radius:8px}
 @media(max-width:680px){.tileAnalysisScroll{padding:12px 14px}.tileAnalysisHead h3{font-size:16px}.tileAnalysisStats b{font-size:18px}}
 </style>
 <link rel="manifest" href="manifest.webmanifest">
@@ -4699,6 +4701,7 @@ window.onerror = function (msg, src, line, col) {
   // 但谁都拿不到别人的手牌（连网络流量里也没有）。
   var NET_KEY = 'zmj_net_v1';
   var NET = { ws: null, status: 'off', err: '', note: '', state: null, lobby: null,
+              identity:null, presence:null, instance:'', explicitServer:false, retryTimer:0,
               room: '', name: '', server: '', token: '', pid: '', wantRoom: '', retry: 0, pendingReviews: {}, lastActionId: '',
               pendingAction: null, actionTileId: null, probe: null, probeSeq: 0, probeTimer: 0, pendingTimer: 0,
               roundTrip: null, lastConfirm: null, serverMs: null, probeUnsupported: false };
@@ -4776,7 +4779,7 @@ window.onerror = function (msg, src, line, col) {
   }
   async function refreshAccount() {
     if(!/^https?:$/.test(location.protocol)){ACCOUNT.supported=false;accountLabels();return;}
-    try{var data=await accountRequest('me');ACCOUNT.user=data.user;ACCOUNT.identity=data.user;ACCOUNT.offline=false;ACCOUNT.supported=true;
+    try{var data=await accountRequest('me');ACCOUNT.user=data.user;ACCOUNT.identity=data.user;ACCOUNT.offline=false;ACCOUNT.supported=true;NET.identity=data.identity||null;updateOnlineLabels();
       if(data.user)localStorage.setItem('zmj_account_identity',JSON.stringify(data.user));else localStorage.removeItem('zmj_account_identity');if(data.user)flushAccount();
     }catch(e){ACCOUNT.offline=e.status!==404;ACCOUNT.supported=e.status===404?false:null;}accountLabels();
   }
@@ -4824,7 +4827,7 @@ window.onerror = function (msg, src, line, col) {
     }catch(e){ACCOUNT.error=e.status===401?'请重新登录，待传牌谱仍保存在本机':e.message || '同步失败，稍后自动重试';}
     finally{ACCOUNT.syncing=false;accountSyncLabel();}
   }
-  function accountConnectionChanged(){if(!NET.ws){if(NET.room)netConnect();return;}var ws=NET.ws;NET.ws=null;ws.close();NET.status='off';clearTimeout(NET.probeTimer);clearPendingAction();if(NET.room)netConnect();else netBar();}
+  function accountConnectionChanged(){NET.identity=null;if(!NET.ws){netBar();return;}var ws=NET.ws;NET.ws=null;ws.close();NET.status='off';clearTimeout(NET.probeTimer);clearTimeout(NET.retryTimer);clearPendingAction();ensureOnline();}
   function accountDate(value){return new Date(value).toLocaleString('zh-CN',{hour12:false});}
   function accountMode(row){return row.mode==='human'?'真人同桌（可含电脑）':row.source==='server'?'联机人机':'单机人机';}
   function accountStatus(row){return row.status==='completed'?'已结束':row.status==='playing'?'进行中':row.status==='interrupted'?'中断存档':'未完成存档';}
@@ -4890,7 +4893,7 @@ window.onerror = function (msg, src, line, col) {
     var txt, dot;
     if (NET.status === 'connecting') { txt = '正在连接联机服务器…'; dot = '#f2c14e'; }
     else if (NET.status === 'error') { txt = NET.err || '连接出问题'; dot = '#e2685a'; }
-    else if (!NET.room) { txt = '已连上联机服务器'; dot = '#5ec98a'; }
+    else if (!NET.room) { txt = (NET.presence ? '在线 '+NET.presence.online+' 人' : '联机大厅') + ' · ' + identityName(); dot = '#5ec98a'; }
     else {
       var st = NET.state;
       var mine = st && st.you ? st.you : null;
@@ -4905,6 +4908,7 @@ window.onerror = function (msg, src, line, col) {
     t.textContent = txt;
     netBarEl.appendChild(d); netBarEl.appendChild(t);
     netBarEl.style.display = 'inline-flex';
+    updateOnlineLabels();
     netDiagnostics();
   }
   function netToast(msg) {
@@ -4948,6 +4952,36 @@ window.onerror = function (msg, src, line, col) {
   }
   var netRequestSeq = 0;
 
+  function identityName(){return NET.identity?NET.identity.name:ACCOUNT.user?ACCOUNT.user.name:'访客';}
+  function readPresence(value){return value&&['online','accounts','visitors'].every(function(k){return Number.isSafeInteger(value[k])&&value[k]>=0&&value[k]<=16777216;})&&value.accounts+value.visitors===value.online?{online:value.online,accounts:value.accounts,visitors:value.visitors}:null;}
+  function updateOnlineLabels(){
+    var p=NET.presence,known=!!p&&NET.status==='on';
+    var home=known?p:NET.homePresence&&Date.now()-NET.homePresence.at<30000?NET.homePresence.data:null;
+    if($('homeOnlineCount'))$('homeOnlineCount').textContent=home?'在线 '+home.online+' 人 · 已登录 '+home.accounts+' · 访客 '+home.visitors:'进入大厅自动连接';
+    if($('netOnlineCount'))$('netOnlineCount').innerHTML=known?'<b>'+p.online+'</b> 人在线<br><small>已登录 '+p.accounts+' · 访客 '+p.visitors+'</small>':'在线人数 —';
+    if($('netIdentity'))$('netIdentity').textContent=identityName();
+  }
+  var lobbyCountBusy=false;
+  async function refreshLobbyCount(){
+    if(lobbyCountBusy||ACCOUNT.supported!==true||NET.explicitServer||document.visibilityState==='hidden'||!$('home')||$('home').classList.contains('hidden'))return;
+    lobbyCountBusy=true;var controller=new AbortController(),timeout=setTimeout(function(){controller.abort();},3000);
+    try{var response=await fetch('/api/lobby',{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error();var p=readPresence(await response.json());if(!p)throw Error();NET.homePresence={data:p,at:Date.now()};}catch(e){NET.homePresence=null;}finally{clearTimeout(timeout);lobbyCountBusy=false;updateOnlineLabels();}
+  }
+  setInterval(refreshLobbyCount,20000);
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')refreshLobbyCount();});
+  async function ensureOnline(){
+    await accountReady;
+    if(ACCOUNT.supported===true&&!NET.explicitServer&&NET.server){
+      NET.server='';NET.room='';NET.token='';netSaveCfg();try{sessionStorage.removeItem('zmj_seat_v1');}catch(e){}
+    }
+    // 静态发布页统一跳转到公网入口，登录和游戏使用同一站点的 Cookie。
+    if(ACCOUNT.supported===false&&(/\.github\.io$/i.test(location.hostname)||location.protocol==='file:')){
+      var entry=document.querySelector('meta[name="mahjong-online-url"]');
+      if(entry&&entry.content){var target=new URL(entry.content);if(/^https?:$/.test(target.protocol)&&!target.username&&!target.password){target.searchParams.set('online','1');if(NET.wantRoom)target.searchParams.set('room',NET.wantRoom);location.assign(target.href);return;}}
+    }
+    netConnect();
+  }
+
   function netConnect(done) {
     if (NET.ws && (NET.ws.readyState === 0 || NET.ws.readyState === 1)) { if (done) done(); return; }
     var url;
@@ -4961,15 +4995,14 @@ window.onerror = function (msg, src, line, col) {
     NET.ws = ws;
     clearTimeout(NET.connectTimer);NET.authError=false;
     var connectedThisAttempt=false;
-    NET.connectTimer=setTimeout(function(){if(NET.ws!==ws||ws.readyState===1)return;NET.status='error';NET.err='连接超时：'+url+'。请确认服务器已启动，或连接本页服务器。';ws.close();netBar();if($('netBox'))renderNet();},8000);
+    NET.connectTimer=setTimeout(function(){if(NET.ws!==ws||ws.readyState===1)return;NET.status='error';NET.err='暂时连不上联机服务，请稍后重试。';ws.close();netBar();if($('netBox'))renderNet();},12000);
     ws.onopen = function () {
       if (NET.ws !== ws) return;
       connectedThisAttempt=true;clearTimeout(NET.connectTimer);
       NET.status = 'on'; NET.retry = 0; NET.err = ''; NET.everConnected = true;
       NET.roundTrip = null; NET.lastConfirm = null; NET.serverMs = null; NET.probeUnsupported = false; clearPendingAction(); netProbe();
       netBar();
-      if (NET.room) netJoin(NET.room, NET.name, NET.token);   // 断线重连：自动回到原来的房间
-      else netSend({ t: 'rooms' });
+      // 等 welcome 确认身份及服务实例，再恢复房间，避免重启后误建旧房间。
       if (done) done();
     };
     ws.onmessage = function (ev) {
@@ -4985,23 +5018,24 @@ window.onerror = function (msg, src, line, col) {
       clearPendingAction(); clearTimeout(NET.probeTimer); NET.probe = null; cancelOnlineAnalysis();
       stopRiskWorker();
       NET.pendingReviews = {};
-      if (NET.status === 'error') { netBar(); return; }
+      NET.presence=null;hideTileAnalysis();
+      if (NET.status === 'error') { netBar(); if($('netBox'))renderNet();return; }
       NET.status = 'error';
       if (game && game.online && game.hand) render();
       // 从没连上过 = 地址不对或没有服务；连上过又断 = 掉线。两种提示不能混。
       NET.err = NET.authError ? '账号登录已过期，请先重新登录再接回原座位。' : event.code===1008 ? '连接因流量或接收限制断开，请稍后重连。' : connectedThisAttempt
         ? '与服务器断开了，正在自动重连…'
-        : '连不上 ' + url + '。这个网页本身不带牌局，需要有一台电脑在跑 node server.js，把它的地址填在下面。';
+        : '暂时连不上联机服务，稍后可自动重试。';
       netBar();
-      if (!NET.authError && NET.room && NET.retry < 5) {          // 掉线自动重连
+      if (!NET.authError && NET.retry < 5 && !NET.replaced) {
         NET.retry++;
-        setTimeout(function () { if (NET.room) netConnect(); }, 800 * NET.retry);
+        clearTimeout(NET.retryTimer);NET.retryTimer=setTimeout(function () { netConnect(); }, 800 * NET.retry);
       } else if (NET.room) {
         netToast('已断开，点「联机」可以手动重连');
       }
       if ($('netBox')) renderNet();
     };
-    ws.onerror = function () { if (NET.ws !== ws) return; NET.err = '连不上 ' + url; };
+    ws.onerror = function () { if (NET.ws !== ws) return; NET.err = '暂时连不上联机服务'; };
   }
 
   function netJoin(room, name, token) {
@@ -5161,7 +5195,13 @@ window.onerror = function (msg, src, line, col) {
 
   function onNetMessage(m) {
     if (!m || !m.t) return;
-    if (m.t === 'welcome' || m.t === 'rooms') { NET.lobby = m.rooms || null; if ($('netBox')) renderNet(); return; }
+    if (m.t==='welcome') {
+      if(m.instance&&NET.instance&&m.instance!==NET.instance&&NET.room){NET.room='';NET.token='';NET.state=null;proxyGame=null;if(game&&game.online){game=null;showHome();}try{sessionStorage.removeItem('zmj_seat_v1');}catch(e){}netToast('联机服务已恢复，原对局已中断，请重新进入房间。');}
+      NET.instance=m.instance||NET.instance;NET.identity=m.identity||NET.identity;NET.name=identityName();NET.presence=readPresence(m.presence);NET.lobby=m.rooms||[];NET.replaced=false;
+      if(NET.room)netJoin(NET.room,NET.name,NET.token);else netSend({t:'rooms'});netBar();if($('netBox'))renderNet();return;
+    }
+    if(m.t==='presence'){var people=readPresence(m);if(!people)return;var changed=JSON.stringify(NET.lobby)!==JSON.stringify(m.rooms||[]);NET.presence=people;NET.lobby=m.rooms||[];netBar();if(changed&&$('netBox'))renderNet();else updateOnlineLabels();return;}
+    if (m.t === 'rooms') { NET.lobby = m.rooms || null; if ($('netBox')) renderNet(); return; }
     if (m.t === 'joined') {
       NET.room = m.room; NET.token = m.token; NET.pid = m.pid;
       if (m.you) NET.name = m.you;
@@ -5173,6 +5213,7 @@ window.onerror = function (msg, src, line, col) {
       return;
     }
     if (m.t === 'replaced') {
+      NET.replaced=true;clearTimeout(NET.retryTimer);
       NET.room = ''; NET.token = ''; NET.status = 'error'; NET.err = m.msg;
       NET.state = null; proxyGame = null;
       if (game && game.online) { game = null; clearTimeout(timer); }
@@ -5223,8 +5264,7 @@ window.onerror = function (msg, src, line, col) {
           if (q) NET.wantRoom = q;
         } catch (e) {}
       }
-      if (NET.status === 'off') netConnect();
-      else { NET.status = 'off'; netConnect(); }
+      NET.replaced=false;ensureOnline();
     }
     renderNet();
     openModal();
@@ -5233,45 +5273,32 @@ window.onerror = function (msg, src, line, col) {
   function renderNet() {
     if (!$('netBox')) return;
     var box = $('netBox');
-    var h = '<div id="netLatency" class="practiceNote">' + netEsc(NET.status === 'on' ? netDiagnostics() : '连接后可查看网络往返与操作确认耗时') + '</div>';
-    var target;try{target=netURL();}catch(e){target=NET.server || location.origin;}
-    h+='<div class="practiceNote" style="overflow-wrap:anywhere;font-size:11px">连接地址：'+netEsc(target)+'</div>';
+    var roomInput=$('netRoomIn'),roomDraft=roomInput?roomInput.value:NET.wantRoom,roomFocused=roomInput===document.activeElement,roomCaret=roomInput?roomInput.selectionStart:0;
+    var p=NET.presence;
+    var h='<div class="lobbySummary"><div class="lobbyIdentity"><small>'+(NET.identity&&NET.identity.kind==='account'?'已登录账号':'访客身份')+'</small><b id="netIdentity">'+netEsc(identityName())+'</b>'+
+      ((!NET.identity||NET.identity.kind!=='account')?'<button class="mini" id="netAccount">注册 / 登录</button>':'')+'</div><div class="lobbyPeople" id="netOnlineCount" aria-live="polite">'+
+      (p&&NET.status==='on'?'<b>'+p.online+'</b> 人在线<br><small>已登录 '+p.accounts+' · 访客 '+p.visitors+'</small>':'在线人数 —')+'</div></div>';
+    h+='<details class="netConnectionSettings"><summary>连接状态</summary><div id="netLatency">'+netEsc(NET.status==='on'?netDiagnostics():'正在连接联机大厅…')+'</div></details>';
     if (NET.status !== 'on') {
-      h += '<div style="font-size:13px;color:#cfd8d3;line-height:1.7;margin-bottom:8px">' +
-        '联机需要一台跑着 <b style="color:#f2c14e">node server.js</b> 的电脑（局域网里任意一台就行）。' +
-        '在 GitHub Pages 上打开时，请在下面填那台电脑的地址。</div>' +
-        '<div style="font-size:13px;color:#ffcf7a;min-height:20px">' + netEsc(NET.err || '正在连接…') + '</div>' +
-        '<div style="font-size:12px;color:#9fb3a8;margin-top:8px">服务器地址</div>' +
-        '<input id="netServer" value="' + netEsc(NET.server) + '" placeholder="留空 = 当前网址；也可填 192.168.1.5:8000" ' +
-        'style="width:100%;box-sizing:border-box;padding:9px;border-radius:9px;border:1px solid #33584a;' +
-        'background:rgba(0,0,0,.3);color:#e8f3ec;font-size:14px">';
+      h+='<p class="practiceNote" role="status">'+netEsc(NET.err||'正在连接联机大厅，首次进入可能需要几秒…')+'</p>';
       h += '<div class="center" style="margin-top:12px"><button class="act" id="netRetry">重新连接</button> ' +
-        (ACCOUNT.supported===true?'<button class="mini" id="netCurrentServer">连接本页服务器</button> ':'')+
         (NET.authError?'<button class="mini" id="netLogin">重新登录账号</button> ':'')+
         '<button class="act pass" id="netClose">关闭</button></div>';
       box.innerHTML = h;
       $('netRetry').onclick = function () {
-        var v = $('netServer').value;
-        if (NET.server !== v) { NET.room = ''; NET.token = ''; proxyGame = null; try { sessionStorage.removeItem('zmj_seat_v1'); } catch (e) {} }
-        NET.server = v;
-        netSaveCfg();
+        clearTimeout(NET.retryTimer);NET.retry=0;NET.replaced=false;
         if (NET.ws) { try { NET.ws.close(); } catch (e) {} NET.ws = null; }
-        netConnect();
+        ensureOnline();
       };
       $('netClose').onclick = function () { closeModal(); };
       if($('netLogin'))$('netLogin').onclick=showAccount;
-      if($('netCurrentServer'))$('netCurrentServer').onclick=function(){netLeave(true);var old=NET.ws;NET.ws=null;if(old)old.close();NET.server='';netSaveCfg();netConnect();};
       return;
     }
     if (!NET.room) {
-      h += '<div style="font-size:13px;color:#cfd8d3;line-height:1.7">连上了服务器。开一间房，把房间号告诉朋友；' +
-        '人数不够时空座位由电脑补上。</div>' +
-        '<div style="font-size:12px;color:#9fb3a8;margin-top:10px">你的名字</div>' +
-        '<input id="netName" maxlength="12" value="' + netEsc(NET.name || '') + '" ' +
-        'style="width:100%;box-sizing:border-box;padding:9px;border-radius:9px;border:1px solid #33584a;' +
-        'background:rgba(0,0,0,.3);color:#e8f3ec;font-size:14px">' +
-        '<div style="font-size:12px;color:#9fb3a8;margin-top:10px">房间号（留空 = 新开一间）</div>' +
-        '<input id="netRoomIn" maxlength="8" value="' + netEsc(NET.wantRoom || '') + '" ' +
+      h += '<p class="practiceNote">已连接大厅，加入好友房间或直接创建一桌，空位由电脑补齐。</p>' +
+        '<input id="netName" type="hidden" value="'+netEsc(identityName())+'">'+
+        '<label for="netRoomIn" style="font-size:12px;color:#c9d6bd">房间号（留空创建新房间）</label>' +
+        '<input id="netRoomIn" inputmode="numeric" maxlength="8" value="' + netEsc(roomDraft || '') + '" ' +
         'style="width:100%;box-sizing:border-box;padding:9px;border-radius:9px;border:1px solid #33584a;' +
         'background:rgba(0,0,0,.3);color:#e8f3ec;font-size:14px">';
       var list = NET.lobby || [];
@@ -5291,7 +5318,7 @@ window.onerror = function (msg, src, line, col) {
         '<button class="act pass" id="netClose2">关闭</button></div>';
       box.innerHTML = h;
       var joinIt = function (rid) {
-        var nm = $('netName').value || '';
+        var nm = identityName();
         NET.name = nm;
         NET.wantRoom = rid || '';
         netSaveCfg();
@@ -5299,6 +5326,7 @@ window.onerror = function (msg, src, line, col) {
       };
       $('netEnter').onclick = function () { joinIt($('netRoomIn').value.trim()); };
       $('netClose2').onclick = function () { closeModal(); };
+      if(roomFocused){$('netRoomIn').focus();$('netRoomIn').setSelectionRange(roomCaret,roomCaret);}
       var btns = box.querySelectorAll('button[data-room]');
       for (var b = 0; b < btns.length; b++) {
         btns[b].onclick = function () { joinIt(this.getAttribute('data-room')); };
@@ -5360,11 +5388,12 @@ window.onerror = function (msg, src, line, col) {
   }
 
   function netOpenBox() {
-    $('modalBox').innerHTML = '<h2>联机打牌</h2><div id="netBox"></div>';
+    $('modalBox').innerHTML = '<h2>联机大厅</h2><div id="netBox"></div>';
+    $('netBox').addEventListener('click',function(e){if(e.target.closest('#netAccount'))showAccount();});
   }
 
   // 与离线缓存同步，保留远端新增的首页版本标识。
-  var BUILD = 'v27';
+  var BUILD = 'v28';
   // ---------- 主界面：先选单机还是联机 ----------
   function showHome() {
     if (!STATS) loadStats();
@@ -5396,7 +5425,8 @@ window.onerror = function (msg, src, line, col) {
           '<button class="homeCard" id="homeOnline">' +
             '<span class="homeCardTop"><span class="homeIndex">03 / 好友同桌</span><span class="homeCardIcon" aria-hidden="true"><svg viewBox="0 0 28 28"><circle cx="10" cy="9" r="4"/><path d="M3 24v-3a7 7 0 0 1 14 0v3m1-19a4 4 0 0 1 0 8m3 3a6 6 0 0 1 4 6v2"/></svg></span></span>' +
             '<span class="homeTag">联机打牌</span>' +
-            '<span class="homeDesc">邀朋友一起打牌，空位由电脑补齐。连接联机服务器，就能分享房间。</span>' +
+            '<span class="homeDesc">自动连接大厅，邀朋友同桌。账号显示注册名，未登录也可作为访客加入。</span>' +
+            '<span class="homeOnlineStatus" id="homeOnlineCount">进入大厅自动连接</span>'+
             '<span class="homeGo">进入房间</span>' +
           '</button>' +
         '</div>' +
@@ -5409,6 +5439,8 @@ window.onerror = function (msg, src, line, col) {
     if (game && !game.online && game.hand && !game.hand.over) $('homeSolo').querySelector('.homeGo').textContent = '继续本局';
     clearTimeout(timer);                      // 菜单期间不推进牌局
     $('homeAccount').onclick = showAccount; accountLabels();
+    updateOnlineLabels();
+    refreshLobbyCount();
     $('homeSolo').onclick = function () {
       hideHome();
       if (game && game.online) netLeave(true);  // 从联机切回单机
@@ -5465,13 +5497,14 @@ window.onerror = function (msg, src, line, col) {
       var inviteParams = new URLSearchParams(location.search);
       var q = inviteParams.get('room');
       if (q && inviteParams.get('server')) {
+        NET.explicitServer=true;
         var inviteServer = inviteParams.get('server');
         if (NET.server !== inviteServer || NET.room && NET.room !== q) { NET.room = ''; NET.token = ''; }
         NET.server = inviteServer;
       }
       if (q && NET.room && NET.room !== q) { NET.room = ''; NET.token = ''; }
       // 朋友发来的邀请链接：跳过主界面，直接进联机面板
-      if (q) { NET.wantRoom = q; setTimeout(function () { hideHome(); showNet(); }, 400); }
+      if (q||inviteParams.get('online')==='1') { NET.wantRoom = q||''; setTimeout(function () { hideHome(); showNet(); }, 400); }
     } catch (e) {}
   })();
   $('btnNew').onclick = function () { cfg.seed = (Math.random() * 0xffffffff) >>> 0; newGame(); };
@@ -5481,6 +5514,7 @@ window.onerror = function (msg, src, line, col) {
   updateRotate();
   showHome();          // 先出主界面，由用户选单机还是联机
   accountReady = refreshAccount();
+  accountReady.then(refreshLobbyCount);
 })();
 </script>
 <script>

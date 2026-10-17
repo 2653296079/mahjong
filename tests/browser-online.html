@@ -98,9 +98,10 @@ function clickTile(w) {
       if (doc(w).querySelectorAll('.handRow').length !== 1) throw new Error('只能绘制自己的明手牌');
       if (doc(w).querySelectorAll('#seat0 .handRow .tile').length < 13) throw new Error('开局看不到自己的手牌');
       if (doc(w).querySelector('.seatName b')) throw new Error('昵称被解析成 HTML');
-      if (!doc(w).getElementById('table').textContent.includes('<b>乙</b>')) throw new Error('昵称未按纯文本显示');
+      if (doc(w).getElementById('table').textContent.includes('<b>乙</b>')) throw new Error('未注册玩家可以伪造昵称');
+      if (!/^访客·[A-F0-9]{8}$/.test(w.__zmjGame.seats[w.__zmjGame.humanSeat()].name)) throw new Error('访客名称未采用服务端身份');
     });
-    say('两位真人同桌、各自手牌可见、对手牌背隐藏、昵称按文本显示');
+    say('两位真人同桌、各自手牌可见、对手牌背隐藏、访客名称由服务器确认');
     if (A.__zmjGame.hand.revealed || B.__zmjGame.hand.revealed) throw new Error('局中出现了终局暗牌快照');
     // 同一旧画面连续点击会发出多个请求，但服务器只接受其中一次。
     var rapidTile = doc(A).querySelector('.handRow .clickable');

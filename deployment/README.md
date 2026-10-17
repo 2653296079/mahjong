@@ -1,6 +1,6 @@
 # 联机服务配置
 
-需要 Node.js 22.16 或更高版本，无第三方依赖。项目根目录运行 `node server.js 8000`。默认监听 `0.0.0.0`，同时提供页面、账号 API 和 `/ws`。GitHub Pages 只能提供静态前端。
+需要 Node.js 22.16 或更高版本，无第三方依赖。项目根目录运行 `node server.js 8000`，或 Windows 双击 `打开联机麻将.bat`。默认监听 `0.0.0.0`，公开入口提供页面、账号 API 和同站点 `/ws`；第一次联机连接自动启动私有联机进程，后续复用。启动器会自动拉起或复用完整入口。GitHub Pages 作为练习前端，选择联机时跳转到配置的统一公网入口。详见 [联机大厅与自动启动](../联机大厅与自动启动.md)。
 
 ## 限制与健康检查
 
@@ -22,6 +22,8 @@
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8000/healthz
 ```
+
+新增 `GET /api/lobby` 汇总接口；健康接口增加 `app`、`build`、`gameService`（stopped／starting／running）和 `online`、`accounts`、`visitors`。在线人数按账号／访客去重，诊断 ping 不计人数。入口与联机进程共用持久 SQLite 文件，`:memory:` 只用于原有单进程测试。
 
 ## HTTPS 代理示例
 

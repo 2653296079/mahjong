@@ -4,8 +4,8 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const online = require('./server/mjs-server');   // 联机房间（WebSocket）
+const { OnlineService } = require('./server/online-service');
 const { gzip } = require('node:zlib');
 const { loadCore } = require('./server/rooms');
 const { AccountStore } = require('./server/account-store');
@@ -28,17 +28,6 @@ const MIME = {
   '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.txt': 'text/plain; charset=utf-8'
 };
 
-function localIPs() {
-  const out = [];
-  const ifs = os.networkInterfaces();
-  Object.keys(ifs).forEach((name) => {
-    (ifs[name] || []).forEach((info) => {
-      if (info.family === 'IPv4' && !info.internal) out.push({ name, ip: info.address });
-    });
-  });
-  return out;
-}
-
 function acceptsGzip(header) {
   const choices = String(header || '').split(',').map(item => {
     const parts = item.trim().toLowerCase().split(';'), q = parts.slice(1).find(p => /^\s*q\s*=/.test(p));
@@ -50,6 +39,9 @@ function acceptsGzip(header) {
 }
 
 const server = http.createServer(async (req, res) => {
+  if (String(req.url||'').split('?')[0]==='/api/lobby' && req.method==='GET') {
+    const body=JSON.stringify(hub.stats());res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Content-Length':Buffer.byteLength(body)});res.end(body);return;
+  }
   if ((req.url || '').startsWith('/api/')) { await accountAPI(req, res); return; }
   let urlPath;
   try {
@@ -59,7 +51,7 @@ const server = http.createServer(async (req, res) => {
   }
   if(urlPath==='/healthz' && (req.method==='GET'||req.method==='HEAD')){
     const core=loadCore();
-    const body=JSON.stringify({status:'ok',rulesVersion:core.rulesVersion,analysisVersion:core.analysisVersion,questionVersion:core.questionVersion,...hub.stats()});
+    const body=JSON.stringify({status:'ok',app:'zhuanzhuan-mahjong',build:'v28',rulesVersion:core.rulesVersion,analysisVersion:core.analysisVersion,questionVersion:core.questionVersion,...hub.stats()});
     res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Content-Length':Buffer.byteLength(body)});
     res.end(req.method==='HEAD'?undefined:body);return;
   }
@@ -105,47 +97,22 @@ const limits={};
 for(const [key,envName]of Object.entries({maxSessions:'MAHJONG_MAX_SESSIONS',maxRooms:'MAHJONG_MAX_ROOMS',messageRate:'MAHJONG_MESSAGE_RATE',messageBurst:'MAHJONG_MESSAGE_BURST'})){
   if(process.env[envName]!==undefined)limits[key]=Number(process.env[envName]);
 }
-const hub = online.attach(server,{limits, accounts});
+// :memory: 仅用于原有单进程测试；正式文件数据库支持独立联机进程按需启动。
+const hub = process.env.MAHJONG_DB_PATH===':memory:' ? online.attach(server,{limits,accounts}) : new OnlineService({limits,log:message=>process.stderr.write(message)});
+if (hub instanceof OnlineService) server.on('upgrade',(req,socket,head)=>{hub.upgrade(req,socket,head);});
 
 server.listen(port, bindHost, () => {
-  const ips = localIPs();
-  console.log('');
-  console.log('=========================================================');
-  console.log('  Zhuanzhuan Mahjong - phone server is running');
-  console.log('=========================================================');
-  console.log('');
-  console.log('  On your phone (same Wi-Fi), open Safari/Chrome and go to:');
-  console.log('');
-  if(bindHost==='127.0.0.1'||bindHost==='::1'){
-    console.log('      http://'+(bindHost==='::1'?'[::1]':bindHost)+':'+port+'/');
-  } else if (ips.length) {
-    ips.forEach((i) => console.log('      http://' + i.ip + ':' + port + '/          <- ' + i.name));
-    console.log('');
-    console.log('  If the phone cannot open it:');
-    console.log('    1) make sure phone and PC are on the SAME Wi-Fi');
-    console.log('    2) allow this program in the Windows Firewall popup');
-    console.log('    3) turn off the PC VPN / proxy if any');
-  } else {
-    console.log('      (no LAN IP found - check your network connection)');
-  }
-  console.log('');
-  console.log('  Multiplayer: everyone opens the SAME address above,');
-  console.log('               then taps 联机 -> 进房间 with the same room number.');
-  console.log('               Empty seats are filled by computer players.');
-  console.log('');
-  console.log('  Tip (iPhone): Safari -> Share -> Add to Home Screen');
-  console.log('                then it runs fullscreen like a native app.');
-  console.log('');
-  console.log('  Press Ctrl+C to stop.');
-  console.log('');
+  console.log('转转麻将服务入口已就绪：http://127.0.0.1:'+port+'/?online=1');
+  console.log('联机服务按需自动启动；玩家打开统一网站进入大厅即可。');
+  console.log('按 Ctrl+C 停止入口和联机服务。');
 });
 
 let stopping=false;
-function stop() {
+async function stop() {
   if(stopping)return;stopping=true;
-  try { hub.close(); } catch (e) {}
+  const deadline=setTimeout(()=>process.exit(1),6500);deadline.unref();
+  try { await hub.close(); } catch (e) {}
   server.close(()=>{try { accounts.close(); } catch(e) {} process.exit(0);});
-  const deadline=setTimeout(()=>process.exit(1),5000);deadline.unref();
 }
 process.on('SIGINT',stop);
 process.on('SIGTERM',stop);

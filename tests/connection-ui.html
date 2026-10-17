@@ -1,4 +1,4 @@
-<!doctype html><meta charset="utf-8"><title>旧地址恢复与联机牌河验收</title>
+<!doctype html><meta charset="utf-8"><title>自动连接与大厅身份验收</title>
 <pre id="log"></pre><iframe id="game" style="width:390px;height:844px;border:0"></iframe>
 <script>
 var out={ok:false,steps:[],errors:[]};
@@ -10,14 +10,20 @@ async function until(fn,label){for(var i=0;i<300;i++){if(fn())return;await new P
  localStorage.setItem('zmj_cfg_v2',JSON.stringify({sound:false,analyze:false,turnTime:0,learningMode:'guided'}));
  var f=document.getElementById('game');await new Promise(r=>{f.onload=r;f.src='/index.html';});var w=f.contentWindow,d=w.document;
  await new Promise(r=>setTimeout(r,100));d.getElementById('homeOnline').click();
- await until(()=>d.getElementById('netCurrentServer'),'连接失败与恢复入口');
- check(d.getElementById('netBox').textContent.includes('65534'),'连接失败明确展示正在连接的旧地址');
- d.getElementById('netCurrentServer').click();await until(()=>d.getElementById('netEnter'),'连接本页服务器');
- check(JSON.parse(localStorage.getItem('zmj_net_v1')).server==='','一键恢复当前服务器并清理失效地址');
- check(d.getElementById('netBox').textContent.includes('ws://'+location.host+'/ws'),'恢复后展示正确的同源 WebSocket 地址');
+ await until(()=>d.getElementById('netEnter'),'自动连接当前联机大厅');
+ check(JSON.parse(localStorage.getItem('zmj_net_v1')).server==='','自动清理失效旧地址并连接当前服务');
+ check(!d.getElementById('netServer')&&d.getElementById('netName').type==='hidden','玩家无需填写服务器地址或昵称');
+ await until(()=>/1.*人在线/.test(d.getElementById('netOnlineCount').textContent),'在线人数');
+ var visitor=d.getElementById('netIdentity').textContent;check(/^访客·[A-F0-9]{8}$/.test(visitor),'未登录玩家自动显示服务器分配的访客编号');
+ check(d.getElementById('netOnlineCount').textContent.includes('已登录 0 · 访客 1'),'大厅实时展示在线人数、账号与访客数量');
+ d.getElementById('netRoomIn').value='1891';
+ var extra=new w.WebSocket('ws://'+location.host+'/ws');extra.onopen=()=>extra.send(JSON.stringify({t:'hello'}));
+ await new Promise(r=>setTimeout(r,150));
+ check(d.getElementById('netRoomIn').value==='1891'&&d.getElementById('netOnlineCount').textContent.includes('1 人在线'),'同一访客多连接去重，人数推送不清除填写中的房间号');extra.close();
  d.getElementById('netName').value='连接验收';d.getElementById('netRoomIn').value='1891';d.getElementById('netEnter').click();
  await until(()=>d.getElementById('netStart'),'进房间');d.getElementById('netStart').click();await until(()=>w.__zmjGame&&w.__zmjGame.awaiting,'轮到自己');
  var g=w.__zmjGame;check(g.online&&Array.isArray(g.hand.river),'真实联机开局收到服务端公开牌河');
+ check(g.seats[g.humanSeat()].name===visitor,'手动伪造昵称无效，牌桌继续显示真实访客身份');
  var count=g.hand.players[g.humanSeat()].discards.length,tile=d.querySelector('.handRow .clickable');tile.click();if(!d.getElementById('netPendingAction'))tile.click();
  await until(()=>g.hand.players[g.humanSeat()].discards.length>count,'服务端确认弃牌');
  var visible=g.hand.river.filter(e=>e.claimedBy==null),dom=Array.from(d.querySelectorAll('.riverEntry'));

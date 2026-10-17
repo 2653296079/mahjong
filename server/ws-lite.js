@@ -128,6 +128,7 @@ class WSConn extends EventEmitter {
       (code, why) => this.close(code, why), opts);
     socket.on('data', (chunk) => this.parser.push(chunk));
     socket.on('error', () => this._teardown());
+    socket.on('end', () => this._teardown());
     socket.on('close', () => this._teardown());
     socket.setTimeout(0);
     socket.setNoDelay(true);

@@ -75,7 +75,7 @@ function get(url, headers, method) {
       }
     }
     ws.close();
-    if (/Multiplayer:/.test(out)) { /* 启动提示里有联机说明 */ } else problems.push('启动提示缺少联机说明');
+    if (!/联机服务按需自动启动/.test(out)) problems.push('启动提示缺少自动联机说明');
   } catch (e) {
     problems.push('异常：' + e.message);
   }

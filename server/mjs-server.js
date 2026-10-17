@@ -27,6 +27,8 @@ const { RoomStore } = require('./rooms');
 const { readLimits, TokenBucket } = require('./limits');
 const { performance } = require('node:perf_hooks');
 const { cookieToken, sameOrigin } = require('./account-api');
+const { identity, publicIdentity } = require('./identity');
+const crypto = require('node:crypto');
 
 const HEARTBEAT_MS = 25000;
 const TICK_MS = 500;
@@ -38,6 +40,24 @@ function attach(server, opts) {
   const limits = readLimits(opts.limits);
   const store = new RoomStore(Object.assign({},opts.room,{maxRooms:limits.maxRooms}, opts.accounts ? { archive: room => opts.accounts.syncRoom(room) } : {}));
   const sessions = new Set();
+  const instance = crypto.randomUUID();
+  let lobbyTask = null, lobbySignature = '';
+  function presence() {
+    const people = new Map();
+    for (const s of sessions) if (s.present && !s.conn.closed) people.set(s.identity.key,s.identity.kind);
+    const accounts = Array.from(people.values()).filter(k=>k==='account').length;
+    return {online:people.size,accounts,visitors:people.size-accounts};
+  }
+  function notifyLobby() {
+    if (lobbyTask) return;
+    lobbyTask=setImmediate(()=>{
+      lobbyTask=null;
+      const message={t:'presence',...presence(),rooms:store.list()}, signature=JSON.stringify(message);
+      if (signature!==lobbySignature) { lobbySignature=signature; for (const s of sessions) if (s.present) send(s,message); }
+      if (opts.onStats) opts.onStats(stats());
+    });
+  }
+  function stats() { return {rooms:store.rooms.size,sessions:sessions.size,players:Array.from(store.rooms.values()).reduce((n,r)=>n+r.onlineCount(),0),...presence()}; }
   const pumps = new Map();
   function needsPump(room) {
     const G = room.game;
@@ -68,6 +88,7 @@ function attach(server, opts) {
       const s = sessionOf(m);
       if (s) send(s, room.viewFor(m));
     }
+    notifyLobby();
   }
   function broadcastChat(room, msg) {
     for (const m of room.members) {
@@ -95,13 +116,15 @@ function attach(server, opts) {
     const session = { conn: conn, member: null, room: null, alive: true, joinedAt: Date.now() };
     session.accountToken = cookieToken(req);
     session.account = opts.accounts ? opts.accounts.userForToken(session.accountToken) : null;
+    session.identity = identity(req,session.account); session.present = false;
     session.budget = new TokenBucket(limits.messageRate,limits.messageBurst,Date.now());
     sessions.add(session);
     conn.on('message', (raw) => onMessage(session, raw));
     conn.on('binary',()=>conn.close(1003,'text messages only'));
     conn.on('pong', () => { session.alive = true; });
-    conn.on('close', () => { sessions.delete(session); onClose(session); });
-    send(session, { t: 'welcome', rooms: store.list(), server: '转转麻将联机' });
+    conn.on('close', () => { sessions.delete(session); onClose(session); notifyLobby(); });
+    send(session, { t:'welcome', rooms:store.list(), server:'转转麻将联机', instance, identity:publicIdentity(session.identity), presence:presence() });
+    notifyLobby();
   });
 
   function onClose(session) {
@@ -130,7 +153,9 @@ function attach(server, opts) {
 
   function handle(session, msg) {
     if (opts.accounts && session.account && !opts.accounts.userForToken(session.accountToken)) { send(session, { t: 'err', msg: '登录已过期，请重新登录', code: 'auth' }); session.conn.close(1008, 'account session expired'); return; }
+    if (['rooms','join','hello'].includes(msg.t) && !session.present) { session.present=true; notifyLobby(); }
     switch (msg.t) {
+      case 'hello': return send(session,{t:'presence',...presence(),rooms:store.list()});
       case 'ping': return send(session, { t: 'pong', at: Date.now(), probe: Number.isSafeInteger(msg.probe) ? msg.probe : undefined });
       case 'rooms': return send(session, { t: 'rooms', rooms: store.list() });
       case 'join': return doJoin(session, msg);
@@ -194,9 +219,10 @@ function attach(server, opts) {
     const previous = sameMember ? session.member : accountMember || msg.token && room.memberByToken(msg.token);
     if (previous && previous.accountId && (!session.account || previous.accountId !== session.account.id)) throw Object.assign(new Error('请登录此座位所属账号后重连'),{code:'auth'});
     const oldSession = previous && previous.conn;
-    const name = session.account ? session.account.name : opts.accounts ? '游客·' + String(msg.name || '牌友').slice(0,9) : msg.name;
+    const name = session.identity.name;
     const member = sameMember ? session.member : room.join(name, previous ? previous.token : msg.token);
     if (session.account) member.accountId = session.account.id;
+    if(room.game)room.game.seats.concat(room.game.queue).forEach(p=>{if(p.id===member.pid)p.name=member.name;});
     // 目标房间满员时保留原房间，不能先退房再发现加入失败。
     if (session.room && session.room !== room) doLeave(session);
     member.conn = session;
@@ -259,16 +285,11 @@ function attach(server, opts) {
     store: store,
     sessions: sessions,
     broadcast: broadcast,
-    stats() {
-      return {
-        rooms: store.rooms.size,
-        sessions: sessions.size,
-        players: Array.from(store.rooms.values()).reduce((a, r) => a + r.onlineCount(), 0)
-      };
-    },
+    presence, stats,
     close() {
       if (opts.accounts) for (const room of store.rooms.values()) { room.archive(); opts.accounts.interruptRoom(room); }
       clearInterval(heartbeat); clearInterval(ticker); clearInterval(sweeper);
+      if (lobbyTask) clearImmediate(lobbyTask);
       for (const task of pumps.values()) clearImmediate(task);
       pumps.clear();
       for (const s of sessions) { try { s.conn.close(1001, '服务器关闭'); } catch (e) {} }

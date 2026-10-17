@@ -15,6 +15,10 @@ function socket(){var ws=new WebSocket('ws://'+location.host+'/ws'),client={ws,m
  localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:20261017,sound:false,analyze:false,turnTime:0,rotate:false}));localStorage.setItem('zmj_noRotate','1');
  await load();check(!!d.getElementById('homeAccount'),'首页可进入账号');await openAccount();await register('账号验收甲');
  check(!document.cookie.includes('zmj_session'),'登录会话不暴露给脚本');check(d.getElementById('accountPanel').textContent.includes('0 局'),'新账号显示空战绩');
+ d.getElementById('modalDismiss').click();d.getElementById('homeOnline').click();await until(()=>d.getElementById('netEnter')&&/人在线/.test(d.getElementById('netOnlineCount').textContent));
+ check(d.getElementById('netIdentity').textContent==='账号验收甲','登录账号在大厅显示已注册账号名称');
+ check(/已登录 1 · 访客 0/.test(d.getElementById('netOnlineCount').textContent),'账号在线人数按认证身份统计');
+ d.getElementById('netClose2').click();await openAccount();
  for(var width of [360,390,1366]){f.style.width=width+'px';await sleep(30);check(d.documentElement.scrollWidth<=width+1,width+' 宽账号面板不溢出');}f.style.width='390px';
  d.getElementById('modalDismiss').click();d.getElementById('homeSolo').click();var g=w.__zmjGame;
  var tile=d.querySelector('.handRow .clickable');tile.click();if(g.hand.record.events.length===1)tile.click();

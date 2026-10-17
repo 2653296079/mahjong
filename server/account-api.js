@@ -1,5 +1,6 @@
 'use strict';
 const { problem, SESSION_MS, username } = require('./account-store');
+const identities = require('./identity');
 function cookieToken(req) {
   const m = /(?:^|;\s*)zmj_session=([a-f0-9]{64})(?:;|$)/.exec(req.headers.cookie || '');
   return m ? m[1] : '';
@@ -46,7 +47,10 @@ function createAccountAPI(store) {
       if (!sameOrigin(req) || (req.method !== 'GET' && req.headers['x-zmj-request'] !== '1')) throw problem(403, '请从游戏页面操作账号');
       const token = cookieToken(req), user = store.userForToken(token);
       const route = url.pathname;
-      if (route === '/api/account/me' && req.method === 'GET') { reply(200, { user, accounts: true }); return true; }
+      if (route === '/api/account/me' && req.method === 'GET') {
+        const who=identities.identity(req,user);
+        reply(200, { user, accounts:true, identity:identities.publicIdentity(who) }, identities.visitorId(req) ? null : identities.visitorCookie(req,who)); return true;
+      }
       if (['/api/account/register','/api/account/login'].includes(route) && req.method === 'POST') {
         limit('auth:' + ip, 40, 10 * 60000);
         const data = await readJSON(req), key = username(data.name).key;

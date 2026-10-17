@@ -79,16 +79,11 @@ exit /b 1
 
 :ready
 echo.
-rem 如果上次开的服务器还活着（关隧道窗口不会关掉它），就直接复用，避免再起一个报「端口被占用」
-set "SRV_RUNNING="
-for /f "delims=" %%a in ('netstat -ano ^| findstr /c:"LISTENING" ^| findstr /c:":8000 "') do set "SRV_RUNNING=1"
-if defined SRV_RUNNING (
-  echo 检测到 8000 端口已经有服务器在跑（上次开的还活着），直接复用。
-) else (
-  echo 启动游戏服务器（端口 8000）...
-  start "转转麻将服务器" /min cmd /c "node server.js 8000"
-  rem 用 ping 等两秒：timeout 在输入被重定向时会直接失败
-  ping -n 3 127.0.0.1 >nul
+rem 由统一启动器检查身份与健康状态：已有服务复用，没有则后台拉起。
+node "%~dp0server\launcher.js" 8000 --no-open
+if errorlevel 1 (
+  pause
+  exit /b 1
 )
 echo.
 echo 启动穿透隧道。下面会打印公网地址（形如 cn-xx.natfrp.cloud:12345）。
