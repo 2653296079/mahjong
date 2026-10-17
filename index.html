@@ -500,6 +500,8 @@ main{background:#102c28;gap:0}
 @media(max-height:500px){#center{display:grid;gap:2px 4px;padding:4px}#coach{padding:4px 6px}#coachMain{font-size:13px;line-height:1.4;margin:0}#coachEyebrow,#coachDetail,#centerMsg{display:none}#centerTop .pill{font-size:9px;padding:1px 4px}#seat2 .backRow{padding:2px 0 3px}#table{border-radius:15px;grid-template-columns:56px minmax(0,1fr) 56px}.seatName{font-size:9px;padding:2px 4px}.discards{padding:2px 0 4px}.handRow{padding:10px 3px 7px;gap:2px}.tile.big{width:32px;height:42px}#actionbar{min-height:43px;padding:5px 10px}.act{min-height:31px;padding:5px 13px}#side{max-height:82dvh}.toolsPopover{z-index:35}}
 @media(hover:none){.tile.clickable:hover{transform:none}.homeCard:hover{transform:none}}
 .concealedCount{display:none}
+.tileAtlas{width:660px;max-width:100%}.tileAtlas h3{font-size:13px;font-weight:500;letter-spacing:3px;margin:22px 0 12px;color:#dcca9f}.tileAtlasRow{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:12px}.tileAtlas figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:10px;min-width:0}.tileAtlas .tile.big{width:100%;max-width:56px;height:auto;aspect-ratio:3/4;flex-shrink:0}.tileAtlas figcaption{font-size:10px;color:#bfcfb8}.tileAtlasSmall{margin-top:22px;border-top:1px solid #cbd5bc24;padding-top:15px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}.tileAtlasSmall>span{font-size:11px;color:#bfcfb8}.tileAtlasSmall .tiles{gap:5px;justify-content:flex-start;padding-bottom:5px}
+@media(max-width:680px){.tileAtlasRow{gap:5px}.tileAtlas h3{margin:18px 0 10px;font-size:12px}.tileAtlas figure{gap:8px}.tileAtlas figcaption{font-size:9px}.tileAtlas .tile.big{border-radius:4px;padding:1px 2px}.tileAtlasSmall{gap:8px;margin-top:18px}.tileAtlasSmall>span{width:100%}}
 @media(max-height:500px){#seat1 .seatPosition,#seat3 .seatPosition,#seat1 .seatScore,#seat3 .seatScore,#seat1 .backRow,#seat3 .backRow{display:none}#seat1 .concealedCount,#seat3 .concealedCount{display:inline;color:#b9cdb7;font-size:8px;white-space:nowrap}#seat1 .seatName,#seat3 .seatName{flex-wrap:nowrap}#seat1 .seatName .seatLabel,#seat3 .seatName .seatLabel{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}}
 </style>
 <link rel="manifest" href="manifest.webmanifest">
@@ -512,34 +514,6 @@ main{background:#102c28;gap:0}
 · 安卓：文件管理器里选「用浏览器打开」，或直接在 Chrome 地址栏输入文件路径<br>
 · iPhone：存到「文件」App 后用 Safari 打开<br><br>
 不要用文件管理器的「预览」或聊天软件的内置查看器。</div></noscript>
-<svg width="0" height="0" style="position:absolute;pointer-events:none" aria-hidden="true"><defs>
-  <radialGradient id="tgDot" cx="34%" cy="27%" r="80%">
-    <stop offset="0%" stop-color="#9ad8f8"/><stop offset="40%" stop-color="#2f8fd0"/><stop offset="100%" stop-color="#0b3a60"/>
-  </radialGradient>
-  <radialGradient id="tgCore" cx="35%" cy="29%" r="78%">
-    <stop offset="0%" stop-color="#ec8073"/><stop offset="52%" stop-color="#c0392b"/><stop offset="100%" stop-color="#75190f"/>
-  </radialGradient>
-  <linearGradient id="tgBamboo" x1="0" y1="0" x2="1" y2="0">
-    <stop offset="0%" stop-color="#07401f"/><stop offset="20%" stop-color="#1e8449"/>
-    <stop offset="44%" stop-color="#9ae8ba"/><stop offset="60%" stop-color="#3fae6d"/><stop offset="100%" stop-color="#07401f"/>
-  </linearGradient>
-  <linearGradient id="tgBambooRed" x1="0" y1="0" x2="1" y2="0">
-    <stop offset="0%" stop-color="#7a1c12"/><stop offset="20%" stop-color="#c0392b"/>
-    <stop offset="44%" stop-color="#ffc2b6"/><stop offset="60%" stop-color="#e05a49"/><stop offset="100%" stop-color="#7a1c12"/>
-  </linearGradient>
-  <linearGradient id="tgWan" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0%" stop-color="#e4604f"/><stop offset="52%" stop-color="#c0392b"/><stop offset="100%" stop-color="#8f2318"/>
-  </linearGradient>
-  <radialGradient id="tgBird" cx="34%" cy="26%" r="82%">
-    <stop offset="0%" stop-color="#7ddba6"/><stop offset="52%" stop-color="#2f9e5e"/><stop offset="100%" stop-color="#0f5c33"/>
-  </radialGradient>
-  <radialGradient id="tgBirdHead" cx="34%" cy="26%" r="82%">
-    <stop offset="0%" stop-color="#8ee3b2"/><stop offset="55%" stop-color="#35a866"/><stop offset="100%" stop-color="#12653a"/>
-  </radialGradient>
-  <linearGradient id="tgBack" x1="0" y1="0" x2="0.3" y2="1">
-    <stop offset="0%" stop-color="#3aa877"/><stop offset="45%" stop-color="#1c6b4a"/><stop offset="100%" stop-color="#083a25"/>
-  </linearGradient>
-</defs></svg>
 <div id="app">
   <header id="topbar">
     <div class="brand"><span class="brandMark" aria-hidden="true">转</span><span class="brandText">转转麻将<small>练 牌 室</small></span></div>
@@ -551,7 +525,7 @@ main{background:#102c28;gap:0}
         <button id="btnExport" class="mini">导出牌谱</button><button id="btnStats" class="mini">练习统计</button>
         <button id="btnReplay" class="mini">牌局复盘</button><button id="btnDojo" class="mini">防守练习</button>
         <button id="btnRules" class="mini">玩法规则</button><button id="btnSettings" class="mini">设置</button>
-        <button id="btnNew" class="mini">重新开局</button>
+        <button id="btnTileArt" class="mini">牌面一览</button><button id="btnNew" class="mini">重新开局</button>
       </div></details>
 
     </div>
@@ -2503,89 +2477,82 @@ window.onerror = function (msg, src, line, col) {
   }
 
   // ---------- 小工具 ----------
-  // ---------- 麻将牌图案（内联 SVG，仿实体牌） ----------
+  // ---------- 麻将牌图案：独立 SVG，采用清楚的刻纹和红绿蓝墨色 ----------
   var CN_NUM = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
   var WAN_FONT = "'KaiTi','STKaiti','Kaiti SC','Songti SC','SimSun','Noto Serif CJK SC','Source Han Serif SC',serif";
   var DOT_LAYOUT = {
-    1: { r: 13.4, pts: [[24, 32]] },
-    2: { r: 10, pts: [[24, 17], [24, 47]] },
-    3: { r: 8.1, pts: [[12, 13], [24, 32], [36, 51]] },
-    4: { r: 8.9, pts: [[14, 17], [34, 17], [14, 47], [34, 47]] },
-    5: { r: 7.6, pts: [[13, 15], [35, 15], [24, 32], [13, 49], [35, 49]] },
-    6: { r: 7.4, pts: [[14, 13], [34, 13], [14, 32], [34, 32], [14, 51], [34, 51]] },
-    7: { r: 6.4, pts: [[10, 12], [24, 20], [38, 28], [14, 42], [34, 42], [14, 56], [34, 56]] },
-    8: { r: 6, pts: [[15, 11], [33, 11], [15, 25], [33, 25], [15, 39], [33, 39], [15, 53], [33, 53]] },
-    9: { r: 5.7, pts: [[12, 13], [24, 13], [36, 13], [12, 32], [24, 32], [36, 32], [12, 51], [24, 51], [36, 51]] }
+    2: { r: 10, pts: [[24, 17], [24, 47]], colors: 'gb' },
+    3: { r: 8.6, pts: [[12, 14], [24, 32], [36, 50]], colors: 'bgr' },
+    4: { r: 8.7, pts: [[13, 17], [35, 17], [13, 47], [35, 47]], colors: 'bbbb' },
+    5: { r: 7.8, pts: [[12, 14], [36, 14], [24, 32], [12, 50], [36, 50]], colors: 'bbrbb' },
+    6: { r: 7.5, pts: [[14, 12], [34, 12], [14, 32], [34, 32], [14, 52], [34, 52]], colors: 'ggrrrr' },
+    7: { r: 6.2, pts: [[10, 12], [24, 12], [38, 12], [14, 33], [34, 33], [14, 52], [34, 52]], colors: 'gggrrrr' },
+    8: { r: 6.4, pts: [[14, 10], [34, 10], [14, 25], [34, 25], [14, 40], [34, 40], [14, 55], [34, 55]], colors: 'bbbbbbbb' },
+    9: { r: 5.5, pts: [[11, 13], [24, 13], [37, 13], [11, 32], [24, 32], [37, 32], [11, 51], [24, 51], [37, 51]], colors: 'bbbrrrggg' }
   };
   var STICK_LAYOUT = {
-    2: { L: 38, W: 9, pts: [[16, 32], [32, 32]], accent: [] },
-    3: { L: 26, W: 8.4, pts: [[24, 15], [16, 47], [32, 47]], accent: [] },
-    4: { L: 26, W: 8.4, pts: [[16, 17], [32, 17], [16, 47], [32, 47]], accent: [] },
-    5: { L: 24, W: 7.8, pts: [[15, 15], [33, 15], [24, 32], [15, 49], [33, 49]], accent: [2] },
-    6: { L: 16, W: 7.8, pts: [[16, 12], [32, 12], [16, 32], [32, 32], [16, 52], [32, 52]], accent: [] },
-    7: { L: 14, W: 7.2, pts: [[24, 9], [16, 26], [32, 26], [16, 41], [32, 41], [16, 56], [32, 56]], accent: [0] },
-    8: { L: 13, W: 7, pts: [[16, 10], [32, 10], [16, 25], [32, 25], [16, 40], [32, 40], [16, 55], [32, 55]], accent: [] },
-    9: { L: 15, W: 6.8, pts: [[12, 12], [24, 12], [36, 12], [12, 32], [24, 32], [36, 32], [12, 52], [24, 52], [36, 52]], accent: [1, 4, 7] }
+    2: { L: 42, W: 8.6, pts: [[15, 32], [33, 32]], accent: [] },
+    3: { L: 24, W: 8, pts: [[24, 17], [14, 47], [34, 47]], accent: [] },
+    4: { L: 24, W: 8, pts: [[14, 17], [34, 17], [14, 47], [34, 47]], accent: [] },
+    5: { L: 22, W: 7.6, pts: [[12, 16], [36, 16], [24, 32], [12, 48], [36, 48]], accent: [2] },
+    6: { L: 16, W: 8.2, pts: [[14, 12], [34, 12], [14, 32], [34, 32], [14, 52], [34, 52]], accent: [] },
+    7: { L: 13, W: 7.6, pts: [[24, 9], [14, 25], [34, 25], [14, 41], [34, 41], [14, 57], [34, 57]], accent: [0] },
+    8: { L: 13, W: 7, pts: [[14, 10, -18], [34, 10, 18], [14, 25, 18], [34, 25, -18], [14, 40, -18], [34, 40, 18], [14, 55, 18], [34, 55, -18]], accent: [] },
+    9: { L: 16, W: 6.7, pts: [[11, 12], [24, 12], [37, 12], [11, 32], [24, 32], [37, 32], [11, 52], [24, 52], [37, 52]], accent: [1, 4, 7] }
   };
   function svgWrap(inner) {
-    return '<svg viewBox="0 0 48 64" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">' + inner + '</svg>';
+    return '<svg viewBox="0 0 48 64" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">' + inner + '</svg>';
   }
-  // 立体圆顶圆点：投影 → 蓝顶 → 白环 → 红芯 → 高光
-  function dotSvg(cx, cy, r) {
-    var rx = r.toFixed(2), ry = (r * 0.97).toFixed(2);
-    return '<ellipse cx="' + (cx + r * 0.08).toFixed(2) + '" cy="' + (cy + r * 0.16).toFixed(2) + '" rx="' + rx + '" ry="' + ry + '" fill="rgba(74,52,18,.30)"/>' +
-      '<circle cx="' + cx + '" cy="' + cy + '" r="' + rx + '" fill="url(#tgDot)"/>' +
-      '<circle cx="' + cx + '" cy="' + (cy - r * 0.03).toFixed(2) + '" r="' + (r * 0.73).toFixed(2) + '" fill="#fdfaf0"/>' +
-      '<circle cx="' + cx + '" cy="' + (cy - r * 0.05).toFixed(2) + '" r="' + (r * 0.5).toFixed(2) + '" fill="url(#tgCore)"/>' +
-      '<ellipse cx="' + (cx - r * 0.3).toFixed(2) + '" cy="' + (cy - r * 0.36).toFixed(2) + '" rx="' + (r * 0.22).toFixed(2) + '" ry="' + (r * 0.12).toFixed(2) + '" fill="#ffffff" opacity="0.8" transform="rotate(-38 ' + (cx - r * 0.3).toFixed(2) + ' ' + (cy - r * 0.36).toFixed(2) + ')"/>';
+  var TILE_INKS = { b: '#254e83', g: '#166149', r: '#b62f38' };
+  // 两道同色套环，保留白心；小牌不依赖微小高光辨认。
+  function dotSvg(cx, cy, r, color) {
+    return '<g transform="translate(' + cx + ' ' + cy + ')" fill="' + TILE_INKS[color] + '">' +
+      '<circle r="' + r + '"/><circle r="' + (r * .72).toFixed(2) + '" fill="#f8f2e2"/>' +
+      '<circle r="' + (r * .49).toFixed(2) + '"/><circle r="' + (r * .25).toFixed(2) + '" fill="#f8f2e2"/></g>';
   }
-  // 立体竹节：投影 → 圆柱渐变 → 竹节环 → 环上高光
-  function stickSvg(cx, cy, L, W, accent) {
-    var x = cx - W / 2, y = cy - L / 2, rad = (W * 0.42).toFixed(2);
-    var fill = accent ? 'url(#tgBambooRed)' : 'url(#tgBamboo)';
-    var ny = cy - L * 0.075;
-    return '<g>' +
-      '<rect x="' + (x + W * 0.12).toFixed(2) + '" y="' + (y + W * 0.14).toFixed(2) + '" width="' + W.toFixed(2) + '" height="' + L.toFixed(2) + '" rx="' + rad + '" fill="rgba(58,42,16,.28)"/>' +
-      '<rect x="' + x.toFixed(2) + '" y="' + y.toFixed(2) + '" width="' + W.toFixed(2) + '" height="' + L.toFixed(2) + '" rx="' + rad + '" fill="' + fill + '"/>' +
-      '<rect x="' + x.toFixed(2) + '" y="' + ny.toFixed(2) + '" width="' + W.toFixed(2) + '" height="' + (L * 0.15).toFixed(2) + '" fill="rgba(0,0,0,.24)"/>' +
-      '<rect x="' + x.toFixed(2) + '" y="' + ny.toFixed(2) + '" width="' + W.toFixed(2) + '" height="' + (L * 0.05).toFixed(2) + '" fill="rgba(255,255,255,.34)"/>' +
-      '</g>';
+  // 收腰竹身与横向竹节；倾斜的八条与六条保持不同轮廓。
+  function stickSvg(cx, cy, L, W, accent, angle) {
+    var x = W / 2, y = L / 2, ink = TILE_INKS[accent ? 'r' : 'g'];
+    function f(n) { return +n.toFixed(2); }
+    var shape = 'M' + f(-x) + ' ' + f(-y + 1) + 'Q0 ' + f(-y - 1) + ' ' + f(x) + ' ' + f(-y + 1) +
+      'L' + f(x * .72) + ' -1Q' + f(x * .64) + ' 0 ' + f(x * .72) + ' 1L' + f(x) + ' ' + f(y - 1) +
+      'Q0 ' + f(y + 1) + ' ' + f(-x) + ' ' + f(y - 1) + 'L' + f(-x * .72) + ' 1Q' + f(-x * .64) + ' 0 ' + f(-x * .72) + ' -1Z';
+    var joints = L > 30 ? [-L / 6, L / 6] : [0];
+    return '<g transform="translate(' + cx + ' ' + cy + ') rotate(' + (angle || 0) + ')">' +
+      '<path d="' + shape + '" fill="' + ink + '"/>' +
+      '<path d="M' + f(-x * .45) + ' ' + f(-y + 3) + 'L' + f(-x * .35) + ' ' + f(y - 3) + '" stroke="#fff8d8" stroke-opacity=".24" stroke-width=".85" stroke-linecap="round"/>' +
+      joints.map(function (j) { return '<path d="M' + f(-x * .78) + ' ' + f(j) + 'H' + f(x * .78) + '" stroke="#f8f2e2" stroke-width="1.2"/>'; }).join('') +
+      '<path d="M' + f(-x * .7) + ' ' + f(-y + 2) + 'H' + f(x * .7) + 'M' + f(-x * .7) + ' ' + f(y - 2) + 'H' + f(x * .7) + '" stroke="#071e18" stroke-opacity=".3" stroke-width="1.1" stroke-linecap="round"/></g>';
   }
-  // 一条 = 幺鸡
+  // 幺鸡：侧身、长尾与一小笔朱红冠，避免缩小后像空心圆。
   function birdSvg() {
-    return '<g>' +
-      '<path d="M24 45 L12.5 62 L24 55.5 L35.5 62 Z" fill="#0f5c33"/>' +
-      '<path d="M24 47 L17 60 L24 55.5 L31 60 Z" fill="#2f9e5e"/>' +
-      '<ellipse cx="24" cy="37" rx="11.8" ry="14.2" fill="url(#tgBird)"/>' +
-      '<ellipse cx="25.6" cy="39.5" rx="8.2" ry="10.6" fill="#eefaf1"/>' +
-      '<path d="M12.6 31 Q24 22 35.4 31 Q24 28.5 12.6 31 Z" fill="#146b3a"/>' +
-      '<path d="M14.5 33.5 Q20 31 25 33" stroke="#0f5c33" stroke-width="0.9" fill="none" opacity="0.7"/>' +
-      '<circle cx="24" cy="16.4" r="8.8" fill="url(#tgBirdHead)"/>' +
-      '<path d="M18.8 9.6 L24 1.6 L29.2 9.6 Z" fill="url(#tgCore)"/>' +
-      '<path d="M31.6 16.8 L43 20.6 L31.6 24.4 Z" fill="#efab3f"/>' +
-      '<path d="M31.6 20.6 L43 20.6 L31.6 24.4 Z" fill="#bd7a17"/>' +
-      '<circle cx="27.6" cy="14.4" r="2" fill="#12210f"/>' +
-      '<circle cx="28.2" cy="13.7" r="0.65" fill="#ffffff"/>' +
-      '<path d="M19.4 48.5 L19.4 57.6 M28.6 48.5 L28.6 57.6" stroke="#efab3f" stroke-width="2.3" stroke-linecap="round"/>' +
-      '<rect x="10.5" y="57.4" width="27" height="4" rx="2" fill="#0f5c33"/>' +
-      '<rect x="10.5" y="57.4" width="27" height="1.6" rx="0.8" fill="#3fae6d"/>' +
-      '</g>';
+    return '<g fill="#166149">' +
+      '<path d="M18 40Q15 50 7 57Q18 57 23 47L20 60Q30 57 31 43Z"/>' +
+      '<path d="M23 25C20 23 15 26 13 31C9 39 14 47 23 47C32 47 37 40 34 31C33 27 29 25 28 23C28 21 33 22 35 18C37 12 31 8 26 11C22 14 25 20 23 25Z"/>' +
+      '<path d="M26 11Q22 8 25 5Q30 5 32 10Z" fill="#b62f38"/>' +
+      '<path d="M35 15L42 18L35 20Z" fill="#a36d35"/>' +
+      '<circle cx="31.5" cy="15" r="1.6" fill="#f8f2e2"/><circle cx="31.8" cy="15" r=".8" fill="#173c30"/>' +
+      '<path d="M22 28C13 29 13 40 22 42C29 39 31 31 26 28Z" fill="#f8f2e2"/>' +
+      '<path d="M22 31Q16 34 21 39M26 32Q22 37 24 38M18 46L14 53M22 48L24 54" fill="none" stroke="#166149" stroke-width="1.7" stroke-linecap="round"/>' +
+      '<path d="M30 45L32 55M28 55H37" fill="none" stroke="#a36d35" stroke-width="1.8" stroke-linecap="round"/></g>';
   }
-  // 万字：红字 + 深色描边 + 投影 + 高光
+  function oneDotSvg() {
+    var petals = '';
+    for (var i = 0; i < 8; i++) petals += '<path d="M24 16C19 21 19 26 24 29C29 26 29 21 24 16Z" transform="rotate(' + i * 45 + ' 24 32)"/>';
+    return '<g fill="#254e83"><circle cx="24" cy="32" r="18" fill="none" stroke="#254e83" stroke-width="1.8"/>' +
+      petals + '<circle cx="24" cy="32" r="7.1" fill="#f8f2e2"/><circle cx="24" cy="32" r="5.7" fill="#b62f38"/>' +
+      '<circle cx="24" cy="32" r="3.2" fill="#f8f2e2"/><circle cx="24" cy="32" r="1.3" fill="#b62f38"/></g>';
+  }
+  // 万字统一墨色，取消多层偏移字影。
   function wanSvg(n) {
     var num = CN_NUM[n - 1];
     function t(x, y, size, ch, fill, extra) {
       return '<text x="' + x + '" y="' + y + '" text-anchor="middle" font-size="' + size + '" font-weight="700" ' +
         'font-family="' + WAN_FONT + '" fill="' + fill + '"' + (extra || '') + '>' + ch + '</text>';
     }
-    var stroke = ' stroke="#7d1f16" stroke-width="0.7" stroke-linejoin="round"';
     return '<g>' +
-      t(25.2, 31.2, 30, num, 'rgba(64,20,10,.30)') +
-      t(23.4, 29.4, 30, num, 'rgba(255,255,255,.55)') +
-      t(24, 30, 30, num, 'url(#tgWan)', stroke) +
-      t(25.2, 61.2, 27, '萬', 'rgba(64,20,10,.30)') +
-      t(23.4, 59.4, 27, '萬', 'rgba(255,255,255,.55)') +
-      t(24, 60, 27, '萬', 'url(#tgWan)', stroke) +
+      t(24, 29, 29, num, '#b62f38') +
+      t(24, 58, 26, '萬', '#b62f38') +
       '</g>';
   }
   var FACE_CACHE = [];
@@ -2597,22 +2564,13 @@ window.onerror = function (msg, src, line, col) {
       if (n === 1) return (FACE_CACHE[kind] = svgWrap(birdSvg()));
       var lay = STICK_LAYOUT[n];
       s2 = '';
-      for (i = 0; i < lay.pts.length; i++) s2 += stickSvg(lay.pts[i][0], lay.pts[i][1], lay.L, lay.W, lay.accent.indexOf(i) >= 0);
+      for (i = 0; i < lay.pts.length; i++) s2 += stickSvg(lay.pts[i][0], lay.pts[i][1], lay.L, lay.W, lay.accent.indexOf(i) >= 0, lay.pts[i][2]);
       return (FACE_CACHE[kind] = svgWrap(s2));
     }
+    if (n === 1) return (FACE_CACHE[kind] = svgWrap(oneDotSvg()));
     var L2 = DOT_LAYOUT[n];
     s2 = '';
-    if (n === 1) {
-      s2 += '<ellipse cx="25" cy="34.5" rx="13.4" ry="13" fill="rgba(74,52,18,.30)"/>' +
-        '<circle cx="24" cy="32" r="13.4" fill="url(#tgDot)"/>' +
-        '<circle cx="24" cy="32" r="9" fill="#fdfaf0"/>' +
-        '<circle cx="24" cy="32" r="6.4" fill="url(#tgCore)"/>' +
-        '<circle cx="24" cy="32" r="3.2" fill="#fdfaf0"/>' +
-        '<circle cx="24" cy="32" r="1.7" fill="#8f2318"/>' +
-        '<ellipse cx="19.6" cy="27.4" rx="2.8" ry="1.5" fill="#ffffff" opacity="0.8" transform="rotate(-38 19.6 27.4)"/>';
-    } else {
-      for (i = 0; i < L2.pts.length; i++) s2 += dotSvg(L2.pts[i][0], L2.pts[i][1], L2.r);
-    }
+    for (i = 0; i < L2.pts.length; i++) s2 += dotSvg(L2.pts[i][0], L2.pts[i][1], L2.r, L2.colors[i]);
     return (FACE_CACHE[kind] = svgWrap(s2));
   }
 
@@ -3858,6 +3816,24 @@ window.onerror = function (msg, src, line, col) {
   }
 
   // ---------- 规则 / 设置 ----------
+  function showTileArt() {
+    var box = $('modalBox');
+    box.innerHTML = '<h2>牌面一览</h2><div class="practiceNote">三门牌，各有一到九。看图案和排列认牌，一条是幺鸡。</div><div class="tileAtlas" id="tileAtlas"></div>';
+    var atlas = $('tileAtlas');
+    ['万子', '条子', '筒子'].forEach(function (name, suit) {
+      var title = document.createElement('h3'); title.textContent = name; atlas.appendChild(title);
+      var row = document.createElement('div'); row.className = 'tileAtlasRow';
+      for (var n = 0; n < 9; n++) {
+        var kind = suit * 9 + n, figure = document.createElement('figure'), caption = document.createElement('figcaption');
+        caption.textContent = ZMJ.tileName(kind); figure.appendChild(tileEl(kind, 'big')); figure.appendChild(caption); row.appendChild(figure);
+      }
+      atlas.appendChild(row);
+    });
+    var small = document.createElement('div'); small.className = 'tileAtlasSmall';
+    small.innerHTML = '<span>牌河中的大小</span><div class="tiles"></div>';
+    [0, 4, 8, 9, 13, 17, 18, 22, 26].forEach(function (k) { small.querySelector('.tiles').appendChild(tileEl(k, 'xs')); });
+    atlas.appendChild(small); openModal();
+  }
   function showRules() {
     var box = $('modalBox');
     box.innerHTML = '<h2>转转麻将 · 规则与赔率</h2>' +
@@ -5110,6 +5086,7 @@ window.onerror = function (msg, src, line, col) {
 
   $('btnRules').onclick = showRules;
   $('btnSettings').onclick = showSettings;
+  $('btnTileArt').onclick = showTileArt;
   $('moreTools').addEventListener('click', function (e) { if (e.target.closest('button')) this.open = false; });
   document.addEventListener('click', function (e) { if (!$('moreTools').contains(e.target)) $('moreTools').open = false; });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('moreTools').open) { $('moreTools').open = false; $('moreTools').querySelector('summary').focus(); } });
