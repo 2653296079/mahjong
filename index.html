@@ -2486,7 +2486,8 @@ window.onerror = function (msg, src, line, col) {
     4: { r: 8.7, pts: [[13, 17], [35, 17], [13, 47], [35, 47]], colors: 'gggg' },
     5: { r: 7.8, pts: [[12, 14], [36, 14], [24, 32], [12, 50], [36, 50]], colors: 'ggrgg' },
     6: { r: 7.5, pts: [[14, 12], [34, 12], [14, 32], [34, 32], [14, 52], [34, 52]], colors: 'ggrrrr' },
-    7: { r: 5.8, pts: [[10, 8], [24, 20], [38, 32], [14, 44], [34, 44], [14, 57], [34, 57]], colors: 'gggrrrr' },
+    // 上三筒为浅斜线，下四筒为正方形；两组间留白，不能挤成四行。
+    7: { r: 6.6, pts: [[10, 10], [24, 15], [38, 20], [14.5, 35], [33.5, 35], [14.5, 54], [33.5, 54]], colors: 'gggrrrr' },
     8: { r: 6.4, pts: [[14, 10], [34, 10], [14, 25], [34, 25], [14, 40], [34, 40], [14, 55], [34, 55]], colors: 'kkkkkkkk' },
     9: { r: 5.5, pts: [[11, 13], [24, 13], [37, 13], [11, 32], [24, 32], [37, 32], [11, 51], [24, 51], [37, 51]], colors: 'kkkrrrggg' }
   };
@@ -2524,17 +2525,18 @@ window.onerror = function (msg, src, line, col) {
       '<path d="M' + f(-x * .7) + ' 0H' + f(x * .7) + '" stroke="#082e22" stroke-opacity=".48" stroke-width="1.2"/>' +
       '<path d="M' + f(-x * .7) + ' ' + f(-y + 2) + 'H' + f(x * .7) + 'M' + f(-x * .7) + ' ' + f(y - 2) + 'H' + f(x * .7) + '" stroke="#071e18" stroke-opacity=".3" stroke-width="1.1" stroke-linecap="round"/></g>';
   }
-  // 幺鸡：侧身、长尾与一小笔朱红冠，避免缩小后像空心圆。
+  // 幺鸡：中式刻纹的圆首红眼、展开双翼和下垂长尾，墨绿线条留出羽纹。
   function birdSvg() {
-    return '<g fill="#242725">' +
-      '<path d="M18 40Q15 50 7 57Q18 57 23 47L20 60Q30 57 31 43Z" fill="#166149"/>' +
-      '<path d="M23 25C20 23 15 26 13 31C9 39 14 47 23 47C32 47 37 40 34 31C33 27 29 25 28 23C28 21 33 22 35 18C37 12 31 8 26 11C22 14 25 20 23 25Z"/>' +
-      '<path d="M26 11Q22 8 25 5Q30 5 32 10Z" fill="#b62f38"/>' +
-      '<path d="M35 15L42 18L35 20Z"/>' +
-      '<circle cx="31.5" cy="15" r="1.6" fill="#f8f2e2"/><circle cx="31.8" cy="15" r=".8" fill="#173c30"/>' +
-      '<path d="M22 28C13 29 13 40 22 42C29 39 31 31 26 28Z" fill="#f8f2e2"/>' +
-      '<path d="M22 31Q16 34 21 39M26 32Q22 37 24 38M18 46L14 53M22 48L24 54" fill="none" stroke="#166149" stroke-width="1.7" stroke-linecap="round"/>' +
-      '<path d="M30 45L32 55M28 55H37" fill="none" stroke="#242725" stroke-width="1.8" stroke-linecap="round"/></g>';
+    return '<g fill="none" stroke="#166149" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M18 35C17 43 21 54 30 60C26 51 26 43 29 35Z" fill="#f8f2e2"/>' +
+      '<path d="M22 38Q22 49 27 55M17 37L13 48M29 37L31 49"/>' +
+      '<path d="M18 24C13 24 12 28 14 32L8 29C4 27 4 33 8 35L5 40L16 36M29 24C34 20 37 22 35 28L40 26C44 25 44 31 40 33L29 36" fill="#f8f2e2"/>' +
+      '<path d="M19 22C16 25 16 33 19 36Q24 39 29 35C32 30 31 25 28 22" fill="#f8f2e2"/>' +
+      '<path d="M12 36Q25 40 39 34M20 26L19 32M24 26V34M28 26L29 31"/>' +
+      '<path d="M30 11L39 9L32 16" fill="#166149"/>' +
+      '<path d="M18 9Q14 7 17 5Q22 7 26 7L32 5M17 15L11 15M16 19L11 20" stroke="#242725" stroke-width="2"/>' +
+      '<path d="M31 14C31 8 24 6 19 10C14 13 17 21 23 23C28 24 33 20 31 14Z" fill="#f8f2e2"/>' +
+      '<circle cx="24" cy="15" r="2.7" fill="#b62f38" stroke="none"/></g>';
   }
   function oneDotSvg() {
     var petals = '';
