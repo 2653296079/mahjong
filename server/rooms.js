@@ -349,6 +349,7 @@ class Room {
       wallLeft: H.wall.length, over: !!H.over,
       gangDraw: !!H.gangDraw,
       opening: H.opening ? { rule: H.opening.rule, dice: H.opening.dice.slice(), total: H.opening.total,
+        wallDie: H.opening.wallDie, stackDie: H.opening.stackDie,
         breakSeat: H.opening.breakSeat, breakStack: H.opening.breakStack, startSlot: H.opening.startSlot } : null,
       wallDraws: H.wallDraws ? { head: H.wallDraws.head, tail: H.wallDraws.tail } : null,
       openingAgeMs: Math.max(0, Date.now() - (this.handStartedAt || 0)),
@@ -358,6 +359,7 @@ class Room {
       players: players,
       mine: mine ? {
         seat: seat,
+        dealtKinds: H.dealtHands ? H.dealtHands[seat].slice() : [],
         concealed: mine.concealed.slice(),
         melds: mine.melds.map((x) => ({ type: x.type, kind: x.kind, from: x.from, ming: !!x.ming })),
         passedWin: !!mine.passedWin

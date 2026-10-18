@@ -6,4 +6,4 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-start "" "http://127.0.0.1:8192/?build=v30&view=3d&play=1"
+start "" "http://127.0.0.1:8192/?build=v31&view=3d&play=1"

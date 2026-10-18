@@ -628,6 +628,12 @@ body.table3d.machineBusy #seat0 .handRow .tile{pointer-events:none;visibility:hi
 #threeMachineInfo{display:none}
 body.table3d #threeMachineInfo{display:block;position:absolute;left:14px;top:88px;z-index:8;max-width:min(340px,48vw);padding:9px 12px;border:1px solid #bea66a50;background:#0b241ee6;border-radius:12px;pointer-events:none;font-size:11px;line-height:1.7;color:#b9cbbb}
 body.table3d #threeMachineInfo b{display:block;font-size:13px;color:#efdaa5}
+body.table3d #threeDiceReadout{display:flex;align-items:center;gap:8px;margin:6px 0;color:#f2e7c9;font-size:17px;font-weight:700}
+body.table3d #threeDiceReadout .diceChip{display:inline-flex;flex-direction:column;align-items:center;gap:4px;min-width:65px}
+body.table3d #threeDiceReadout .diceChip small{font-size:11px;font-weight:500;white-space:nowrap;color:#e5d7b6}
+body.table3d #threeDiceReadout svg{width:34px;height:34px;filter:drop-shadow(0 2px 2px #0005)}
+body.table3d #threeMachineInfo.diceClose #threeDiceReadout svg{width:50px;height:50px}
+body.table3d #threeMachineInfo.diceClose{border-color:#dbc181}
 body.table3d.machineBusy #threeMachineInfo{border-color:#d3b574;box-shadow:0 6px 25px #0004}
 body.table3d #threeSkip{color:#f0d89a;border-color:#c9aa62}
 @media(max-width:680px){body.table3d #threeMachineInfo{top:112px;left:8px;max-width:52vw;font-size:10px;padding:6px 8px}body.table3d #threeMachineInfo b{font-size:11px}body.table3d.machineBusy #seat2{top:195px}}
@@ -636,6 +642,7 @@ body.table3d #actionbar{background:#0e2924;border-top:1px solid #a6aa7340;min-he
 body.table3d #actionBtns>div{color:#c2d0bd!important}
 .homeAccountControls #home3D{border-color:#b4a56d;color:#ead89d;background:#23493a}
 @media(max-width:680px){body.table3d #centerTop{top:48px;max-width:95%;gap:3px}body.table3d #centerTop .pill{font-size:10px;padding:2px 7px}body.table3d #threeControls{top:9px;right:9px}body.table3d #threeControls .mini{font-size:11px;padding:4px 9px}body.table3d #riverArea{top:82px;left:8px}body.table3d #seat2{top:116px}body.table3d #seat1{right:6px;top:43%}body.table3d #seat3{left:6px;top:43%}body.table3d .seatName{padding:4px 6px;font-size:9px;max-width:120px}body.table3d .seatName .seatScore,body.table3d .seatName .seatPosition{display:none}body.table3d #seat0>.seatName{bottom:8px;left:8px}.homeAccountControls #home3D{font-size:11px;padding:4px 8px}}
+@media(max-width:680px){body.table3d.machineBusy #seat2{top:82px;left:auto;right:8px;transform:none}body.table3d #threeDiceReadout svg{width:30px;height:30px}body.table3d #threeMachineInfo.diceClose #threeDiceReadout svg{width:40px;height:40px}}
 </style>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-512.png">
@@ -668,7 +675,7 @@ body.table3d #actionBtns>div{color:#c2d0bd!important}
     <section id="table">
       <div id="threeStage"></div>
       <div id="threeControls" aria-label="三维牌桌视角"><button id="threeSkip" class="mini hidden">跳过动画</button><button id="threeSeated" class="mini" aria-pressed="true">坐席</button><button id="threeOverhead" class="mini" aria-pressed="false">俯视</button><button id="threeBack" class="mini">二维牌桌</button></div>
-      <div id="threeMachineInfo" role="status" aria-live="polite"><b id="threeMachineTitle">自动麻将机</b><span id="threeMachineDetail"></span></div>
+      <div id="threeMachineInfo" role="status" aria-live="polite"><b id="threeMachineTitle">自动麻将机</b><div id="threeDiceReadout" class="hidden"></div><span id="threeMachineDetail"></span></div>
       <div id="threeLoadStatus" role="status" aria-live="polite">正在摆好三维牌桌…</div>
       <div class="seat" id="seat2" data-seat="2"></div>
       <div class="seat" id="seat1" data-seat="1"></div>
@@ -1415,26 +1422,44 @@ body.table3d #actionBtns>div{color:#c2d0bd!important}
     };
   }
   // ---------- 麻将一局的状态机 ----------
+  function openingBreak(dice, dealer) {
+    var wallDie = Math.max(dice[0], dice[1]), stackDie = Math.min(dice[0], dice[1]);
+    var breakSeat = (dealer + wallDie - 1) % 4, sides = [0, 3, 2, 1], stacks = [14, 13, 14, 13], offset = 0;
+    for (var side = 0; sides[side] !== breakSeat; side++) offset += stacks[sides[side]] * 2;
+    return { rule: 'high-die-wall-low-die-stack-v3', dice: dice.slice(), total: dice[0] + dice[1],
+      wallDie: wallDie, stackDie: stackDie, breakSeat: breakSeat, breakStack: stackDie,
+      startSlot: (offset + (stackDie - 1) * 2) % 108 };
+  }
+  function openingPackets(dealer) {
+    var packets = [], cursor = 0;
+    for (var r = 0; r < 3; r++) for (var s = 0; s < 4; s++) {
+      packets.push({ seat: (dealer + s) % 4, slots: [cursor, cursor + 1, cursor + 2, cursor + 3], jump: false });
+      cursor += 4;
+    }
+    // 三轮后，庄家先拿当前墩上层，再隔一墩拿上层；三家补取留下的三张。
+    packets.push({ seat: dealer, slots: [48], jump: false });
+    packets.push({ seat: dealer, slots: [52], jump: true });
+    for (var s = 1; s < 4; s++) packets.push({ seat: (dealer + s) % 4, slots: [48 + s], jump: false });
+    return packets;
+  }
   function createHand(seedRng, dealer) {
     var wall = buildWall(seedRng);
-    // 一掷开牌桌规：由庄家起逆时针数人，在该家从右向左跳过总点数墩。
+    // 大骰由庄家起逆时针定方，小骰从所选牌墙右侧定位第几墩（从一计数）。
     // 108 张为 54 墩，四方依次 14/13/14/13 墩；牌墙取牌沿顺时针推进。
     var dice = [1 + (seedRng() * 6 | 0), 1 + (seedRng() * 6 | 0)];
-    var total = dice[0] + dice[1], breakSeat = (dealer + total - 1) % 4;
-    var sides = [0, 3, 2, 1], stacks = [14, 13, 14, 13], offset = 0;
-    for (var side = 0; sides[side] !== breakSeat; side++) offset += stacks[sides[side]] * 2;
-    var startSlot = (offset + total * 2) % 108;
+    var opening = openingBreak(dice, dealer), startSlot = opening.startSlot;
     wall = wall.slice(startSlot).concat(wall.slice(0, startSlot));
-    var opening = { rule: 'single-roll-packets-v1', dice: dice, total: total,
-      breakSeat: breakSeat, breakStack: total, startSlot: startSlot };
     var players = [], s, r;
     for (s = 0; s < 4; s++) {
       players.push({ seat: s, concealed: newCounts(), melds: [], discards: [], passedWin: false });
     }
-    for (r = 0; r < 3; r++) { for (s = 0; s < 4; s++) {
-      for (var n = 0; n < 4; n++) players[(dealer + s) % 4].concealed[wall.shift()]++;
-    } }
-    for (s = 0; s < 4; s++) players[(dealer + s) % 4].concealed[wall.shift()]++;
+    var deck = wall.slice(), dealtHands = [[], [], [], []];
+    openingPackets(dealer).forEach(function(packet){packet.slots.forEach(function(slot){
+      dealtHands[packet.seat].push(deck[slot]);
+      // 跳到的这一张仍作为首个摸牌事件入谱，兼容旧牌谱的十三张 initial。
+      if(slot !== 52) players[packet.seat].concealed[deck[slot]]++;
+    });});
+    wall = [deck[52]].concat(deck.slice(53));
     var birds = wall.splice(wall.length - RULES.birdCount, RULES.birdCount);
     var rec = {
       no: 0, dealer: dealer, rulesVersion: RULES_VERSION, analysisVersion: ANALYSIS_VERSION, opening: opening,
@@ -1442,7 +1467,7 @@ body.table3d #actionBtns>div{color:#c2d0bd!important}
       events: [], birds: null, result: null
     };
     return {
-      wall: wall, birds: birds, opening: opening, wallDraws: { head: 52, tail: 0 }, players: players, turn: dealer,
+      wall: wall, birds: birds, opening: opening, dealtHands: dealtHands, wallDraws: { head: 52, tail: 0 }, players: players, turn: dealer,
       lastDiscard: null, lastDraw: null, gangDraw: false, over: false,
       result: null, claimDecisions: null, turnCount: 0, record: rec
     };
@@ -2464,6 +2489,8 @@ body.table3d #actionBtns>div{color:#c2d0bd!important}
     return river;
   }
   return {
+    openingBreak: openingBreak,
+    openingPackets: openingPackets,
     publicDiscards: publicDiscards,
     RULES: RULES, KINDS: KINDS,
     tileName: tileName, numOf: numOf, suitOf: suitOf, isBird: isBird,
@@ -2604,7 +2631,7 @@ window.onerror = function (msg, src, line, col) {
   var table3D = { wanted:false, api:null, loading:null, lastGame:null, round:0, busy:false };
   try { var initial3D=new URLSearchParams(location.search).get('view'); table3D.wanted=initial3D==='3d'||initial3D!=='2d'&&localStorage.getItem('zmj_table3d_v1')==='1'; } catch(e) {}
   function clear3DHitboxes() {
-    document.querySelectorAll('.handRow [data-tile-id]').forEach(function(t){t.removeAttribute('data-three-projected');t.style.left='';t.style.top='';t.style.width='';t.style.height='';});
+    document.querySelectorAll('.handRow [data-tile-id]').forEach(function(t){t.removeAttribute('data-three-projected');t.removeAttribute('data-three-world-x');t.removeAttribute('data-three-world-z');t.style.left='';t.style.top='';t.style.width='';t.style.height='';});
   }
   function failTable3D(error) {
     console.warn('3D table unavailable:',error);
@@ -2630,10 +2657,19 @@ window.onerror = function (msg, src, line, col) {
     if(table3D.loading)return;
     if(location.protocol==='file:'){failTable3D(Error('3D assets need an HTTP origin'));return;}
     $('table').classList.add('threeLoading');
-    table3D.loading=import('./assets/table3d/table3d.js?build=v30b').then(function(module){
+    table3D.loading=import('./assets/table3d/table3d.js?build=v31b').then(function(module){
       return module.createTable3D($('threeStage'),{
         onProgress:function(done,total){$('threeLoadStatus').textContent='正在摆好三维牌桌 · '+done+' / '+total;},
         onError:failTable3D,
+        onDice:function(active,settled,values){
+          $('threeMachineInfo').classList.toggle('diceClose',active);$('threeDiceReadout').classList.remove('hidden');
+          var big=Math.max(values[0],values[1]),small=Math.min(values[0],values[1]),split=game.hand.opening&&game.hand.opening.rule==='high-die-wall-low-die-stack-v3';
+          $('threeDiceReadout').innerHTML=settled?values.map(function(v,i){var isBig=v===big&&(big!==small||i===0);return '<span class="diceChip">'+dicePipSvg(v)+'<small>'+(split?(isBig?'大骰 · 定方':'小骰 · 定墩'):'骰子 '+(i+1))+'</small></span>';}).join(''):'<span>骰子转动中…</span>';
+          $('threeDiceReadout').setAttribute('aria-label',settled?(split?'大骰 '+big+' 点定方，小骰 '+small+' 点定墩':values[0]+' 点与 '+values[1]+' 点'):'骰子转动中');
+        },
+        onPacket:function(pos,jump,slots){
+          $('threeMachineTitle').textContent=jump?'庄家跳牌 · 隔一墩取上层':slots.length===4?['你','下家','对家','上家'][pos]+' · 抓四张':pos===seatPos(game.dealer)?'庄家先取当前墩上层一张':['你','下家','对家','上家'][pos]+' · 补一张';
+        },
         onBusy:function(busy){
           table3D.busy=busy;document.body.classList.toggle('machineBusy',busy);$('threeSkip').classList.toggle('hidden',!busy);
           if(busy){hideTileAnalysis();clear3DHitboxes();}
@@ -2641,13 +2677,15 @@ window.onerror = function (msg, src, line, col) {
           if(game&&game.hand){if(busy)renderActions();renderTimer();}
         },
         onMachine:function(phase,opening,counts){
-          var names={collect:'收牌入机',shuffle:'机内洗牌',lift:'四方牌墙升起',dice:'掷骰 · 确认接牌口',deal:'每家四张，轮流抓牌',ready:'开牌位置'};
+          var names={collect:'收牌入机',shuffle:'机内洗牌',lift:'四方牌墙升起',dice:'掷骰 · 大定方，小定墩',deal:'每家四张，轮流抓牌',ready:'开牌位置'};
           $('threeMachineTitle').textContent=names[phase]||'自动麻将机';
           if(!opening){$('threeMachineDetail').textContent='旧牌局未记录骰点，下局开始显示。';return;}
           var pos=(opening.breakSeat+(opening.seatOffset||0))%4,where=['你','下家','对家','上家'][pos];
-          var text=opening.dice[0]+' + '+opening.dice[1]+' = '+opening.total+' 点 · '+where+'的牌墙，从右往左跳过 '+opening.breakStack+' 墩后接牌。';
+          var split=opening.rule==='high-die-wall-low-die-stack-v3';
+          var text=split?'大骰 '+opening.wallDie+' 定'+where+'的牌墙；小骰 '+opening.stackDie+'，从该家右侧第 '+opening.stackDie+' 墩开始抓牌。':
+            '旧局开口：'+where+'的牌墙，跳过 '+opening.breakStack+' 墩后接牌；下局采用大定方、小定墩。';
           if(phase==='deal'&&counts)text+=' 已抓：你 '+counts[0]+' / 下家 '+counts[1]+' / 对家 '+counts[2]+' / 上家 '+counts[3]+' 张。';
-          else text+=' 本桌一掷两骰；庄家起逆时针数人，顺时针取墙。';
+          else text+=' 庄家起逆时针定方：1／5 本家、2／6 下家、3 对家、4 上家。';
           $('threeMachineDetail').textContent=text;
         },
         onProject:function(cards){
@@ -2655,6 +2693,7 @@ window.onerror = function (msg, src, line, col) {
           if(!cards.length){clear3DHitboxes();return;}
           cards.forEach(function(card){var t=document.querySelector('.handRow [data-tile-id="'+card.id+'"]');if(!t)return;
             t.style.left=card.x.toFixed(2)+'px';t.style.top=card.y.toFixed(2)+'px';t.style.width=card.width.toFixed(2)+'px';t.style.height=card.height.toFixed(2)+'px';t.setAttribute('data-three-projected','');});
+          cards.forEach(function(card){var t=document.querySelector('.handRow [data-tile-id="'+card.id+'"]');if(t){t.setAttribute('data-three-world-x',card.worldX);t.setAttribute('data-three-world-z',card.worldZ);}});
           positionTileAnalysis();
         }
       });
@@ -2675,9 +2714,16 @@ window.onerror = function (msg, src, line, col) {
       return{pos:pos,isMe:me,count:count,hand:me?hand:[],melds:(p.melds||[]).map(function(m){return{type:m.type,kind:m.kind};})};});
     var shown=Array.isArray(river)?river.filter(function(e){return e.claimedBy==null;}).map(function(e){return{order:e.order,kind:e.kind,pos:seatPos(e.seat)};}):[];
     var opening=H.opening?Object.assign({},H.opening,{seatOffset:(4-Math.max(0,hs))%4}):null;
+    var dealtKinds=H.dealtHands&&hs>=0?H.dealtHands[hs]:H.dealtKinds||[];
+    var dealPlan=opening&&opening.rule!=='single-roll-packets-v1'?ZMJ.openingPackets(game.dealer).map(function(p){return{pos:seatPos(p.seat),slots:p.slots,jump:p.jump};}):null;
     try{table3D.api.update({round:table3D.round+':'+game.handNo+':'+hs,seats:seats,river:shown,sources:cfg.discardSource,
       wallCount:H.wall.length,dealer:seatPos(game.dealer==null?0:game.dealer),opening:opening,wallDraws:H.wallDraws,
-      turnCount:H.turnCount,openingAgeMs:H.openingAgeMs,over:!!H.over,gangDraw:!!H.gangDraw});}catch(e){failTable3D(e);}
+      turnCount:H.turnCount,openingAgeMs:H.openingAgeMs,over:!!H.over,gangDraw:!!H.gangDraw,
+      dealtKinds:dealtKinds.slice(),dealPlan:dealPlan});}catch(e){failTable3D(e);}
+  }
+  function dicePipSvg(value){
+    var patterns={1:[[26,26]],2:[[15,15],[37,37]],3:[[15,15],[26,26],[37,37]],4:[[15,15],[37,15],[15,37],[37,37]],5:[[15,15],[37,15],[26,26],[15,37],[37,37]],6:[[15,14],[37,14],[15,26],[37,26],[15,38],[37,38]]};
+    return '<svg viewBox="0 0 52 52" role="img" aria-label="'+value+' 点"><rect x="1" y="1" width="50" height="50" rx="9" fill="#f5edda" stroke="#c7b992" stroke-width="2"/>'+patterns[value].map(function(p){return '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="'+(value===1?5:3.6)+'" fill="'+(value===1||value===4?'#af3038':'#26332d')+'"/>';}).join('')+'</svg>';
   }
   $('btn3D').onclick=function(){setTable3D(!table3D.wanted);};
   $('threeBack').onclick=function(){setTable3D(false);};
@@ -4235,7 +4281,7 @@ window.onerror = function (msg, src, line, col) {
     box.innerHTML = '<h2>转转麻将 · 规则与赔率</h2>' +
       '<ul>' +
       '<li><b>牌</b>：108 张（万/条/筒 1-9 各 4 张），无字牌。<b>不能吃</b>，可碰、可杠。</li>' +
-      '<li><b>本桌开牌</b>：一次掷两骰，由庄家算第一位，逆时针按总点数确定开口家；从该家右侧往左跳过总点数墩，在下一墩接牌。四方为 14/13/14/13 墩，取墙沿顺时针，每家三轮各抓四张、各补一张，庄家再摸一张。此为本桌一掷约定，不等同于竞赛双掷规则。</li>' +
+      '<li><b>本桌开牌</b>：一次掷两骰，较大点数定哪家牌墙，较小点数定该家右侧第几墩。从庄家起逆时针数：1／5 本家、2／6 下家、3 对家、4 上家；小骰为 1 即从右侧第一墩开始抓。四方为 14/13/14/13 墩，取墙沿顺时针。三轮每家各抓四张后，庄家先取当前墩上层一张，隔一墩再取上层一张；其余三家依次各取留下的一张。</li>' +
       '<li><b>胡牌</b>：4 组 + 1 对（乱将），或 小七对（与平胡同价）；四张相同牌可作两对。规则版本 ' + ZMJ.rulesVersion + '。</li>' +
       '<li><b>杠</b>：暗杠 每家 10 元；大明杠 放杠者 15 元；补杠（碰后自摸第 4 张）三家各 5 元。<b>补杠不可被抢杠</b>。</li>' +
       '<li><b>鸟</b>：胡牌后翻 6 张，摸到 1/5/9 各算一只。</li>' +
@@ -5333,6 +5379,7 @@ window.onerror = function (msg, src, line, col) {
       P.hand = {
         players: players,
         opening:h.opening||null,wallDraws:h.wallDraws||null,openingAgeMs:h.openingAgeMs,gangDraw:!!h.gangDraw,
+        dealtKinds:h.mine&&Array.isArray(h.mine.dealtKinds)?h.mine.dealtKinds.slice():[],
         wall: { length: h.wallLeft },                          // 牌墙只给张数，顺序不出服务器
         turn: h.turn, lastDraw: h.lastDraw, lastDiscard: h.lastDiscard,
         turnCount: h.turnCount, over: !!h.over,
@@ -5568,7 +5615,7 @@ window.onerror = function (msg, src, line, col) {
   }
 
   // 与离线缓存同步，保留远端新增的首页版本标识。
-  var BUILD = 'v30';
+  var BUILD = 'v31';
   // ---------- 主界面：先选单机还是联机 ----------
   function showHome() {
     if (!STATS) loadStats();

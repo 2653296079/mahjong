@@ -67,8 +67,10 @@ test('四家共享同一骰点与接牌口，公开字段没有牌墙顺序或�
   for (const member of members) {
     const h = room.viewFor(member).hand;
     assert.deepStrictEqual(h.opening, H.opening);
-    assert.deepStrictEqual(Object.keys(h.opening).sort(), ['breakSeat','breakStack','dice','rule','startSlot','total']);
+    assert.deepStrictEqual(Object.keys(h.opening).sort(), ['breakSeat','breakStack','dice','rule','stackDie','startSlot','total','wallDie']);
     assert.deepStrictEqual(h.wallDraws, { head: 53, tail: 0 });
+    assert.deepStrictEqual(h.mine.dealtKinds, H.dealtHands[h.mine.seat]);
+    assert.ok(h.players.every(p => !Object.hasOwn(p,'dealtKinds') && !Object.hasOwn(p,'dealtHands') && !Object.hasOwn(p,'concealed')));
     assert.ok(h.openingAgeMs >= 0 && h.openingAgeMs < 12000);
     assert.strictEqual(h.wallLeft + h.wallDraws.head + h.wallDraws.tail, 102);
   }

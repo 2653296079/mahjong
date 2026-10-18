@@ -14,6 +14,27 @@ const turn = (pos, x, z, y = TOP) => {
 };
 const rotation = (pos, tilt = 0) => new THREE.Quaternion().setFromEuler(new THREE.Euler(0, pos * Math.PI / 2, 0))
   .multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(tilt, 0, 0)));
+const HAND_SCALE = 1.85, HAND_STEP = 0.050, HAND_Z = 0.357, HAND_TILT = 1.46;
+const DICE_SCALE = 2.4, DICE_TIME = 2300;
+function handPose(index, count, drawn, overhead = false) {
+  const tilt = overhead ? 0.20 : HAND_TILT, gap = drawn >= 0 ? 0.014 : 0;
+  return { position: new THREE.Vector3(index * HAND_STEP - ((count - 1) * HAND_STEP + gap) / 2 + (index === drawn ? gap : 0),
+    TOP + 0.017 * HAND_SCALE * Math.sin(tilt), HAND_Z), rotation: rotation(0, tilt), scale: HAND_SCALE };
+}
+function surfaceTexture(type) {
+  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256;
+  const context = canvas.getContext('2d'), pixels = context.createImageData(256, 256);
+  let seed = 618033;
+  for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    const shade = clamp(Math.round(135 + ((seed >>> 24) - 128) * (type === 'felt' ? 0.14 : 0.24)), 0, 255), i = (y * 256 + x) * 4;
+    pixels.data[i] = pixels.data[i + 1] = pixels.data[i + 2] = shade; pixels.data[i + 3] = 255;
+  }
+  context.putImageData(pixels, 0, 0);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(4, 4);
+  return texture;
+}
 
 export async function createTable3D(host, callbacks = {}) {
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -35,25 +56,44 @@ export async function createTable3D(host, callbacks = {}) {
   const room = new RoomEnvironment();
   const env = generator.fromScene(room, 0.035);
   scene.environment = env.texture;
-  scene.environmentIntensity = 0.55;
+  scene.environmentIntensity = 0.38;
   room.dispose();
   generator.dispose();
-  scene.add(new THREE.HemisphereLight(0xf4f1dc, 0x173a2a, 0.75));
-  const keyLight = new THREE.DirectionalLight(0xfff0d3, 2.4);
-  keyLight.position.set(-0.6, 2.5, 0.8);
+  scene.add(new THREE.HemisphereLight(0xe6e9e1, 0x17241d, 0.32));
+  const keyLight = new THREE.DirectionalLight(0xffeed7, 2.7);
+  keyLight.position.set(-0.85, 2.2, 0.65);
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.setScalar(innerWidth < 700 ? 512 : 1024);
   Object.assign(keyLight.shadow.camera, { left: -0.8, right: 0.8, top: 0.8, bottom: -0.8, near: 0.1, far: 4 });
   keyLight.shadow.bias = -0.00008;
   keyLight.shadow.normalBias = 0.00035;
   scene.add(keyLight);
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshBasicMaterial({ color: '#101f1b' }));
+  const fillLight = new THREE.DirectionalLight(0xb9cfdf, 0.55); fillLight.position.set(1.3, 1.2, -0.9); scene.add(fillLight);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: '#101b16', roughness: 0.96 }));
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -0.004;
   floor.receiveShadow = true;
   scene.add(floor);
 
-  const loader = new GLTFLoader(), templates = new Map();
+  const loader = new GLTFLoader(), templates = new Map(), materialCache = new Map();
+  const feltBump = surfaceTexture('felt'), railBump = surfaceTexture('rail');
+  feltBump.anisotropy = railBump.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  function finishMaterial(source) {
+    if (materialCache.has(source)) return materialCache.get(source);
+    let material = source;
+    if (/ivory resin|jade green resin/i.test(source.name)) {
+      material = new THREE.MeshPhysicalMaterial();
+      THREE.MeshStandardMaterial.prototype.copy.call(material, source);
+      material.roughness = /ivory/i.test(source.name) ? 0.30 : 0.26;
+      material.clearcoat = 0.18; material.clearcoatRoughness = 0.32; material.ior = 1.49;
+      material.envMapIntensity = 0.7;
+    } else if (/playing felt/i.test(source.name)) {
+      material.color.set('#145440'); material.bumpMap = feltBump; material.bumpScale = 0.00006; material.roughness = 0.96;
+    } else if (/padded rail/i.test(source.name)) {
+      material.color.set('#263b32'); material.bumpMap = railBump; material.bumpScale = 0.00012; material.roughness = 0.65;
+    } else if (/ink/i.test(source.name)) { material.roughness = 0.58; material.envMapIntensity = 0.25; }
+    materialCache.set(source, material); return material;
+  }
   const requests = Array.from({ length: 27 }, (_, kind) => [modelId(kind), 'tiles/' + modelId(kind) + '.glb']);
   requests.push(['mahjong-table', 'mahjong-table.glb'], ['tile-back', 'tile-back.glb'], ['dice', 'dice.glb'], ['dealer-marker', 'dealer-marker.glb']);
   let loaded = 0;
@@ -67,6 +107,7 @@ export async function createTable3D(host, callbacks = {}) {
       gltf.scene.updateMatrixWorld(true);
       gltf.scene.traverse(obj => {
         if (obj.isMesh) {
+          obj.material = Array.isArray(obj.material) ? obj.material.map(finishMaterial) : finishMaterial(obj.material);
           obj.castShadow = !/face|rank|character|pip/i.test(obj.name);
           obj.receiveShadow = true;
         }
@@ -123,6 +164,14 @@ export async function createTable3D(host, callbacks = {}) {
   takeMarker.visible = false; scene.add(takeMarker);
   const tiles = new THREE.Group();
   scene.add(tiles);
+  const contactCanvas = document.createElement('canvas'); contactCanvas.width = contactCanvas.height = 64;
+  const contactContext = contactCanvas.getContext('2d'), contactGradient = contactContext.createRadialGradient(32, 32, 3, 32, 32, 31);
+  contactGradient.addColorStop(0, 'rgba(0,0,0,.72)'); contactGradient.addColorStop(1, 'rgba(0,0,0,0)');
+  contactContext.fillStyle = contactGradient; contactContext.fillRect(0, 0, 64, 64);
+  const contactTexture = new THREE.CanvasTexture(contactCanvas);
+  const contact = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ map: contactTexture, transparent: true, opacity: 0.28, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 }), 14);
+  contact.count = 0; contact.frustumCulled = false; scene.add(contact);
   const rimGeometry = new THREE.BoxGeometry(1, 1, 1);
   const rimMaterials = INKS.map(color => new THREE.MeshStandardMaterial({ color, roughness: 0.5 }));
   const backParts = [];
@@ -144,13 +193,14 @@ export async function createTable3D(host, callbacks = {}) {
   const projected = new Map();
   const bounds = new THREE.Box3(), corners = Array.from({ length: 8 }, () => new THREE.Vector3());
 
-  function cameraPose() {
+  function cameraPose(focus = 0) {
     const aspect = width / Math.max(1, height);
-    const distance = aspect < 1 ? 1.48 / Math.max(0.56, aspect) : 1.45;
-    const angle = overview ? 1.30 : pitch;
-    camera.position.set(Math.sin(yaw) * Math.cos(angle) * distance, TOP + Math.sin(angle) * distance,
-      0.025 + Math.cos(yaw) * Math.cos(angle) * distance);
-    camera.lookAt(0, TOP, 0.025);
+    const normalDistance = aspect < 1 ? 1.48 / Math.max(0.56, aspect) : 1.45;
+    const distance = THREE.MathUtils.lerp(normalDistance, 0.65 / Math.min(1, Math.max(0.7, aspect)), focus);
+    const angle = THREE.MathUtils.lerp(overview ? 1.30 : pitch, 1.08, focus), heading = yaw * (1 - focus);
+    camera.position.set(Math.sin(heading) * Math.cos(angle) * distance, TOP + Math.sin(angle) * distance,
+      0.025 * (1 - focus) + Math.cos(heading) * Math.cos(angle) * distance);
+    camera.lookAt(0, TOP + 0.022 * focus, 0.025 * (1 - focus));
     camera.updateMatrixWorld();
   }
   function resize() {
@@ -225,6 +275,15 @@ export async function createTable3D(host, callbacks = {}) {
       batch.instanceMatrix.needsUpdate = true;
     });
   }
+  function paintContacts(poses) {
+    contact.count = Math.min(poses.length, 14);
+    poses.slice(0, 14).forEach((pose, i) => {
+      dummy.position.set(pose.position.x, TOP + 0.0006, pose.position.z);
+      dummy.quaternion.identity(); dummy.scale.set(0.058, 1, overview ? 0.078 : 0.042);
+      dummy.updateMatrix(); contact.setMatrixAt(i, dummy.matrix);
+    });
+    contact.instanceMatrix.needsUpdate = true;
+  }
   function updateHover() {
     if (machineRun) return;
     for (const entry of entries.values()) {
@@ -291,25 +350,24 @@ export async function createTable3D(host, callbacks = {}) {
       entries.clear(); projected.clear(); hovered = null; discardHint = null; round = next.round;
     }
     const wanted = new Set(), hidden = [];
+    contact.count = 0;
     const own = next.seats.find(seat => seat.isMe);
     for (const seat of next.seats) {
       if (seat.isMe) {
-        const scale = 1.85, step = 0.050, tilt = overview ? 0.20 : 1.15;
-        const gap = seat.hand.some(t => t.drawn) ? 0.014 : 0;
-        const span = (seat.hand.length - 1) * step + gap;
+        const drawn = seat.hand.findIndex(t => t.drawn), contacts = [];
         seat.hand.forEach((tile, index) => {
-          const x = index * step - span / 2 + (tile.drawn ? gap : 0);
-          const z = 0.357 + Math.pow(x / 0.38, 2) * 0.011;
-          const position = new THREE.Vector3(x, TOP + 0.034 * scale / 2 * Math.sin(tilt), z);
+          const pose = handPose(index, seat.hand.length, drawn, overview);
           const key = 'hand:' + tile.id;
-          piece(key, modelId(tile.kind), position, rotation(0, tilt), scale, 'hand',
+          piece(key, modelId(tile.kind), pose.position, pose.rotation, pose.scale, 'hand',
             { id: tile.id, kind: tile.kind, chosen: tile.chosen }, initial);
+          contacts.push(pose);
           wanted.add(key);
         });
+        paintContacts(contacts);
       } else {
         for (let i = 0; i < Math.min(seat.count, 14); i++) hidden.push({
           position: turn(seat.pos, (i - (seat.count - 1) / 2) * 0.030, 0.364, TOP + 0.020),
-          rotation: rotation(seat.pos, -1.35), scale: 1.16
+          rotation: rotation(seat.pos, -HAND_TILT), scale: 1.16
         });
       }
       seat.melds.forEach((meld, m) => {
@@ -341,8 +399,8 @@ export async function createTable3D(host, callbacks = {}) {
     wanted.add('dealer');
     for (let i = 0; i < 2; i++) {
       const key = 'dice:' + i;
-      piece(key, 'dice', new THREE.Vector3(i ? 0.019 : -0.019, TOP + 0.027, i ? 0.008 : -0.008),
-        diceQuaternion(next.opening?.dice[i] || 1, i ? 0.3 : -0.25), 1.4, 'prop', {}, true);
+      piece(key, 'dice', new THREE.Vector3(i ? 0.025 : -0.025, TOP + 0.0345, i ? 0.006 : -0.006),
+        diceQuaternion(next.opening?.dice[i] || 1, i ? 0.3 : -0.25), DICE_SCALE, 'prop', {}, true);
       wanted.add(key);
     }
     for (const [key, entry] of entries) if (!wanted.has(key)) { tiles.remove(entry.object); entries.delete(key); }
@@ -352,6 +410,7 @@ export async function createTable3D(host, callbacks = {}) {
     host.dataset.hiddenCount = String(next.seats.filter(s => !s.isMe).reduce((n, s) => n + s.count, 0));
     host.dataset.round = String(next.round);
     host.dataset.dice = (next.opening?.dice || []).join(',');
+    host.dataset.diceScale = String(DICE_SCALE);
     host.dataset.wallTiles = String(wallRemainder(next).length);
     if (!machineRun) { host.dataset.machinePhase = 'ready'; callbacks.onMachine?.('ready', next.opening); }
     updateHover(); dirty = true; schedule();
@@ -365,47 +424,84 @@ export async function createTable3D(host, callbacks = {}) {
       old.push({ object: clone, position: clone.position.clone(), quaternion: clone.quaternion.clone() });
     }
     applySnapshot(next);
-    const packets = [], order = Array.from({ length: 4 }, (_, i) => (next.dealer + i) % 4);
-    for (let r = 0; r < 3; r++) for (const pos of order) packets.push({ pos, count: 4, duration: 240 });
-    for (const pos of order) packets.push({ pos, count: 1, duration: 170 });
-    packets.push({ pos: next.dealer, count: 1, duration: 170 });
+    let packets;
+    if (next.dealPlan) packets = next.dealPlan.map(p => ({ ...p, count: p.slots.length, duration: p.slots.length === 4 ? 360 : 340 }));
+    else {
+      packets = []; let cursor = 0;
+      const order = Array.from({ length: 4 }, (_, i) => (next.dealer + i) % 4);
+      for (let r = 0; r < 3; r++) for (const pos of order) { packets.push({ pos, count: 4, slots: [cursor, cursor + 1, cursor + 2, cursor + 3], duration: 360 }); cursor += 4; }
+      for (const pos of order) packets.push({ pos, count: 1, slots: [cursor++], duration: 340 });
+      packets.push({ pos: next.dealer, count: 1, slots: [cursor], duration: 340 });
+    }
+    const faceGroup = new THREE.Group(), faces = [], ownSlots = packets.filter(p => p.pos === 0).flatMap(p => p.slots);
+    const ownSeat = next.seats.find(s => s.isMe), kinds = next.dealtKinds?.length ? next.dealtKinds : (ownSeat?.hand || []).map(t => t.kind);
+    scene.add(faceGroup);
+    ownSlots.forEach((slot, index) => {
+      if (!Number.isInteger(kinds[index])) return;
+      const object = templates.get(modelId(kinds[index])).clone(true);
+      object.visible = false; faceGroup.add(object); faces.push({ slot, index, kind: kinds[index], object });
+    });
     machineRun = { elapsed: 0, lastTime: null, collect: collect ? 950 : 0, old, backs, packets,
-      wall: physicalWall(next), opening: next.opening, phase: '', counts: [0, 0, 0, 0] };
+      wall: physicalWall(next), opening: next.opening, phase: '', counts: [0, 0, 0, 0],
+      faceGroup, faces, bySlot: new Map(faces.map(f => [f.slot, f])), lastPacket: -1, focus: 0, settled: null };
+    contact.count = 0;
     for (const entry of entries.values()) if (entry.type !== 'prop') entry.object.visible = false;
     host.dataset.machineBusy = '1';
     host.dataset.dealCounts = '0,0,0,0';
+    host.dataset.dealFaceCount = '0';
     callbacks.onProject?.([]); callbacks.onBusy?.(true);
     dirty = true; schedule();
   }
   function finishMachine(notify = true) {
     if (!machineRun) return;
+    const run = machineRun;
     machineRun = null;
     if (recycling) { scene.remove(recycling); recycling = null; }
     lid.position.y = 0; takeMarker.visible = false;
+    cameraPose(); callbacks.onDice?.(false, true, run.opening.dice);
     rails.forEach(r => { r.position.y = 0.003; });
     for (const entry of entries.values()) entry.object.visible = true;
     host.dataset.machineBusy = '0'; host.dataset.machinePhase = 'ready';
     // 重新应用最新服务端局面，演出期间不倒放已经收到的行动。
     if (snapshot) applySnapshot(snapshot);
+    if (run.faces.some(f => f.object.visible)) {
+      const queues = new Map();
+      run.faces.filter(f => f.object.visible).forEach(f => { if (!queues.has(f.kind)) queues.set(f.kind, []); queues.get(f.kind).push(f); });
+      for (const entry of entries.values()) if (entry.type === 'hand') {
+        const face = queues.get(entry.kind)?.shift();
+        if (face?.object.visible) {
+          entry.object.position.copy(face.object.position); entry.object.quaternion.copy(face.object.quaternion);
+          animate(entry, entry.base, entry.q, 300);
+        }
+      }
+    }
+    scene.remove(run.faceGroup);
     if (notify) callbacks.onBusy?.(false);
   }
   function frameMachine(now) {
     const run = machineRun;
     if (!run) return;
     // 首次 shader 编译或后台恢复不能吞掉整段升墙／掷骰动画。
-    if (run.lastTime !== null) run.elapsed += Math.min(64, Math.max(0, now - run.lastTime));
+    if (run.lastTime !== null) run.elapsed += Math.min(100, Math.max(0, now - run.lastTime));
     run.lastTime = now;
     let t = run.elapsed, phase, p;
     const ease = n => 1 - Math.pow(1 - clamp(n, 0, 1), 3);
     if (t < run.collect) { phase = 'collect'; p = t / run.collect; }
     else if ((t -= run.collect) < 550) { phase = 'shuffle'; p = t / 550; }
     else if ((t -= 550) < 850) { phase = 'lift'; p = t / 850; }
-    else if ((t -= 850) < 1250) { phase = 'dice'; p = t / 1250; }
-    else { t -= 1250; phase = 'deal'; p = t; }
+    else if ((t -= 850) < DICE_TIME) { phase = 'dice'; p = t / DICE_TIME; }
+    else { t -= DICE_TIME; phase = 'deal'; p = t; }
     if (phase !== run.phase) {
       run.phase = phase; host.dataset.machinePhase = phase;
       callbacks.onMachine?.(phase, run.opening, [0, 0, 0, 0]);
     }
+    const smooth = n => { n = clamp(n, 0, 1); return n * n * (3 - 2 * n); };
+    const focus = phase === 'dice' ? smooth(p / 0.18) * (1 - smooth((p - 0.82) / 0.18)) : 0;
+    if (focus !== run.focus) { run.focus = focus; cameraPose(focus); }
+    host.dataset.diceFocus = focus.toFixed(2);
+    const settled = phase !== 'dice' || p >= 0.62, diceState = (phase === 'dice') + ':' + settled;
+    if (diceState !== run.settled) { run.settled = diceState; callbacks.onDice?.(phase === 'dice', settled, run.opening.dice); }
+    run.faces.forEach(f => { f.object.visible = false; });
     lid.position.y = phase === 'collect' ? 0.105 * Math.sin(Math.min(p * 2, 1) * Math.PI / 2)
       : phase === 'shuffle' ? 0.105 : phase === 'lift' ? 0.105 * (1 - ease(p)) : 0;
     const diceEntries = [entries.get('dice:0'), entries.get('dice:1')];
@@ -414,10 +510,13 @@ export async function createTable3D(host, callbacks = {}) {
       entry.tween = null;
       const target = diceQuaternion(run.opening.dice[i], i ? 0.3 : -0.25);
       entry.object.position.copy(entry.base); entry.object.position.y += lid.position.y;
-      if (phase === 'dice' && p < 0.83) {
-        const f = p / 0.83, spin = new THREE.Quaternion().setFromEuler(new THREE.Euler(8 + i * 3, 11, 6));
-        spin.slerp(target, ease(f)); entry.object.quaternion.copy(spin);
-        entry.object.position.y += Math.abs(Math.sin(f * Math.PI * 3)) * 0.042 * (1 - f);
+      if (phase === 'dice' && p < 0.62) {
+        const f = p / 0.62, motion = Math.pow(1 - f, 2);
+        const spin = new THREE.Quaternion().setFromEuler(new THREE.Euler((10 * Math.PI + i) * motion, 8 * Math.PI * motion, 6 * Math.PI * motion));
+        entry.object.quaternion.copy(spin.multiply(target));
+        entry.object.position.x += Math.cos(f * Math.PI * 6 + i) * 0.006 * (1 - f);
+        entry.object.position.z += Math.sin(f * Math.PI * 4 + i) * 0.009 * (1 - f);
+        entry.object.position.y += Math.abs(Math.sin(f * Math.PI * 4)) * 0.032 * (1 - f);
       } else entry.object.quaternion.copy(target);
     });
     takeMarker.visible = phase === 'dice' || phase === 'deal';
@@ -444,31 +543,57 @@ export async function createTable3D(host, callbacks = {}) {
         takeMarker.position.copy(run.wall[0].position); takeMarker.position.y = TOP;
         takeMarker.quaternion.copy(run.wall[0].rotation);
       } else {
-        let elapsed = p, taken = 0, flight = null;
-        const counts = [0, 0, 0, 0];
+        let elapsed = p, flight = null, packetIndex = 0;
+        const counts = [0, 0, 0, 0], taken = new Set(), arrived = new Set();
         for (const packet of run.packets) {
           if (elapsed < packet.duration) { flight = { ...packet, f: elapsed / packet.duration }; break; }
-          elapsed -= packet.duration; counts[packet.pos] += packet.count; taken += packet.count;
+          elapsed -= packet.duration; counts[packet.pos] += packet.count;
+          packet.slots.forEach(slot => { taken.add(slot); arrived.add(slot); }); packetIndex++;
         }
-        const backs = run.wall.slice(taken + (flight ? flight.count : 0));
-        for (let pos = 0; pos < 4; pos++) for (let i = 0; i < counts[pos]; i++) {
-          const me = pos === 0, scale = me ? 1.85 : 1.16;
-          backs.push({ position: turn(pos, (i - 6) * (me ? 0.050 : 0.030), 0.357, TOP + (me ? 0.030 : 0.020)),
-            rotation: rotation(pos, me ? 1.15 : -1.35), scale });
+        flight?.slots.forEach(slot => taken.add(slot));
+        const backs = run.wall.filter((pose, index) => !taken.has(index)), ownContacts = [];
+        for (let pos = 1; pos < 4; pos++) for (let i = 0; i < counts[pos]; i++) {
+          const targetCount = 13 + (pos === snapshot.dealer ? 1 : 0);
+          backs.push({ position: turn(pos, (i - (targetCount - 1) / 2) * 0.030, HAND_Z, TOP + 0.020),
+            rotation: rotation(pos, -HAND_TILT), scale: 1.16 });
+        }
+        for (const face of run.faces) if (arrived.has(face.slot)) {
+          const pose = handPose(face.index, run.faces.length, run.faces.length === 14 ? 13 : -1, overview);
+          face.object.visible = true; face.object.position.copy(pose.position);
+          face.object.quaternion.copy(pose.rotation); face.object.scale.setScalar(pose.scale); ownContacts.push(pose);
         }
         if (flight) for (let i = 0; i < flight.count; i++) {
-          const src = run.wall[taken + i], me = flight.pos === 0, f = ease(flight.f);
-          const dest = turn(flight.pos, (counts[flight.pos] + i - 6) * (me ? 0.050 : 0.030), 0.357, TOP + (me ? 0.030 : 0.020));
-          const position = src.position.clone().lerp(dest, f); position.y += Math.sin(Math.PI * f) * 0.060;
-          backs.push({ position, rotation: src.rotation.clone().slerp(rotation(flight.pos, me ? 1.15 : -1.35), f), scale: 0.98 + ((me ? 1.85 : 1.16) - 0.98) * f });
+          const slot = flight.slots[i], src = run.wall[slot], me = flight.pos === 0, f = ease(flight.f);
+          if (me && run.bySlot.has(slot)) {
+            const face = run.bySlot.get(slot), dest = handPose(face.index, run.faces.length, run.faces.length === 14 ? 13 : -1, overview);
+            const scale = THREE.MathUtils.lerp(0.98, HAND_SCALE, f);
+            const faceDown = src.rotation.clone().multiply(rotation(0, Math.PI));
+            const quaternion = faceDown.slerp(dest.rotation, ease(clamp((flight.f - 0.05) / 0.50, 0, 1)));
+            const sourceCenter = src.position.clone().add(new THREE.Vector3(0, 0.009 * 0.98, 0));
+            const destCenter = dest.position.clone().add(new THREE.Vector3(0, 0.009 * HAND_SCALE, 0).applyQuaternion(dest.rotation));
+            const center = sourceCenter.lerp(destCenter, f); center.y += Math.sin(Math.PI * f) * 0.060;
+            face.object.position.copy(center.sub(new THREE.Vector3(0, 0.009 * scale, 0).applyQuaternion(quaternion)));
+            face.object.quaternion.copy(quaternion); face.object.scale.setScalar(scale); face.object.visible = true;
+          } else {
+            const targetCount = 13 + (flight.pos === snapshot.dealer ? 1 : 0);
+            const dest = turn(flight.pos, (counts[flight.pos] + i - (targetCount - 1) / 2) * 0.030, HAND_Z, TOP + 0.020);
+            const position = src.position.clone().lerp(dest, f); position.y += Math.sin(Math.PI * f) * 0.060;
+            backs.push({ position, rotation: src.rotation.clone().slerp(rotation(flight.pos, -HAND_TILT), f), scale: THREE.MathUtils.lerp(0.98, 1.16, f) });
+          }
         }
-        paintBacks(backs);
-        takeMarker.position.copy(run.wall[Math.min(taken, 107)].position);
+        paintBacks(backs); paintContacts(ownContacts);
+        host.dataset.dealFaceCount = String(run.faces.filter(f => f.object.visible).length);
+        const nextSlot = flight?.slots[0] ?? run.wall.findIndex((pose, index) => !taken.has(index));
+        takeMarker.position.copy(run.wall[Math.max(0, nextSlot)].position);
         takeMarker.position.y = TOP;
-        takeMarker.quaternion.copy(run.wall[Math.min(taken, 107)].rotation);
+        takeMarker.quaternion.copy(run.wall[Math.max(0, nextSlot)].rotation);
         if (counts.join(',') !== run.counts.join(',')) {
           run.counts = counts; host.dataset.dealCounts = counts.join(',');
           callbacks.onMachine?.('deal', run.opening, counts);
+        }
+        if (flight && packetIndex !== run.lastPacket) {
+          run.lastPacket = packetIndex; host.dataset.dealSlots = flight.slots.join(','); host.dataset.dealJump = flight.jump ? '1' : '0';
+          callbacks.onPacket?.(flight.pos, !!flight.jump, flight.slots);
         }
         if (!flight && elapsed > 320) { finishMachine(); return; }
       }
@@ -489,7 +614,8 @@ export async function createTable3D(host, callbacks = {}) {
         const x = (point.x + 1) * width / 2, y = (1 - point.y) * height / 2;
         minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
       }
-      result.push({ id: entry.id, x: minX, y: minY, width: maxX - minX, height: maxY - minY });
+      result.push({ id: entry.id, x: minX, y: minY, width: maxX - minX, height: maxY - minY,
+        worldX: entry.base.x, worldZ: entry.base.z });
     }
     callbacks.onProject?.(result);
   }

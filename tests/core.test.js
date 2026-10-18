@@ -24,19 +24,41 @@ test('wall has four copies of every suited tile', () => {
   }
 });
 
+test('larger die chooses wall and smaller die chooses its one-based stack', () => {
+  const offsets = [0, 82, 54, 28];
+  for (let dealer = 0; dealer < 4; dealer++) for (let a = 1; a <= 6; a++) for (let b = 1; b <= 6; b++) {
+    const big = Math.max(a,b), small = Math.min(a,b), seat = (dealer + big - 1) % 4;
+    const o = ZMJ.openingBreak([a,b],dealer), swapped = ZMJ.openingBreak([b,a],dealer);
+    assert.equal(o.rule, 'high-die-wall-low-die-stack-v3');
+    assert.equal(o.wallDie,big); assert.equal(o.stackDie,small);
+    assert.equal(o.breakSeat,seat); assert.equal(o.breakStack,small);
+    assert.equal(o.startSlot,offsets[seat]+2*(small-1));
+    assert.equal(swapped.startSlot,o.startSlot);
+    if(big===1||big===5) assert.equal(seat,dealer);
+    if(big===3) assert.equal(seat,(dealer+2)%4);
+  }
+});
+
 test('dice opening, four-tile packets and physical wall agree for every dealer', () => {
   for (let seed = 1; seed <= 12; seed++) for (let dealer = 0; dealer < 4; dealer++) {
     const rng = ZMJ.mulberry32(seed), raw = Array.from(ZMJ.buildWall(rng));
     const dice = [1 + (rng() * 6 | 0), 1 + (rng() * 6 | 0)];
     const G = ZMJ.createGame({ seed, rotate: false }); G.dealer = dealer; G.startHand();
-    const H = G.hand, o = H.opening, sum = dice[0] + dice[1];
+    const H = G.hand, o = H.opening, big = Math.max(...dice), small = Math.min(...dice);
     assert.deepEqual(Array.from(o.dice), dice);
-    assert.equal(o.breakSeat, (dealer + sum - 1) % 4);
-    assert.equal(o.breakStack, sum);
+    assert.equal(o.breakSeat, (dealer + big - 1) % 4);
+    assert.equal(o.breakStack, small);
     const wallOffsets = [0, 82, 54, 28];
-    const cut = (wallOffsets[o.breakSeat] + 2 * sum) % 108;
+    const cut = (wallOffsets[o.breakSeat] + 2 * (small-1)) % 108;
     assert.equal(o.startSlot, cut);
     const deck = raw.slice(cut).concat(raw.slice(0, cut));
+    const packets = Array.from(ZMJ.openingPackets(dealer));
+    assert.deepEqual(Array.from(packets[12].slots), [48]);
+    assert.deepEqual(Array.from(packets[13].slots), [52]);
+    assert.equal(packets[12].seat, dealer); assert.equal(packets[13].seat, dealer); assert.equal(packets[13].jump, true);
+    assert.deepEqual(packets.slice(14).map(p => Array.from(p.slots)), [[49], [50], [51]]);
+    assert.deepEqual(packets.flatMap(p => Array.from(p.slots)).sort((a,b)=>a-b), Array.from({length:53},(_,i)=>i));
+    for(let seat=0;seat<4;seat++) assert.deepEqual(Array.from(H.dealtHands[seat]), packets.filter(p=>p.seat===seat).flatMap(p=>Array.from(p.slots,slot=>deck[slot])));
     for (let relative = 0; relative < 4; relative++) {
       const expected = Array(27).fill(0), indices = [0, 1, 2, 3, 16, 17, 18, 19, 32, 33, 34, 35];
       indices.forEach(i => expected[deck[i + 4 * relative]]++);
@@ -47,7 +69,7 @@ test('dice opening, four-tile packets and physical wall agree for every dealer',
     assert.deepEqual(Array.from(H.wall), deck.slice(53, 102));
     assert.deepEqual(Array.from(H.birds), deck.slice(102));
     assert.equal(H.wallDraws.head, 53); assert.equal(H.wallDraws.tail, 0);
-    assert.deepEqual(Object.keys(o).sort(), ['breakSeat','breakStack','dice','rule','startSlot','total']);
+    assert.deepEqual(Object.keys(o).sort(), ['breakSeat','breakStack','dice','rule','stackDie','startSlot','total','wallDie']);
   }
 });
 
