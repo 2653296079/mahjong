@@ -10,7 +10,7 @@ function worker(fetch) {
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8'), {
     URL, fetch,
     self: { location: { href: 'https://example.com/mahjong/sw.js' }, clients: { claim: async () => {} }, addEventListener: (name, fn) => handlers[name] = fn },
-    caches: { keys: async () => ['zmj-v15', 'zmj-v16', 'zmj-v17', 'zmj-v18', 'zmj-v19', 'zmj-v20', 'zmj-v21', 'zmj-v22', 'zmj-v23', 'zmj-v24', 'zmj-v25', 'zmj-v26', 'zmj-v27', 'zmj-v28', 'zmj-v29', 'zmj-v30', 'zmj-v31', 'zmj-v32', 'another-project-v1'], delete: async key => deleted.push(key), open: async () => cache, match: async () => undefined }
+    caches: { keys: async () => ['zmj-v15', 'zmj-v16', 'zmj-v17', 'zmj-v18', 'zmj-v19', 'zmj-v20', 'zmj-v21', 'zmj-v22', 'zmj-v23', 'zmj-v24', 'zmj-v25', 'zmj-v26', 'zmj-v27', 'zmj-v28', 'zmj-v29', 'zmj-v30', 'zmj-v31', 'zmj-v32', 'zmj-v32b', 'another-project-v1'], delete: async key => deleted.push(key), open: async () => cache, match: async () => undefined }
   });
   async function request(url = 'https://example.com/mahjong/?room=1234') {
     let response, pending = [];
@@ -23,7 +23,7 @@ function worker(fetch) {
 test('offline upgrade removes only this game old caches', async () => {
   const w = worker(); let done;
   w.handlers.activate({ waitUntil: x => done = x }); await done;
-  assert.deepEqual(w.deleted, ['zmj-v15', 'zmj-v16', 'zmj-v17', 'zmj-v18', 'zmj-v19', 'zmj-v20', 'zmj-v21', 'zmj-v22', 'zmj-v23', 'zmj-v24', 'zmj-v25', 'zmj-v26', 'zmj-v27', 'zmj-v28', 'zmj-v29', 'zmj-v30', 'zmj-v31']);
+  assert.deepEqual(w.deleted, ['zmj-v15', 'zmj-v16', 'zmj-v17', 'zmj-v18', 'zmj-v19', 'zmj-v20', 'zmj-v21', 'zmj-v22', 'zmj-v23', 'zmj-v24', 'zmj-v25', 'zmj-v26', 'zmj-v27', 'zmj-v28', 'zmj-v29', 'zmj-v30', 'zmj-v31', 'zmj-v32']);
 });
 test('failed HTTP responses are not cached; room links share one offline page', async () => {
   const error = worker(async () => ({ ok: false, status: 503 }));
