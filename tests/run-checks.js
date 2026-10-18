@@ -9,6 +9,7 @@ const jobs = [
   ['tests/no-build-check.js'], ['tests/smoke-server.js']
 ];
 if (process.argv.includes('--browser')) jobs.push(
+  ['tests/pages-compat.js', 'table-3d-ui'],
   ['tests/pages-compat.js', 'account-ui', '--accounts'],
   ['tests/pages-compat.js', 'connection-ui', '--accounts'],
   ['tests/pages-compat.js', 'table-layout'],

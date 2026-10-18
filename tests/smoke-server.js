@@ -39,6 +39,11 @@ function get(url, headers, method) {
     if(icon.headers['content-encoding'])problems.push('已压缩图片不应再次压缩');
     console.log('首页压缩体积：'+page.body.length+' → '+packed.body.length+' 字节');
     const js = await get('http://127.0.0.1:' + PORT + '/server/rooms.js');
+    const model = await get('http://127.0.0.1:'+PORT+'/assets/mahjong-3d/glb/tiles/suo-08.glb');
+    if(model.code!==200||model.type!=='model/gltf-binary'||model.body.subarray(0,4).toString()!=='glTF')problems.push('三维模型白名单或 MIME 不正确');
+    for(const privateFile of ['assets/mahjong-3d/source/build-assets.py','assets/mahjong-3d/mahjong-assets-v1.blend','assets/mahjong-3d/catalog.json']){
+      if((await get('http://127.0.0.1:'+PORT+'/'+privateFile)).code!==404)problems.push('不应扩大为整个素材目录可访问：'+privateFile);
+    }
     if (js.code !== 404) problems.push('服务端源码不该被公开访问，实际 ' + js.code);
     const db=await get('http://127.0.0.1:'+PORT+'/data/mahjong.sqlite');
     if(db.code!==404)problems.push('账号数据库不该被公开访问');

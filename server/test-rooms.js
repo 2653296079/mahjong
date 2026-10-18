@@ -59,6 +59,25 @@ test('服务端从 index.html 取到的引擎是完整可用的', () => {
   assert.strictEqual(G.seats.length, 4);
 });
 
+test('四家共享同一骰点与接牌口，公开字段没有牌墙顺序或暗牌', () => {
+  const store = new RoomStore(), room = store.create('1972', { seed: 731 });
+  const members = ['甲','乙','丙','丁'].map(name => fakeClient(room, name));
+  room.start();
+  const H = room.game.hand;
+  for (const member of members) {
+    const h = room.viewFor(member).hand;
+    assert.deepStrictEqual(h.opening, H.opening);
+    assert.deepStrictEqual(Object.keys(h.opening).sort(), ['breakSeat','breakStack','dice','rule','startSlot','total']);
+    assert.deepStrictEqual(h.wallDraws, { head: 53, tail: 0 });
+    assert.ok(h.openingAgeMs >= 0 && h.openingAgeMs < 12000);
+    assert.strictEqual(h.wallLeft + h.wallDraws.head + h.wallDraws.tail, 102);
+  }
+  step(room);
+  const h = room.viewFor(members[0]).hand;
+  assert.deepStrictEqual(h.opening, H.opening);
+  assert.strictEqual(h.wallLeft + h.wallDraws.head + h.wallDraws.tail, 102);
+});
+
 test('加入 / 重连：token 能把人认回来，而不是多开一个座位', () => {
   const store = new RoomStore();
   const room = store.create('1001');

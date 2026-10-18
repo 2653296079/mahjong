@@ -18,6 +18,10 @@ const bindHost=process.env.MAHJONG_HOST||'0.0.0.0';
 const root = __dirname;
 const GAME = 'index.html';
 const PUBLIC_FILES = new Set([GAME, 'sw.js', 'manifest.webmanifest', 'icon-512.png']);
+PUBLIC_FILES.add('assets/table3d/table3d.js');
+for (const file of ['three.module.js','three.core.min.js','GLTFLoader.js','BufferGeometryUtils.js','RoomEnvironment.js']) PUBLIC_FILES.add('assets/vendor/three/'+file);
+for (const suit of ['wan','suo','tong']) for(let rank=1;rank<=9;rank++) PUBLIC_FILES.add('assets/mahjong-3d/glb/tiles/'+suit+'-'+String(rank).padStart(2,'0')+'.glb');
+for (const file of ['mahjong-table','tile-back','dice','dealer-marker']) PUBLIC_FILES.add('assets/mahjong-3d/glb/'+file+'.glb');
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -26,6 +30,7 @@ const MIME = {
   '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
   '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.txt': 'text/plain; charset=utf-8'
+  , '.glb': 'model/gltf-binary'
 };
 
 function acceptsGzip(header) {
@@ -51,13 +56,13 @@ const server = http.createServer(async (req, res) => {
   }
   if(urlPath==='/healthz' && (req.method==='GET'||req.method==='HEAD')){
     const core=loadCore();
-    const body=JSON.stringify({status:'ok',app:'zhuanzhuan-mahjong',build:'v28',rulesVersion:core.rulesVersion,analysisVersion:core.analysisVersion,questionVersion:core.questionVersion,...hub.stats()});
+    const body=JSON.stringify({status:'ok',app:'zhuanzhuan-mahjong',build:'v30',rulesVersion:core.rulesVersion,analysisVersion:core.analysisVersion,questionVersion:core.questionVersion,...hub.stats()});
     res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Content-Length':Buffer.byteLength(body)});
     res.end(req.method==='HEAD'?undefined:body);return;
   }
   if (urlPath === '/' || urlPath === '/game' || urlPath === '/index.html') urlPath = '/' + GAME;
   const file = path.resolve(root, '.' + urlPath);
-  const relative = path.relative(root, file);
+  const relative = path.relative(root, file).split(path.sep).join('/');
   if (!PUBLIC_FILES.has(relative)) {
     res.writeHead(404); res.end('not found'); return;
   }

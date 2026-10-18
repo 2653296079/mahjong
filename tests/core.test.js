@@ -24,6 +24,33 @@ test('wall has four copies of every suited tile', () => {
   }
 });
 
+test('dice opening, four-tile packets and physical wall agree for every dealer', () => {
+  for (let seed = 1; seed <= 12; seed++) for (let dealer = 0; dealer < 4; dealer++) {
+    const rng = ZMJ.mulberry32(seed), raw = Array.from(ZMJ.buildWall(rng));
+    const dice = [1 + (rng() * 6 | 0), 1 + (rng() * 6 | 0)];
+    const G = ZMJ.createGame({ seed, rotate: false }); G.dealer = dealer; G.startHand();
+    const H = G.hand, o = H.opening, sum = dice[0] + dice[1];
+    assert.deepEqual(Array.from(o.dice), dice);
+    assert.equal(o.breakSeat, (dealer + sum - 1) % 4);
+    assert.equal(o.breakStack, sum);
+    const wallOffsets = [0, 82, 54, 28];
+    const cut = (wallOffsets[o.breakSeat] + 2 * sum) % 108;
+    assert.equal(o.startSlot, cut);
+    const deck = raw.slice(cut).concat(raw.slice(0, cut));
+    for (let relative = 0; relative < 4; relative++) {
+      const expected = Array(27).fill(0), indices = [0, 1, 2, 3, 16, 17, 18, 19, 32, 33, 34, 35];
+      indices.forEach(i => expected[deck[i + 4 * relative]]++);
+      expected[deck[48 + relative]]++;
+      assert.deepEqual(Array.from(H.record.initial[(dealer + relative) % 4]), expected);
+    }
+    assert.equal(H.lastDraw, deck[52]);
+    assert.deepEqual(Array.from(H.wall), deck.slice(53, 102));
+    assert.deepEqual(Array.from(H.birds), deck.slice(102));
+    assert.equal(H.wallDraws.head, 53); assert.equal(H.wallDraws.tail, 0);
+    assert.deepEqual(Object.keys(o).sort(), ['breakSeat','breakStack','dice','rule','startSlot','total']);
+  }
+});
+
 test('unknown pool excludes hidden opponents and counts called discard once', () => {
   const hand = { players: [player(), player(), player(), player()] };
   hand.players[0].concealed[0] = 1;
@@ -110,6 +137,8 @@ test('AI rounds terminate with zero-sum scores', () => {
     while (!game.hand.over && steps++ < 500) {
       if (game.hasPendingResolve()) game.resolvePending();
       else assert.equal(game.aiStep(), true);
+      assert.equal(game.hand.wallDraws.head + game.hand.wallDraws.tail + game.hand.wall.length, 102,
+        'front and replacement draws must remove the same number of physical wall tiles');
       const visible = Array.from(ZMJ.visiblePool(game.hand, 0));
       const hidden = ZMJ.newCounts();
       for (const tile of game.hand.wall.concat(game.hand.birds)) hidden[tile]++;

@@ -1,0 +1,195 @@
+{
+  "validGlbs": 31,
+  "standaloneFiles": true,
+  "totalGlbBytes": 4176436,
+  "totalTriangles": 128076,
+  "renderedFromReimportedModels": true,
+  "files": [
+    {
+      "id": "wan-01",
+      "bytes": 218848,
+      "sha256": "91a99295d06d7a52943cbdb989a4c84558f59ac175a9bc33b1979e6d7eecea56",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "wan-02",
+      "bytes": 230500,
+      "sha256": "873110ca7be9b92857338fea0866847288348a93f12f4554e34e85b6db11c60b",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "wan-03",
+      "bytes": 253636,
+      "sha256": "974e68568c8bcdeadda007237ad6f5585eebd3b0fb309830b116be2d49c322bb",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "wan-04",
+      "bytes": 275164,
+      "sha256": "d86bf6953b7a2492a0135f70ae623b412e314b890b12343f3da6773ac10221fa",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "wan-05",
+      "bytes": 294688,
+      "sha256": "a901291c7cb60de5e6d75ced89139ea2de3b29ae131002e0e795d2e6bc4d5271",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "wan-06",
+      "bytes": 250524,
+      "sha256": "8695d17ecf40b1a5961e4e2840ade2ee4efd36d49060db5a6e7946af25165901",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "wan-07",
+      "bytes": 251988,
+      "sha256": "c3fc776a539c19dc80d855177fd9e1cbc8fe005df3cc570c9327dd7347aeed43",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "wan-08",
+      "bytes": 238700,
+      "sha256": "30006eb89341e02a46b8d179ffc8e5fdfc3c9d7e0c61524b9c3c71d7ee2ef290",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "wan-09",
+      "bytes": 258220,
+      "sha256": "e2c6983a60a5bf1f06dd38f370f920f2941ab3778fa7656a339793fc66f3463c",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "suo-01",
+      "bytes": 75312,
+      "sha256": "23482e098bd88e9de48c3d9eeac89f78e0c6aa3fcf160439b77bdc2c7509ac73",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "suo-02",
+      "bytes": 21496,
+      "sha256": "61048818d78445944b82a8e5db9ea3d3cbe883225c345c9efa1fcb1925cdb386",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "suo-03",
+      "bytes": 25648,
+      "sha256": "235dcc94081786984bf336d68c595108db86a20e4c27f880467c41ee02c22a45",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "suo-04",
+      "bytes": 29804,
+      "sha256": "c1fb6515f0fc0203a539123c5c8a3ca1478884ba88acdabb71f6fb8af58d41ad",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "suo-05",
+      "bytes": 34920,
+      "sha256": "1ef1c1cdf2ce219b82647044b0b8a3bf4ced8b96ea89c3e786cd766d114978fd",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "suo-06",
+      "bytes": 38120,
+      "sha256": "234921eec09f402c8d8d89da867f7e4d273dc299854bf6554b8ed4f8c7837014",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "suo-07",
+      "bytes": 43228,
+      "sha256": "a6a90a672933c15ca8c27f5912cb38de0e8ccfce7f1890deba2db44bd95745e1",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "suo-08",
+      "bytes": 46560,
+      "sha256": "e8a8515cde6945dd7f9383ea7bde4c95b13c0a2d71605510c3a2e2cc00bbd193",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "suo-09",
+      "bytes": 51548,
+      "sha256": "ea84e267fda7918c239da74cc0e884f6b996a8134bbcdb2afed1563076912836",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "tong-01",
+      "bytes": 35480,
+      "sha256": "5f7f0de7d0c44a00d5e70aa73f3125b8678398a66a8889726c2fb2cf6472449d",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "tong-02",
+      "bytes": 29376,
+      "sha256": "74c40ed67d75c867895e6f520a2d18473b9da79bb71350babbbbdb513aaf821a",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "tong-03",
+      "bytes": 36900,
+      "sha256": "aa230f6ef06472b82728761da2a0f9d3feee8793c7277f56882efa503b68ed33",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "tong-04",
+      "bytes": 42928,
+      "sha256": "033b6110efed64019dd11ca727479dc26d0c4027b029b51f0b914f919576773d",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "tong-05",
+      "bytes": 51140,
+      "sha256": "a5e1e660d83bf2b03ffaaee7b495da8622ac740f399cb39de2c6d81484f5fd5d",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "tong-06",
+      "bytes": 58388,
+      "sha256": "aeddd2a5e7f172e8a613fb4dc07220f9c49838c0e0aebdc1a81d6a5d504d21e2",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "tong-07",
+      "bytes": 65636,
+      "sha256": "8a6f57e8e31b912a21bee0c4687bb5f1af147afec979c2b470ac58a4d09cd95b",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "tong-08",
+      "bytes": 71924,
+      "sha256": "a245bb647d18f5f1b22f0a69eff70d810db3664633591e27a4a43164dcf299a4",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "tong-09",
+      "bytes": 79296,
+      "sha256": "f92a949331b69e9b34d158e9d5e5624e3a2f858df9adf6cd12c461dfbc1deef6",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "tile-back",
+      "bytes": 12160,
+      "sha256": "cfa3500e58a92d6d82f90cf690a1d502f6fa2c7f1643dc56c983af6d86ee47ca",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "dice",
+      "bytes": 678964,
+      "sha256": "05a07cd08fb50c84524badf236c47dc376bbcc839b9ca26008faed1210094f50",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "dealer-marker",
+      "bytes": 209980,
+      "sha256": "24c1f3d6ae487ea51eb07f8a319a6e4713e01de1f1a826781473175ab96189ec",
+      "embeddedTextures": 0
+    },
+    {
+      "id": "mahjong-table",
+      "bytes": 165360,
+      "sha256": "90768bc452d3d54e7da2b63f5a238e7e7ff5b886bacb42d2e7e175e382d326a1",
+      "embeddedTextures": 1
+    }
+  ]
+}

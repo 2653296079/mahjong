@@ -161,6 +161,7 @@ class Room {
     }
     this.game = core.createGame({ roster: roster, rotate: true, seed: this.opts.seed });
     this.game.startHand();
+    this.handStartedAt = Date.now();
     this.archive();
     this.rev++;
     this.pump();
@@ -289,6 +290,7 @@ class Room {
     this.releaseAbandonedSeats();
     this.accountActions = [];
     G.nextHand();
+    this.handStartedAt = Date.now();
     this.archive();
     this.pump();
     this.rev++;
@@ -345,6 +347,11 @@ class Room {
     out.hand = {
       no: G.handNo, dealer: G.dealer, turn: H.turn, turnCount: H.turnCount,
       wallLeft: H.wall.length, over: !!H.over,
+      gangDraw: !!H.gangDraw,
+      opening: H.opening ? { rule: H.opening.rule, dice: H.opening.dice.slice(), total: H.opening.total,
+        breakSeat: H.opening.breakSeat, breakStack: H.opening.breakStack, startSlot: H.opening.startSlot } : null,
+      wallDraws: H.wallDraws ? { head: H.wallDraws.head, tail: H.wallDraws.tail } : null,
+      openingAgeMs: Math.max(0, Date.now() - (this.handStartedAt || 0)),
       lastDiscard: H.lastDiscard ? { seat: H.lastDiscard.seat, kind: H.lastDiscard.kind } : null,
       lastDraw: (seat >= 0 && H.turn === seat) ? H.lastDraw : null,
       river: loadCore().publicDiscards(H),

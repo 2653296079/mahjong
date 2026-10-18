@@ -1,0 +1,80 @@
+<!doctype html><meta charset="utf-8"><title>三维牌桌交互验收</title>
+<pre id="log"></pre><iframe id="game" style="width:1366px;height:850px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]},f=document.getElementById('game');
+function check(ok,msg){if(!ok)throw Error(msg);out.steps.push(msg);}
+function wait(ms){return new Promise(r=>setTimeout(r,ms));}
+async function until(fn,ms=40000){var start=Date.now();while(!fn()){if(Date.now()-start>ms)throw Error('等待超时：'+fn.toString().slice(0,160));await wait(50);}}
+function paint(){return new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));}
+(async function(){try{
+ localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:20261018,sound:false,analyze:false,turnTime:0,aiThink:5,aiStyle:'v1',rotate:false}));localStorage.setItem('zmj_noRotate','1');
+ await new Promise(r=>{f.onload=r;f.src='/index.html?view=3d&play=1';});var w=f.contentWindow,d=w.document;
+ await until(()=>d.body.classList.contains('table3d')&&d.getElementById('threeStage').dataset.machineBusy==='1');
+ var phases=[],dealTrace=[],initialGame=w.__zmjGame,initialHand=initialGame.hand;
+ await until(()=>{
+  var s=d.getElementById('threeStage'),p=s.dataset.machinePhase,c=s.dataset.dealCounts;
+  if(p&&phases[phases.length-1]!==p)phases.push(p);
+  if(c&&dealTrace[dealTrace.length-1]!==c)dealTrace.push(c);
+  if(s.dataset.machineBusy==='1'&&initialGame.hand.turnCount!==1)throw Error('抓牌动画期间电脑提前行动');
+  return s.dataset.machineBusy==='0'&&d.querySelectorAll('[data-three-projected]').length===14;
+ },80000);
+ check(['shuffle','lift','dice','deal','ready'].every(p=>phases.includes(p)),'完整演示机内洗牌、升墙、掷骰、四张抓牌、开牌就绪：'+phases.join(' → '));
+ check(dealTrace.includes('4,0,0,0')&&dealTrace.includes('4,4,0,0')&&dealTrace.includes('12,12,12,12')&&dealTrace.includes('14,13,13,13'),'庄家起三轮各四张、各补一张、庄家再摸一张，逐家抓牌数量正确');
+ check(w.__zmjGame===initialGame&&initialGame.hand===initialHand&&initialHand.turnCount===1,'演出复用已经发好的同一局，既不二次发牌也不提前出牌');
+ check(d.getElementById('threeMachineDetail').textContent.includes('从右往左跳过 '+initialHand.opening.total+' 墩后接牌'),'骰点显示与本局开口和接牌说明一致');
+ var stage=d.getElementById('threeStage'),g=w.__zmjGame,round=stage.dataset.round;
+ check(stage.dataset.phase==='ready'&&stage.querySelector('canvas').width>0,'真实 WebGL 牌桌及 31 个 GLB 载入完成');
+ check(stage.dataset.handCount==='14'&&Number(stage.dataset.drawCalls)>0,'原牌局的 14 张手牌与三维画面一致');
+ check(stage.dataset.hiddenCount==='39','其余三家只显示暗牌张数，不传入暗牌牌种');
+ var cards=Array.from(d.querySelectorAll('.handRow [data-tile-id]')),first=cards.find((t,i)=>cards.some((s,j)=>i!==j&&s.dataset.tileId.split(':')[0]===t.dataset.tileId.split(':')[0]));
+ check(cards.every(t=>w.getComputedStyle(t).opacity==='0'&&w.getComputedStyle(t).animationName==='none'),'包括新摸牌在内的原生点击区保持透明，不遮住三维牌面');
+ check(!!first,'固定牌局包含同种牌，用于验证逐张选择');
+ var same=cards.find(t=>t!==first&&t.dataset.tileId.split(':')[0]===first.dataset.tileId.split(':')[0]);
+ var firstId=first.dataset.tileId,sameId=same.dataset.tileId;
+ function card(id){return d.querySelector('.handRow [data-tile-id="'+id+'"]');}
+ var startCount=g.hand.players[g.humanSeat()].concealed.reduce((a,b)=>a+b,0);
+ first.click();await wait(250);
+ check(d.querySelectorAll('.handRow .chosen').length===1&&card(firstId).classList.contains('chosen'),'首次点选只抬起实际的一张，同牌不联动');
+ check(g.hand.players[g.humanSeat()].concealed.reduce((a,b)=>a+b,0)===startCount,'首次选择不提前修改真实牌局');
+ check(!d.getElementById('tileAnalysis').classList.contains('hidden'),'逐张向听与进张分析在三维手牌旁正常显示');
+ card(sameId).click();await wait(180);
+ check(card(sameId).classList.contains('chosen')&&!card(firstId).classList.contains('chosen'),'改选同种的另一张仍只有一个选中位置');
+ card(sameId).click();await wait(120);
+ var river=w.ZMJ.publicDiscards(g.hand).filter(e=>e.claimedBy==null);
+ check(river.some(e=>e.seat===g.humanSeat()&&e.kind===Number(sameId.split(':')[0])),'第二次点击通过原规则真正出牌，进入公开牌河');
+ check(stage.dataset.riverCount===String(river.length),'三维中央牌河逐张同步，没有额外乐观弃牌');
+ check(d.getElementById('tileAnalysis').classList.contains('hidden'),'出牌后清除旧牌分析浮层');
+ d.getElementById('threeOverhead').click();await wait(300);
+ check(stage.dataset.view==='overhead','可切换俯视，手牌同步平放以保持可读');
+ d.getElementById('threeBack').click();await paint();
+ check(!d.body.classList.contains('table3d')&&w.__zmjGame===g,'切回二维保留同一局，不重开或丢失牌局');
+ check(Array.from(d.querySelectorAll('.handRow [data-tile-id]')).every(t=>!t.hasAttribute('data-three-projected')&&!t.style.width),'切回二维清除三维点击区的定位样式');
+ d.getElementById('btn3D').click();await until(()=>d.body.classList.contains('table3d')&&d.querySelectorAll('[data-three-projected]').length>0);
+ check(w.__zmjGame===g,'再次启用三维复用模型，继续当前牌局');
+ g.fastForward=true;
+ for(var drive=0;!g.hand.over&&drive<2000;drive++){
+  if(g.hasPendingResolve())g.resolvePending();
+  else if(g.pendingAwaits().length)g.autoPlaySeat(g.pendingAwaits()[0].seat);
+  else g.aiStep();
+ }
+ g.fastForward=false;
+ check(g.hand.over,'通过真实规则打完整局后进入结算');
+ w.dispatchEvent(new w.Event('resize'));d.getElementById('btnViewFinalHands').click();
+ check(d.querySelectorAll('#settlementHands .endHand').length===4,'收牌前仍可先查看四家完整终局手牌');
+ var previousHandNo=g.handNo;d.getElementById('btnNext').click();await until(()=>stage.dataset.machinePhase==='collect');
+ check(stage.dataset.machineBusy==='1'&&d.body.classList.contains('machineBusy'),'下一局先收回上一桌的牌，演出期间禁止误打');
+ var newHand=w.__zmjGame.hand;d.getElementById('threeSkip').click();
+ var expectedCount=newHand.players[g.humanSeat()].concealed.reduce((a,b)=>a+b,0);
+ await until(()=>stage.dataset.machineBusy==='0'&&d.querySelectorAll('[data-three-projected]').length===expectedCount);
+ check(w.__zmjGame.hand===newHand&&!d.body.classList.contains('machineBusy'),'跳过演出直接继续本局，不重发、不丢牌');
+ check(w.__zmjGame===g&&g.handNo===previousHandNo+1&&stage.dataset.round!==round&&stage.dataset.riverCount==='0','结算续局清除旧模型和牌河，保留同桌和累计成绩');
+ for(var dims of [[390,844],[844,390],[1366,768]]){
+  f.style.width=dims[0]+'px';f.style.height=dims[1]+'px';w.dispatchEvent(new w.Event('resize'));await wait(450);
+  await until(()=>{var r=stage.getBoundingClientRect();return stage.dataset.viewport===Math.round(r.width)+'x'+Math.round(r.height);},10000);
+  var board=stage.getBoundingClientRect(),hits=Array.from(d.querySelectorAll('[data-three-projected]')).map(t=>t.getBoundingClientRect());
+  out.responsive={dims,expectedCount,count:hits.length,board:{x:board.x,y:board.y,width:board.width,height:board.height},bad:hits.filter(r=>r.width<=2||r.height<=2||r.left<board.left-2||r.right>board.right+2||r.top<board.top-2||r.bottom>board.bottom+2).map(r=>({x:r.x,y:r.y,width:r.width,height:r.height}))};
+  check(hits.length===expectedCount&&hits.every(r=>r.width>2&&r.height>2&&r.left>=board.left-2&&r.right<=board.right+2&&r.top>=board.top-2&&r.bottom<=board.bottom+2),dims.join('×')+' 真实模型点击区位于画面内，无错位或溢出');
+ }
+ delete out.responsive;out.ok=true;
+}catch(e){out.errors.push(e.message);out.phases=typeof phases!=='undefined'?phases:[];out.dealTrace=typeof dealTrace!=='undefined'?dealTrace:[];out.stage=f.contentDocument.getElementById('threeStage')?.dataset;}document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));})();
+</script>

@@ -1,0 +1,191 @@
+[
+  {
+    "id": "wan-01",
+    "kind": 0,
+    "rank": 1,
+    "suit": "wan",
+    "name": "一万"
+  },
+  {
+    "id": "wan-02",
+    "kind": 1,
+    "rank": 2,
+    "suit": "wan",
+    "name": "二万"
+  },
+  {
+    "id": "wan-03",
+    "kind": 2,
+    "rank": 3,
+    "suit": "wan",
+    "name": "三万"
+  },
+  {
+    "id": "wan-04",
+    "kind": 3,
+    "rank": 4,
+    "suit": "wan",
+    "name": "四万"
+  },
+  {
+    "id": "wan-05",
+    "kind": 4,
+    "rank": 5,
+    "suit": "wan",
+    "name": "五万"
+  },
+  {
+    "id": "wan-06",
+    "kind": 5,
+    "rank": 6,
+    "suit": "wan",
+    "name": "六万"
+  },
+  {
+    "id": "wan-07",
+    "kind": 6,
+    "rank": 7,
+    "suit": "wan",
+    "name": "七万"
+  },
+  {
+    "id": "wan-08",
+    "kind": 7,
+    "rank": 8,
+    "suit": "wan",
+    "name": "八万"
+  },
+  {
+    "id": "wan-09",
+    "kind": 8,
+    "rank": 9,
+    "suit": "wan",
+    "name": "九万"
+  },
+  {
+    "id": "suo-01",
+    "kind": 9,
+    "rank": 1,
+    "suit": "suo",
+    "name": "一条"
+  },
+  {
+    "id": "suo-02",
+    "kind": 10,
+    "rank": 2,
+    "suit": "suo",
+    "name": "二条"
+  },
+  {
+    "id": "suo-03",
+    "kind": 11,
+    "rank": 3,
+    "suit": "suo",
+    "name": "三条"
+  },
+  {
+    "id": "suo-04",
+    "kind": 12,
+    "rank": 4,
+    "suit": "suo",
+    "name": "四条"
+  },
+  {
+    "id": "suo-05",
+    "kind": 13,
+    "rank": 5,
+    "suit": "suo",
+    "name": "五条"
+  },
+  {
+    "id": "suo-06",
+    "kind": 14,
+    "rank": 6,
+    "suit": "suo",
+    "name": "六条"
+  },
+  {
+    "id": "suo-07",
+    "kind": 15,
+    "rank": 7,
+    "suit": "suo",
+    "name": "七条"
+  },
+  {
+    "id": "suo-08",
+    "kind": 16,
+    "rank": 8,
+    "suit": "suo",
+    "name": "八条"
+  },
+  {
+    "id": "suo-09",
+    "kind": 17,
+    "rank": 9,
+    "suit": "suo",
+    "name": "九条"
+  },
+  {
+    "id": "tong-01",
+    "kind": 18,
+    "rank": 1,
+    "suit": "tong",
+    "name": "一筒"
+  },
+  {
+    "id": "tong-02",
+    "kind": 19,
+    "rank": 2,
+    "suit": "tong",
+    "name": "二筒"
+  },
+  {
+    "id": "tong-03",
+    "kind": 20,
+    "rank": 3,
+    "suit": "tong",
+    "name": "三筒"
+  },
+  {
+    "id": "tong-04",
+    "kind": 21,
+    "rank": 4,
+    "suit": "tong",
+    "name": "四筒"
+  },
+  {
+    "id": "tong-05",
+    "kind": 22,
+    "rank": 5,
+    "suit": "tong",
+    "name": "五筒"
+  },
+  {
+    "id": "tong-06",
+    "kind": 23,
+    "rank": 6,
+    "suit": "tong",
+    "name": "六筒"
+  },
+  {
+    "id": "tong-07",
+    "kind": 24,
+    "rank": 7,
+    "suit": "tong",
+    "name": "七筒"
+  },
+  {
+    "id": "tong-08",
+    "kind": 25,
+    "rank": 8,
+    "suit": "tong",
+    "name": "八筒"
+  },
+  {
+    "id": "tong-09",
+    "kind": 26,
+    "rank": 9,
+    "suit": "tong",
+    "name": "九筒"
+  }
+]

@@ -583,6 +583,59 @@ main{background:#102c28;gap:0}
 .handRow .tile.analyzing{outline:2px solid #efdc9c;outline-offset:2px}.handRow .tile.analyzing:not(.chosen){transform:translateY(-5px)}
 .lobbySummary{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid #b0c29440;border-radius:12px;padding:14px 16px;margin:12px 0;background:#204d3e}.lobbyIdentity{min-width:0;overflow-wrap:anywhere}.lobbyIdentity b{display:block;font-size:19px;color:#f3dfb4}.lobbyIdentity small,.lobbySummary small{color:#bfd0b9;font-size:11px}.lobbyPeople{font-size:14px;color:#f3dfb4}.lobbyPeople b{font-size:25px;margin-right:3px}.homeOnlineStatus{font-size:11px;color:#d9c79e;line-height:1.7}#netBar{max-width:260px;overflow:hidden}#netBar>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.netConnectionSettings{font-size:11px;color:#b7cbb3;overflow-wrap:anywhere;margin:12px 0}.netConnectionSettings summary{cursor:pointer}.netConnectionSettings input{width:100%;padding:9px;margin:8px 0;background:#173e33;border:1px solid #718568;color:#f3e9d2;border-radius:8px}
 @media(max-width:680px){.tileAnalysisScroll{padding:12px 14px}.tileAnalysisHead h3{font-size:16px}.tileAnalysisStats b{font-size:18px}}
+/* 可选三维牌桌：保留原生手牌按钮作为与模型对齐的交互和无障碍层。 */
+#threeStage,#threeControls,#threeLoadStatus{display:none}
+#threeStage{position:absolute;inset:0;z-index:0;overflow:hidden;background:#102722;border-radius:0}
+#threeStage canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+#threeStage canvas:active{cursor:grabbing}
+#threeLoadStatus{position:absolute;top:12px;left:12px;z-index:8;padding:7px 12px;border-radius:20px;background:#143b31ef;border:1px solid #b5ab7566;color:#e9dfbc;font-size:12px;pointer-events:none}
+#table.threeLoading #threeLoadStatus{display:block}
+body.table3d main{position:relative}
+body.table3d #table{display:block;position:relative;margin:0;padding:0;border:0;border-radius:0;box-shadow:none;background:#102722;overflow:hidden}
+body.table3d #threeStage{display:block}
+body.table3d #threeControls{display:flex;position:absolute;top:12px;right:12px;gap:5px;z-index:8}
+body.table3d #threeControls .mini{background:#14382de8;border-color:#d6c08055;min-height:30px}
+body.table3d #threeControls .mini[aria-pressed=true]{background:#c9b475;color:#183c2c;border-color:#f0dfaa}
+body.table3d #side{display:none}
+body.table3d #side.open{display:flex;position:absolute;right:0;top:0;bottom:0;width:min(340px,88vw);z-index:36;background:#123c33f5;padding:14px;box-shadow:-10px 0 40px #0006}
+body.table3d #scrim.open{display:block}
+body.table3d #center{position:absolute;inset:0;z-index:2;background:none;border:0;border-radius:0;box-shadow:none;display:block;padding:0;pointer-events:none;overflow:visible}
+body.table3d #centerTop{position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;width:max-content;max-width:65%;gap:5px;flex-wrap:wrap}
+body.table3d #centerTop .pill{background:#0d2f26d9;border:1px solid #92a37c35;font-size:11px;color:#dbe5cc}
+body.table3d #coach,body.table3d #centerTile,body.table3d #centerMsg{display:none!important}
+body.table3d #riverArea{position:absolute;top:53px;left:14px;width:auto;max-width:260px;max-height:none;padding:0;background:none;border:0;box-shadow:none;pointer-events:auto}
+body.table3d .riverHeader{font-size:10px;gap:10px;color:#c6d3b8;background:#102f28c9;border-radius:15px;padding:4px 9px}
+body.table3d #riverScroll,body.table3d #riverLegend,body.table3d #riverNote{display:none!important}
+body.table3d #birdArea{position:absolute;bottom:90px;left:50%;transform:translateX(-50%)}
+body.table3d .seat{position:absolute!important;display:block;z-index:3;overflow:visible;pointer-events:none;width:auto;min-height:0;max-height:none;padding:0;border:0;background:none}
+body.table3d .seat>.melds,body.table3d .seat>.discards,body.table3d .seat>.seatCards,body.table3d .seat>.backRow{display:none!important}
+body.table3d .seatName{display:flex;background:#0d3029d9;border:1px solid #8ea48040;border-radius:18px;padding:5px 10px;font-size:11px;white-space:nowrap;max-width:250px}
+body.table3d .seat.active .seatName{border-color:#c8b67d;color:#f3dfa0;box-shadow:0 0 18px #e6d39c15}
+body.table3d #seat2{top:58px;left:50%;right:auto;bottom:auto;transform:translateX(-50%)}
+body.table3d #seat1{top:46%;right:12px;left:auto;bottom:auto}
+body.table3d #seat3{top:46%;left:12px;right:auto;bottom:auto}
+body.table3d #seat0{inset:0;transform:none;z-index:4}
+body.table3d #seat0>.seatName{position:absolute;bottom:12px;left:14px;max-width:280px}
+body.table3d #seat0 .handRow{position:absolute;inset:0;display:block;margin:0;padding:0;background:none;border:0;box-shadow:none;overflow:visible;pointer-events:none}
+body.table3d #seat0 .handRow .gap{display:none}
+body.table3d #seat0 .handRow .tile{position:absolute;display:block;margin:0;padding:0;opacity:0;visibility:hidden;pointer-events:auto;border:0;border-radius:4px;box-shadow:none;background:transparent!important;animation:none!important;transition:none;transform:none!important;touch-action:manipulation}
+body.table3d #seat0 .handRow .tile[data-three-projected]{visibility:visible}
+body.table3d #seat0 .handRow .tile svg{display:none}
+body.table3d #seat0 .handRow .tile::before,body.table3d #seat0 .handRow .tile::after{display:none}
+body.table3d #seat0 .handRow .tile:focus-visible{opacity:1;background:#efd69012;outline:2px solid #f6dda6;outline-offset:1px}
+body.table3d #seat0 .handRow .tile[aria-disabled=true]{pointer-events:none}
+body.table3d.machineBusy #seat0 .handRow .tile{pointer-events:none;visibility:hidden!important}
+#threeMachineInfo{display:none}
+body.table3d #threeMachineInfo{display:block;position:absolute;left:14px;top:88px;z-index:8;max-width:min(340px,48vw);padding:9px 12px;border:1px solid #bea66a50;background:#0b241ee6;border-radius:12px;pointer-events:none;font-size:11px;line-height:1.7;color:#b9cbbb}
+body.table3d #threeMachineInfo b{display:block;font-size:13px;color:#efdaa5}
+body.table3d.machineBusy #threeMachineInfo{border-color:#d3b574;box-shadow:0 6px 25px #0004}
+body.table3d #threeSkip{color:#f0d89a;border-color:#c9aa62}
+@media(max-width:680px){body.table3d #threeMachineInfo{top:112px;left:8px;max-width:52vw;font-size:10px;padding:6px 8px}body.table3d #threeMachineInfo b{font-size:11px}body.table3d.machineBusy #seat2{top:195px}}
+body.table3d #miniHint{display:none!important}
+body.table3d #actionbar{background:#0e2924;border-top:1px solid #a6aa7340;min-height:60px}
+body.table3d #actionBtns>div{color:#c2d0bd!important}
+.homeAccountControls #home3D{border-color:#b4a56d;color:#ead89d;background:#23493a}
+@media(max-width:680px){body.table3d #centerTop{top:48px;max-width:95%;gap:3px}body.table3d #centerTop .pill{font-size:10px;padding:2px 7px}body.table3d #threeControls{top:9px;right:9px}body.table3d #threeControls .mini{font-size:11px;padding:4px 9px}body.table3d #riverArea{top:82px;left:8px}body.table3d #seat2{top:116px}body.table3d #seat1{right:6px;top:43%}body.table3d #seat3{left:6px;top:43%}body.table3d .seatName{padding:4px 6px;font-size:9px;max-width:120px}body.table3d .seatName .seatScore,body.table3d .seatName .seatPosition{display:none}body.table3d #seat0>.seatName{bottom:8px;left:8px}.homeAccountControls #home3D{font-size:11px;padding:4px 8px}}
 </style>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-512.png">
@@ -605,7 +658,7 @@ main{background:#102c28;gap:0}
         <button id="btnAccount" class="mini">我的账号</button><button id="btnExport" class="mini">导出牌谱</button><button id="btnStats" class="mini">练习统计</button>
         <button id="btnReplay" class="mini">牌局复盘</button><button id="btnDojo" class="mini">防守练习</button>
         <button id="btnRules" class="mini">玩法规则</button><button id="btnSettings" class="mini">设置</button>
-        <button id="btnTileArt" class="mini">牌面一览</button><button id="btnNew" class="mini">重新开局</button>
+        <button id="btn3D" class="mini" aria-pressed="false">3D 牌桌体验</button><button id="btnTileArt" class="mini">牌面一览</button><button id="btnNew" class="mini">重新开局</button>
       </div></details>
 
     </div>
@@ -613,6 +666,10 @@ main{background:#102c28;gap:0}
 
   <main>
     <section id="table">
+      <div id="threeStage"></div>
+      <div id="threeControls" aria-label="三维牌桌视角"><button id="threeSkip" class="mini hidden">跳过动画</button><button id="threeSeated" class="mini" aria-pressed="true">坐席</button><button id="threeOverhead" class="mini" aria-pressed="false">俯视</button><button id="threeBack" class="mini">二维牌桌</button></div>
+      <div id="threeMachineInfo" role="status" aria-live="polite"><b id="threeMachineTitle">自动麻将机</b><span id="threeMachineDetail"></span></div>
+      <div id="threeLoadStatus" role="status" aria-live="polite">正在摆好三维牌桌…</div>
       <div class="seat" id="seat2" data-seat="2"></div>
       <div class="seat" id="seat1" data-seat="1"></div>
 
@@ -1360,19 +1417,32 @@ main{background:#102c28;gap:0}
   // ---------- 麻将一局的状态机 ----------
   function createHand(seedRng, dealer) {
     var wall = buildWall(seedRng);
+    // 一掷开牌桌规：由庄家起逆时针数人，在该家从右向左跳过总点数墩。
+    // 108 张为 54 墩，四方依次 14/13/14/13 墩；牌墙取牌沿顺时针推进。
+    var dice = [1 + (seedRng() * 6 | 0), 1 + (seedRng() * 6 | 0)];
+    var total = dice[0] + dice[1], breakSeat = (dealer + total - 1) % 4;
+    var sides = [0, 3, 2, 1], stacks = [14, 13, 14, 13], offset = 0;
+    for (var side = 0; sides[side] !== breakSeat; side++) offset += stacks[sides[side]] * 2;
+    var startSlot = (offset + total * 2) % 108;
+    wall = wall.slice(startSlot).concat(wall.slice(0, startSlot));
+    var opening = { rule: 'single-roll-packets-v1', dice: dice, total: total,
+      breakSeat: breakSeat, breakStack: total, startSlot: startSlot };
     var players = [], s, r;
     for (s = 0; s < 4; s++) {
       players.push({ seat: s, concealed: newCounts(), melds: [], discards: [], passedWin: false });
     }
-    for (r = 0; r < 13; r++) { for (s = 0; s < 4; s++) players[s].concealed[wall.shift()]++; }
+    for (r = 0; r < 3; r++) { for (s = 0; s < 4; s++) {
+      for (var n = 0; n < 4; n++) players[(dealer + s) % 4].concealed[wall.shift()]++;
+    } }
+    for (s = 0; s < 4; s++) players[(dealer + s) % 4].concealed[wall.shift()]++;
     var birds = wall.splice(wall.length - RULES.birdCount, RULES.birdCount);
     var rec = {
-      no: 0, dealer: dealer, rulesVersion: RULES_VERSION, analysisVersion: ANALYSIS_VERSION,
+      no: 0, dealer: dealer, rulesVersion: RULES_VERSION, analysisVersion: ANALYSIS_VERSION, opening: opening,
       initial: players.map(function (p) { return p.concealed.slice(); }),
       events: [], birds: null, result: null
     };
     return {
-      wall: wall, birds: birds, players: players, turn: dealer,
+      wall: wall, birds: birds, opening: opening, wallDraws: { head: 52, tail: 0 }, players: players, turn: dealer,
       lastDiscard: null, lastDraw: null, gangDraw: false, over: false,
       result: null, claimDecisions: null, turnCount: 0, record: rec
     };
@@ -1795,6 +1865,7 @@ main{background:#102c28;gap:0}
       var H = G.hand;
       if (H.wall.length === 0) { endHand({ type: 'draw' }); return null; }
       var tile = fromTail ? H.wall.pop() : H.wall.shift();
+      if (H.wallDraws) H.wallDraws[fromTail ? 'tail' : 'head']++;
       var p = H.players[seat];
       p.concealed[tile]++;
       p.passedWin = false;              // 摸牌后解除过水
@@ -2487,6 +2558,7 @@ window.onerror = function (msg, src, line, col) {
     $('app').inert = !!(modalOpen || homeOpen);
     if ($('home')) $('home').inert = modalOpen;
     if (modalOpen || homeOpen) hideTileAnalysis();
+    if (table3D && table3D.api) table3D.api.setActive(table3D.wanted && !modalOpen && !homeOpen && !!(game && game.hand));
   }
   function openModal() {
     var fresh = $('modal').classList.contains('hidden');
@@ -2529,6 +2601,93 @@ window.onerror = function (msg, src, line, col) {
     ('ontouchstart' in window) ||
     (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0);
   var selectedTile = null;                      // 按实际牌的位置选择，同种牌分别确认
+  var table3D = { wanted:false, api:null, loading:null, lastGame:null, round:0, busy:false };
+  try { var initial3D=new URLSearchParams(location.search).get('view'); table3D.wanted=initial3D==='3d'||initial3D!=='2d'&&localStorage.getItem('zmj_table3d_v1')==='1'; } catch(e) {}
+  function clear3DHitboxes() {
+    document.querySelectorAll('.handRow [data-tile-id]').forEach(function(t){t.removeAttribute('data-three-projected');t.style.left='';t.style.top='';t.style.width='';t.style.height='';});
+  }
+  function failTable3D(error) {
+    console.warn('3D table unavailable:',error);
+    table3D.wanted=false;
+    table3D.busy=false;document.body.classList.remove('machineBusy');$('threeSkip').classList.add('hidden');
+    if(table3D.api){table3D.api.dispose();table3D.api=null;}
+    document.body.classList.remove('table3d');$('table').classList.remove('threeLoading');clear3DHitboxes();
+    $('btn3D').textContent='重试 3D 牌桌';$('btn3D').setAttribute('aria-pressed','false');
+    netToast('三维牌桌暂时无法显示，已回到二维牌桌，可稍后重试。');
+  }
+  function setTable3D(wanted) {
+    table3D.wanted=!!wanted;
+    try{localStorage.setItem('zmj_table3d_v1',wanted?'1':'0');}catch(e){}
+    $('moreTools').open=false;hideTileAnalysis();
+    $('btn3D').textContent=wanted?'切回二维牌桌':'3D 牌桌体验';$('btn3D').setAttribute('aria-pressed',String(!!wanted));
+    if(!wanted){document.body.classList.remove('table3d');$('table').classList.remove('threeLoading');if(table3D.api){table3D.api.skipOpening();table3D.api.setActive(false);}clear3DHitboxes();}
+    else ensureTable3D();
+    if(game&&game.hand){renderActions();syncTable3D();}
+  }
+  function ensureTable3D() {
+    if(!table3D.wanted||!game||!game.hand)return;
+    if(table3D.api){document.body.classList.add('table3d');table3D.api.setActive(!$('app').inert);return;}
+    if(table3D.loading)return;
+    if(location.protocol==='file:'){failTable3D(Error('3D assets need an HTTP origin'));return;}
+    $('table').classList.add('threeLoading');
+    table3D.loading=import('./assets/table3d/table3d.js?build=v30b').then(function(module){
+      return module.createTable3D($('threeStage'),{
+        onProgress:function(done,total){$('threeLoadStatus').textContent='正在摆好三维牌桌 · '+done+' / '+total;},
+        onError:failTable3D,
+        onBusy:function(busy){
+          table3D.busy=busy;document.body.classList.toggle('machineBusy',busy);$('threeSkip').classList.toggle('hidden',!busy);
+          if(busy){hideTileAnalysis();clear3DHitboxes();}
+          else if(game&&game.hand){renderActions();if(!game.online){clearTimeout(timer);timer=setTimeout(tick,100);}}
+          if(game&&game.hand){if(busy)renderActions();renderTimer();}
+        },
+        onMachine:function(phase,opening,counts){
+          var names={collect:'收牌入机',shuffle:'机内洗牌',lift:'四方牌墙升起',dice:'掷骰 · 确认接牌口',deal:'每家四张，轮流抓牌',ready:'开牌位置'};
+          $('threeMachineTitle').textContent=names[phase]||'自动麻将机';
+          if(!opening){$('threeMachineDetail').textContent='旧牌局未记录骰点，下局开始显示。';return;}
+          var pos=(opening.breakSeat+(opening.seatOffset||0))%4,where=['你','下家','对家','上家'][pos];
+          var text=opening.dice[0]+' + '+opening.dice[1]+' = '+opening.total+' 点 · '+where+'的牌墙，从右往左跳过 '+opening.breakStack+' 墩后接牌。';
+          if(phase==='deal'&&counts)text+=' 已抓：你 '+counts[0]+' / 下家 '+counts[1]+' / 对家 '+counts[2]+' / 上家 '+counts[3]+' 张。';
+          else text+=' 本桌一掷两骰；庄家起逆时针数人，顺时针取墙。';
+          $('threeMachineDetail').textContent=text;
+        },
+        onProject:function(cards){
+          if(!document.body.classList.contains('table3d'))return;
+          if(!cards.length){clear3DHitboxes();return;}
+          cards.forEach(function(card){var t=document.querySelector('.handRow [data-tile-id="'+card.id+'"]');if(!t)return;
+            t.style.left=card.x.toFixed(2)+'px';t.style.top=card.y.toFixed(2)+'px';t.style.width=card.width.toFixed(2)+'px';t.style.height=card.height.toFixed(2)+'px';t.setAttribute('data-three-projected','');});
+          positionTileAnalysis();
+        }
+      });
+    }).then(function(api){
+      table3D.api=api;$('table').classList.remove('threeLoading');
+      if(table3D.wanted){document.body.classList.add('table3d');syncTable3D();api.setActive(!$('app').inert);renderActions();}
+    }).catch(failTable3D).finally(function(){table3D.loading=null;});
+  }
+  function syncTable3D() {
+    if(!table3D.wanted||!game||!game.hand)return;
+    if(!table3D.api){ensureTable3D();return;}
+    if(table3D.lastGame!==game){table3D.lastGame=game;table3D.round++;}
+    var H=game.hand,hs=game.humanSeat(),river=game.online?H.river:ZMJ.publicDiscards(H);
+    var hand=Array.from(document.querySelectorAll('#seat0 .handRow [data-tile-id]')).map(function(t){return{id:t.getAttribute('data-tile-id'),kind:Number(t.getAttribute('data-tile-id').split(':')[0]),drawn:t.classList.contains('drawn'),chosen:t.classList.contains('chosen')};});
+    // Only the human hand, public melds/discards and opponents' card COUNTS cross this display boundary.
+    var seats=[0,1,2,3].map(function(pos){var seat=visSeat(pos),p=H.players[seat],me=seat===hs;
+      var count=p.concealedCount!=null?p.concealedCount:(p.concealed||[]).reduce(function(a,b){return a+b;},0);
+      return{pos:pos,isMe:me,count:count,hand:me?hand:[],melds:(p.melds||[]).map(function(m){return{type:m.type,kind:m.kind};})};});
+    var shown=Array.isArray(river)?river.filter(function(e){return e.claimedBy==null;}).map(function(e){return{order:e.order,kind:e.kind,pos:seatPos(e.seat)};}):[];
+    var opening=H.opening?Object.assign({},H.opening,{seatOffset:(4-Math.max(0,hs))%4}):null;
+    try{table3D.api.update({round:table3D.round+':'+game.handNo+':'+hs,seats:seats,river:shown,sources:cfg.discardSource,
+      wallCount:H.wall.length,dealer:seatPos(game.dealer==null?0:game.dealer),opening:opening,wallDraws:H.wallDraws,
+      turnCount:H.turnCount,openingAgeMs:H.openingAgeMs,over:!!H.over,gangDraw:!!H.gangDraw});}catch(e){failTable3D(e);}
+  }
+  $('btn3D').onclick=function(){setTable3D(!table3D.wanted);};
+  $('threeBack').onclick=function(){setTable3D(false);};
+  $('threeSkip').onclick=function(){if(table3D.api)table3D.api.skipOpening();};
+  function threeView(view){if(!table3D.api)return;hideTileAnalysis();table3D.api.setView(view);$('threeSeated').setAttribute('aria-pressed',String(view==='seated'));$('threeOverhead').setAttribute('aria-pressed',String(view==='overhead'));}
+  $('threeSeated').onclick=function(){threeView('seated');};$('threeOverhead').onclick=function(){threeView('overhead');};
+  $('seat0').addEventListener('pointerover',function(e){var t=e.target.closest('[data-tile-id]');if(t&&table3D.api)table3D.api.hover(t.getAttribute('data-tile-id'));});
+  $('seat0').addEventListener('pointerout',function(e){var t=e.relatedTarget&&e.relatedTarget.closest&&e.relatedTarget.closest('[data-tile-id]');if(table3D.api)table3D.api.hover(t?t.getAttribute('data-tile-id'):null);});
+  $('seat0').addEventListener('focusin',function(e){var t=e.target.closest('[data-tile-id]');if(t&&table3D.api)table3D.api.hover(t.getAttribute('data-tile-id'));});
+  $('seat0').addEventListener('focusout',function(){if(table3D.api)table3D.api.hover(null);});
   function isNarrow() { return (window.innerWidth || 1200) <= 680; }
   var rotateDismissed = false;
   try { rotateDismissed = localStorage.getItem('zmj_noRotate') === '1'; } catch (e) { rotateDismissed = false; }
@@ -2719,6 +2878,7 @@ window.onerror = function (msg, src, line, col) {
   function tick() {
     clearTimeout(timer);
     if (!game) return;
+    if(table3D.busy&&!game.online){if(!pauseStarted)pauseStarted=Date.now();timer=setTimeout(tick,150);return;}
     if (!game.online && (($('home') && !$('home').classList.contains('hidden')) || !$('modal').classList.contains('hidden'))) { if (!pauseStarted) pauseStarted = Date.now(); timer = setTimeout(tick, 250); return; }
     if (game.online) {
       // 联机：牌局在服务器上跑，这里只把收到的状态画出来
@@ -2868,6 +3028,7 @@ window.onerror = function (msg, src, line, col) {
     renderActions();
     renderTimer();
     renderLog();
+    syncTable3D();
     if (game.online) { queueOnlineAnalysis(); return; }
     renderSituation();
     renderHint();
@@ -3313,7 +3474,6 @@ window.onerror = function (msg, src, line, col) {
 
   function renderSeat(pos) {
     var el = $('seat' + pos);
-    el.innerHTML = '';
     var seat = visSeat(pos);
     var pl = game.seats[seat];
     var H = game.hand;
@@ -3323,6 +3483,13 @@ window.onerror = function (msg, src, line, col) {
     var smallT = narrow ? 'xs' : 'small';
     var meldT = narrow ? 'xs' : 'meldTile';
     var sideSeat = (pos === 1 || pos === 3);
+    if(isMe&&document.body.classList.contains('table3d')){
+      var awaitingMe=!!(game.awaiting&&game.awaiting.type==='turn'&&game.awaiting.seat===seat);
+      var stable3D=[game.handNo,seat,pl.name,pl.score,H.turn,H.over,awaitingMe,awaitingMe?H.lastDraw:'',JSON.stringify(hp.concealed),JSON.stringify(hp.melds),game.online?NET.status+':'+!!NET.pendingAction:'solo'].join('|');
+      if(el.getAttribute('data-three-hand-key')===stable3D)return;
+      el.setAttribute('data-three-hand-key',stable3D);
+    }else el.removeAttribute('data-three-hand-key');
+    el.innerHTML = '';
 
     if (narrow && !isMe && sideSeat) {
       // 手机端左右两家：只显示名字 + 分数（横排空间不够）
@@ -3528,6 +3695,7 @@ window.onerror = function (msg, src, line, col) {
   function renderTimer() {
     var el = $('turnTimer');
     if (!el) return;
+    if(table3D.busy){el.className='';el.textContent='开局演出中';return;}
     var H = game.hand, a = game.awaiting;
     if (H.over) { el.className = 'hidden'; return; }
     if (a && a.seat === game.humanSeat()) {
@@ -3686,6 +3854,7 @@ window.onerror = function (msg, src, line, col) {
   function renderActions() {
     var bar = $('actionBtns'); bar.innerHTML = '';
     var wb = $('waitingBanner');
+    if(table3D.busy){wb.classList.add('hidden');bar.textContent='正在收牌、掷骰和抓牌 · 可点右上角跳过动画';return;}
     if(game.hand.over){
       wb.classList.add('hidden');
       var view=btn('查看本局手牌与结算','',showSettlement);view.id='btnViewFinalHands';bar.appendChild(view);return;
@@ -3716,7 +3885,7 @@ window.onerror = function (msg, src, line, col) {
         var tip = document.createElement('div');
         tip.style.cssText = 'font-size:13px;color:#9fb3a8';
         tip.textContent = selectedTile == null
-          ? (isTouch ? '点一下选中，再点一下打出' : '点击你的牌打出') + (a.afterClaim ? '（碰后不摸牌）' : '')
+          ? ((isTouch || document.body.classList.contains('table3d')) ? '点一下选中，再点同一张打出' : '点击你的牌打出') + (a.afterClaim ? '（碰后不摸牌）' : '')
           : '再点一次选中的 ' + ZMJ.tileName(selectedTile.kind) + ' 打出';
         bar.appendChild(tip);
       }
@@ -3741,6 +3910,7 @@ window.onerror = function (msg, src, line, col) {
     return b;
   }
   function act(fn) {
+    if(table3D.busy)return false;
     if (!fn()) return false;
     turnDeadline = 0; pauseStarted = 0;
     if (game.online) return true; // 已在发送时更新等待状态；不能重算旧牌面的讲解。
@@ -3771,11 +3941,12 @@ window.onerror = function (msg, src, line, col) {
       outsLoss: picked.shanten === best.shanten ? best.ukeire - picked.ukeire : 0 };
   }
   function onDiscardClick(kind, tileId) {
+    if(table3D.busy)return;
     if (!game.awaiting || game.awaiting.type !== 'turn') return;
     if (game.online && (NET.pendingAction || NET.status !== 'on')) return;
     // 触屏：第一次点选、再点同一张才打出，避免误触
     var key = situationKey();
-    if (isTouch && (!selectedTile || selectedTile.id !== tileId || selectedTile.key !== key)) {
+    if ((isTouch || document.body.classList.contains('table3d')) && (!selectedTile || selectedTile.id !== tileId || selectedTile.key !== key)) {
       selectedTile = { kind: kind, id: tileId, key: key };
       // 只更新选中牌及操作提示，不重画整桌、不触发分析。
       document.querySelectorAll('.handRow .tile[role="button"]').forEach(function (tile) {
@@ -3783,9 +3954,11 @@ window.onerror = function (msg, src, line, col) {
         tile.classList.toggle('chosen', chosen); tile.setAttribute('aria-pressed', chosen ? 'true' : 'false');
       });
       renderActions();
+      syncTable3D();
       showTileAnalysis(kind, tileId, document.querySelector('.handRow [data-tile-id="' + tileId + '"]'), true); return;
     }
     hideTileAnalysis();
+    if(table3D.api&&table3D.wanted)table3D.api.noteDiscard(tileId);
     if (game.online) {
       var hand = game.hand, seat = game.humanSeat();
       var context = { handNo: game.handNo, turn: hand.turnCount, risk: sitCache.key === key && sitCache.data ? sitCache.data.res : null };
@@ -4023,7 +4196,7 @@ window.onerror = function (msg, src, line, col) {
       if (humanW.length) parts.push('真人赢牌不下桌，继续坐着打');
       if (parts.length) rot = '<div style="font-size:13px;color:#ffcf7a">转转：' + parts.map(netEsc).join('；') + '。</div>';
     }
-    html += rot + '<div class="center"><button class="act" id="btnNext">继续下一局</button></div>';
+    html += rot + '<div class="center"><button class="act" id="btnNext">'+(table3D.wanted?'收牌洗牌 · 下一局':'继续下一局')+'</button></div>';
     box.innerHTML = html;
     renderSettlementHands($('settlementHands'),r);
     if (r.birds) {
@@ -4062,6 +4235,7 @@ window.onerror = function (msg, src, line, col) {
     box.innerHTML = '<h2>转转麻将 · 规则与赔率</h2>' +
       '<ul>' +
       '<li><b>牌</b>：108 张（万/条/筒 1-9 各 4 张），无字牌。<b>不能吃</b>，可碰、可杠。</li>' +
+      '<li><b>本桌开牌</b>：一次掷两骰，由庄家算第一位，逆时针按总点数确定开口家；从该家右侧往左跳过总点数墩，在下一墩接牌。四方为 14/13/14/13 墩，取墙沿顺时针，每家三轮各抓四张、各补一张，庄家再摸一张。此为本桌一掷约定，不等同于竞赛双掷规则。</li>' +
       '<li><b>胡牌</b>：4 组 + 1 对（乱将），或 小七对（与平胡同价）；四张相同牌可作两对。规则版本 ' + ZMJ.rulesVersion + '。</li>' +
       '<li><b>杠</b>：暗杠 每家 10 元；大明杠 放杠者 15 元；补杠（碰后自摸第 4 张）三家各 5 元。<b>补杠不可被抢杠</b>。</li>' +
       '<li><b>鸟</b>：胡牌后翻 6 张，摸到 1/5/9 各算一只。</li>' +
@@ -5158,6 +5332,7 @@ window.onerror = function (msg, src, line, col) {
       }
       P.hand = {
         players: players,
+        opening:h.opening||null,wallDraws:h.wallDraws||null,openingAgeMs:h.openingAgeMs,gangDraw:!!h.gangDraw,
         wall: { length: h.wallLeft },                          // 牌墙只给张数，顺序不出服务器
         turn: h.turn, lastDraw: h.lastDraw, lastDiscard: h.lastDiscard,
         turnCount: h.turnCount, over: !!h.over,
@@ -5393,7 +5568,7 @@ window.onerror = function (msg, src, line, col) {
   }
 
   // 与离线缓存同步，保留远端新增的首页版本标识。
-  var BUILD = 'v28';
+  var BUILD = 'v30';
   // ---------- 主界面：先选单机还是联机 ----------
   function showHome() {
     if (!STATS) loadStats();
@@ -5407,7 +5582,7 @@ window.onerror = function (msg, src, line, col) {
       : '还没有练习记录：打几局之后这里会显示你的和了率、放铳率和收支';
     el.innerHTML =
       '<div class="homeWrap">' +
-        '<div class="homeHeader"><div class="homeBrand"><span class="brandMark" aria-hidden="true">转</span>转转麻将<small>练牌室</small></div><div class="homeAccountControls"><span class="homeStamp">静下心，练一手好牌</span><button class="mini" id="homeAccount">登录 / 我的账号</button></div></div>' +
+        '<div class="homeHeader"><div class="homeBrand"><span class="brandMark" aria-hidden="true">转</span>转转麻将<small>练牌室</small></div><div class="homeAccountControls"><span class="homeStamp">静下心，练一手好牌</span><button class="mini" id="home3D">3D 试打一局</button><button class="mini" id="homeAccount">登录 / 我的账号</button></div></div>' +
         '<div class="homeHero"><div><p class="homeEyebrow">你的日常练牌时光</p><h1 class="homeTitle">把每一手，<br><em>打得更明白。</em></h1>' +
         '<p class="homeSub">从一张弃牌开始，读懂向听与进张。<br>在这里，慢慢找到自己的牌感。</p><div class="homeFeatures"><span>有依据的讲解</span><span>独立思考</span><span>打完再复盘</span></div></div>' +
         '<div class="homeArt" aria-hidden="true">' + tileEl(3, 'big').outerHTML + tileEl(13, 'big').outerHTML + tileEl(19, 'big').outerHTML + '<span class="homeArtCaption">万 · 条 · 筒</span></div></div>' +
@@ -5436,6 +5611,7 @@ window.onerror = function (msg, src, line, col) {
     el.classList.remove('hidden');
     syncLayers();
     $('homePractice').onclick = function () { hideHome(); startPractice(); };
+    $('home3D').onclick=function(){setTable3D(true);$('homeSolo').click();};
     if (game && !game.online && game.hand && !game.hand.over) $('homeSolo').querySelector('.homeGo').textContent = '继续本局';
     clearTimeout(timer);                      // 菜单期间不推进牌局
     $('homeAccount').onclick = showAccount; accountLabels();
@@ -5452,7 +5628,7 @@ window.onerror = function (msg, src, line, col) {
   function hideHome() { var el = $('home'); if (el) el.classList.add('hidden'); syncLayers(); }
 
   $('btnExport').onclick = showExport;
-  $('riverSource').onchange=function(){cfg.discardSource=this.checked;saveConfig();renderRiver();};
+  $('riverSource').onchange=function(){cfg.discardSource=this.checked;saveConfig();renderRiver();syncTable3D();};
   $('btnAccount').onclick = showAccount;
   $('btnStats').onclick = showStats;
   $('btnPractice').onclick = startPractice;
@@ -5515,6 +5691,7 @@ window.onerror = function (msg, src, line, col) {
   showHome();          // 先出主界面，由用户选单机还是联机
   accountReady = refreshAccount();
   accountReady.then(refreshLobbyCount);
+  try{var threeParams=new URLSearchParams(location.search);if(threeParams.get('view')==='3d'&&threeParams.get('play')==='1'&&!threeParams.get('room')&&threeParams.get('online')!=='1')setTimeout(function(){if($('home3D'))$('home3D').click();},250);}catch(e){}
 })();
 </script>
 <script>
