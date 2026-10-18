@@ -163,7 +163,7 @@ function attach(server, opts) {
         doLeave(session);
         return send(session, { t: 'left' });
       }
-      case 'start': { const r = needRoom(session); r.start(); broadcast(r); return; }
+      case 'start': { const r = needRoom(session); r.start({ manualDice: msg.manualDice === true }); broadcast(r); return; }
       case 'next': { const r = needRoom(session); r.next(); broadcast(r); return; }
       case 'act': {
         const r = needRoom(session), member = session.member;

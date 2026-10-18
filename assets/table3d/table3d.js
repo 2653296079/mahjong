@@ -14,7 +14,7 @@ const turn = (pos, x, z, y = TOP) => {
 };
 const rotation = (pos, tilt = 0) => new THREE.Quaternion().setFromEuler(new THREE.Euler(0, pos * Math.PI / 2, 0))
   .multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(tilt, 0, 0)));
-const HAND_SCALE = 1.85, HAND_STEP = 0.050, HAND_Z = 0.357, HAND_TILT = 1.46;
+const HAND_SCALE = 2.25, HAND_STEP = 0.060, HAND_Z = 0.357, HAND_TILT = 1.46;
 const DICE_SCALE = 2.4, DICE_TIME = 2300;
 function handPose(index, count, drawn, overhead = false) {
   const tilt = overhead ? 0.20 : HAND_TILT, gap = drawn >= 0 ? 0.014 : 0;
@@ -339,7 +339,11 @@ export async function createTable3D(host, callbacks = {}) {
     if (changed && !reduceMotion && next.opening && (hadRound || next.turnCount <= 1 || next.openingAgeMs < 12000)) {
       beginMachine(next, hadRound); return;
     }
-    if (machineRun) { snapshot = next; return; }
+    if (machineRun) {
+      snapshot = next;
+      if (!next.waitForRoll && !machineRun.rolled) { machineRun.rolled = true; machineRun.lastTime = null; dirty = true; schedule(); }
+      return;
+    }
     applySnapshot(next);
   }
   function applySnapshot(next) {
@@ -443,7 +447,8 @@ export async function createTable3D(host, callbacks = {}) {
     });
     machineRun = { elapsed: 0, lastTime: null, collect: collect ? 950 : 0, old, backs, packets,
       wall: physicalWall(next), opening: next.opening, phase: '', counts: [0, 0, 0, 0],
-      faceGroup, faces, bySlot: new Map(faces.map(f => [f.slot, f])), lastPacket: -1, focus: 0, settled: null };
+      faceGroup, faces, bySlot: new Map(faces.map(f => [f.slot, f])), lastPacket: -1, focus: 0, settled: null,
+      rolled: !next.waitForRoll };
     contact.count = 0;
     for (const entry of entries.values()) if (entry.type !== 'prop') entry.object.visible = false;
     host.dataset.machineBusy = '1';
@@ -483,12 +488,14 @@ export async function createTable3D(host, callbacks = {}) {
     if (!run) return;
     // 首次 shader 编译或后台恢复不能吞掉整段升墙／掷骰动画。
     if (run.lastTime !== null) run.elapsed += Math.min(100, Math.max(0, now - run.lastTime));
+    if (!run.rolled) run.elapsed = Math.min(run.elapsed, run.collect + 1400);
     run.lastTime = now;
     let t = run.elapsed, phase, p;
     const ease = n => 1 - Math.pow(1 - clamp(n, 0, 1), 3);
     if (t < run.collect) { phase = 'collect'; p = t / run.collect; }
     else if ((t -= run.collect) < 550) { phase = 'shuffle'; p = t / 550; }
     else if ((t -= 550) < 850) { phase = 'lift'; p = t / 850; }
+    else if (!run.rolled) { phase = 'await-roll'; p = 0; }
     else if ((t -= 850) < DICE_TIME) { phase = 'dice'; p = t / DICE_TIME; }
     else { t -= DICE_TIME; phase = 'deal'; p = t; }
     if (phase !== run.phase) {
@@ -500,13 +507,14 @@ export async function createTable3D(host, callbacks = {}) {
     if (focus !== run.focus) { run.focus = focus; cameraPose(focus); }
     host.dataset.diceFocus = focus.toFixed(2);
     const settled = phase !== 'dice' || p >= 0.62, diceState = (phase === 'dice') + ':' + settled;
-    if (diceState !== run.settled) { run.settled = diceState; callbacks.onDice?.(phase === 'dice', settled, run.opening.dice); }
+    if ((phase === 'dice' || phase === 'deal') && diceState !== run.settled) { run.settled = diceState; callbacks.onDice?.(phase === 'dice', settled, run.opening.dice); }
     run.faces.forEach(f => { f.object.visible = false; });
     lid.position.y = phase === 'collect' ? 0.105 * Math.sin(Math.min(p * 2, 1) * Math.PI / 2)
       : phase === 'shuffle' ? 0.105 : phase === 'lift' ? 0.105 * (1 - ease(p)) : 0;
     const diceEntries = [entries.get('dice:0'), entries.get('dice:1')];
     diceEntries.forEach((entry, i) => {
       if (!entry) return;
+      entry.object.visible = phase === 'dice' || phase === 'deal';
       entry.tween = null;
       const target = diceQuaternion(run.opening.dice[i], i ? 0.3 : -0.25);
       entry.object.position.copy(entry.base); entry.object.position.y += lid.position.y;
@@ -536,7 +544,7 @@ export async function createTable3D(host, callbacks = {}) {
           position: new THREE.Vector3(Math.sin(now * 0.003 + i * 1.6) * 0.042, TOP - 0.006 + (i % 2) * 0.009, Math.cos(now * 0.003 + i * 1.6) * 0.042),
           rotation: rotation(0, i * 0.12), scale: 0.85
         })));
-      } else if (phase === 'lift' || phase === 'dice') {
+      } else if (phase === 'lift' || phase === 'dice' || phase === 'await-roll') {
         const f = phase === 'lift' ? ease(p) : 1;
         rails.forEach(r => { r.position.y = 0.003 - 0.04 * (1 - f); });
         paintBacks(run.wall.map(pose => ({ ...pose, position: pose.position.clone().add(new THREE.Vector3(0, -0.055 * (1 - f), 0)) })));
@@ -607,6 +615,8 @@ export async function createTable3D(host, callbacks = {}) {
     for (const entry of entries.values()) {
       if (entry.type !== 'hand') continue;
       bounds.setFromObject(entry.object);
+      // 点击区域固定在牌的落手位置，视觉抬牌不能把鼠标移出区域再触发落牌。
+      bounds.translate(entry.base.clone().sub(entry.object.position));
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (let i = 0; i < 8; i++) {
         const point = corners[i].set(i & 1 ? bounds.max.x : bounds.min.x,
@@ -639,7 +649,7 @@ export async function createTable3D(host, callbacks = {}) {
       host.dataset.triangles = String(renderer.info.render.triangles);
       lastFrame = now; dirty = false;
     }
-    if (dirty || machineRun || now < animatedUntil) schedule();
+    if (dirty || machineRun && (machineRun.phase !== 'await-roll' || machineRun.rolled) || now < animatedUntil) schedule();
   }
   function schedule() { if (active && !disposed && !document.hidden && !request) request = requestAnimationFrame(frame); }
   function setActive(value) {
@@ -679,7 +689,11 @@ export async function createTable3D(host, callbacks = {}) {
   host.dataset.phase = 'ready';
   host.dataset.view = 'seated';
   return {
-    update, setActive, setView, skipOpening: finishMachine,
+    update, setActive, setView, skipOpening(force = false) {
+      if (machineRun && !machineRun.rolled && !force) return false;
+      finishMachine(); return true;
+    },
+    rollDice() { if (machineRun) { machineRun.rolled = true; machineRun.lastTime = null; dirty = true; schedule(); } },
     hover(id) { if (hovered !== id) { hovered = id; updateHover(); } },
     noteDiscard(id) {
       const entry = entries.get('hand:' + id);

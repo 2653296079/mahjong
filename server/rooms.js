@@ -149,7 +149,7 @@ class Room {
     return round ? base + (round + 1) : base;
   }
 
-  start() {
+  start(options) {
     if (this.game) throw new Error('这一桌已经开局了');
     if (!this.members.length) throw new Error('房间里还没有人');
     const core = loadCore();
@@ -160,8 +160,11 @@ class Room {
       roster.push({ id: newId('b'), name: this.botName(i), isHuman: false, style: this.opts.botStyle });
     }
     this.game = core.createGame({ roster: roster, rotate: true, seed: this.opts.seed });
+    this.manualDice = !!(options && options.manualDice);
     this.game.startHand();
+    this.dicePending = this.manualDice && this.isLiveHuman(this.game.dealer);
     this.handStartedAt = Date.now();
+    this.dealUntil = this.manualDice && !this.dicePending ? this.handStartedAt + 10500 : 0;
     this.archive();
     this.rev++;
     this.pump();
@@ -176,6 +179,11 @@ class Room {
   pump() {
     const G = this.game;
     if (!G || !G.hand) return;
+    if (this.dicePending) {
+      if (this.isLiveHuman(G.dealer)) return;
+      this.releaseDice();
+    }
+    if (this.dealUntil && Date.now() < this.dealUntil) return;
     this.syncLateJoiners();
     let guard = 0;
     while (guard++ < 4000) {
@@ -248,6 +256,11 @@ class Room {
     const seat = G.seatOfId(m.pid);
     if (seat < 0) throw new Error('你在等待区，等这局结束轮到你上桌');
     if (!this.isLiveHuman(seat)) throw new Error('这个座位现在不由你操作');
+    if (a && a.act === 'roll') {
+      if (!this.dicePending || seat !== G.dealer) throw new Error('请本局庄家掷骰');
+      this.releaseDice(); this.rev++; this.archive(); return;
+    }
+    if (this.dicePending || this.dealUntil && Date.now() < this.dealUntil) throw new Error('请先等庄家掷骰、抓牌完成');
     if (['discard', 'angang', 'bugang'].includes(a && a.act) &&
         (!Number.isInteger(a.kind) || a.kind < 0 || a.kind >= 27)) throw new Error('牌编号不合法');
     let ok = false;
@@ -290,16 +303,33 @@ class Room {
     this.releaseAbandonedSeats();
     this.accountActions = [];
     G.nextHand();
+    this.dicePending = this.manualDice && this.isLiveHuman(G.dealer);
     this.handStartedAt = Date.now();
+    this.dealUntil = this.manualDice && !this.dicePending ? this.handStartedAt + 10500 : 0;
     this.archive();
     this.pump();
     this.rev++;
+  }
+
+  releaseDice() {
+    this.dicePending = false;
+    this.handStartedAt = Date.now();
+    this.dealUntil = this.handStartedAt + 9000;
+    this.awaitSince = 0;
   }
 
   /** 定时器：超时托管 + 自动开下一局。返回是否真的动了 */
   tick(now) {
     const G = this.game;
     if (!G || !G.hand) return false;
+    if (this.dicePending) {
+      if (this.isLiveHuman(G.dealer)) return false;
+      this.releaseDice(); this.rev++; return true;
+    }
+    if (this.dealUntil) {
+      if (now < this.dealUntil) return false;
+      this.dealUntil = 0; this.pump(); return true;
+    }
     if (G.hand.over) {
       if (!this.nextAt) this.nextAt = now + this.opts.nextHandDelay;
       else if (now >= this.nextAt) { this.advance(); return true; }
@@ -352,7 +382,9 @@ class Room {
         wallDie: H.opening.wallDie, stackDie: H.opening.stackDie,
         breakSeat: H.opening.breakSeat, breakStack: H.opening.breakStack, startSlot: H.opening.startSlot } : null,
       wallDraws: H.wallDraws ? { head: H.wallDraws.head, tail: H.wallDraws.tail } : null,
-      openingAgeMs: Math.max(0, Date.now() - (this.handStartedAt || 0)),
+      openingAgeMs: this.dicePending ? 0 : Math.max(0, Date.now() - (this.handStartedAt || 0)),
+      dicePending: !!this.dicePending,
+      dealRemainingMs: Math.max(0, (this.dealUntil || 0) - Date.now()),
       lastDiscard: H.lastDiscard ? { seat: H.lastDiscard.seat, kind: H.lastDiscard.kind } : null,
       lastDraw: (seat >= 0 && H.turn === seat) ? H.lastDraw : null,
       river: loadCore().publicDiscards(H),

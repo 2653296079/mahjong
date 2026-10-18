@@ -56,7 +56,7 @@ const server = http.createServer(async (req, res) => {
   }
   if(urlPath==='/healthz' && (req.method==='GET'||req.method==='HEAD')){
     const core=loadCore();
-    const body=JSON.stringify({status:'ok',app:'zhuanzhuan-mahjong',build:'v31',rulesVersion:core.rulesVersion,analysisVersion:core.analysisVersion,questionVersion:core.questionVersion,...hub.stats()});
+    const body=JSON.stringify({status:'ok',app:'zhuanzhuan-mahjong',build:'v32',rulesVersion:core.rulesVersion,analysisVersion:core.analysisVersion,questionVersion:core.questionVersion,...hub.stats()});
     res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Content-Length':Buffer.byteLength(body)});
     res.end(req.method==='HEAD'?undefined:body);return;
   }

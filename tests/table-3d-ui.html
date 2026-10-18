@@ -10,18 +10,23 @@ function paint(){return new Promise(r=>requestAnimationFrame(()=>requestAnimatio
  localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:20261018,sound:false,analyze:false,turnTime:0,aiThink:5,aiStyle:'v1',rotate:false}));localStorage.setItem('zmj_noRotate','1');
  await new Promise(r=>{f.onload=r;f.src='/index.html?view=3d&play=1';});var w=f.contentWindow,d=w.document;
  await until(()=>d.body.classList.contains('table3d')&&d.getElementById('threeStage').dataset.machineBusy==='1');
- var phases=[],dealTrace=[],packetTrace=[],seenOwnFaces=false,maxDiceFocus=0,initialGame=w.__zmjGame,initialHand=initialGame.hand;
+ var phases=[],dealTrace=[],packetTrace=[],seenOwnFaces=false,maxDiceFocus=0,initialGame=w.__zmjGame,initialHand=initialGame.hand,rollWaitTicks=0,didRoll=false;
  await until(()=>{
   var s=d.getElementById('threeStage'),p=s.dataset.machinePhase,c=s.dataset.dealCounts;
   if(p&&phases[phases.length-1]!==p)phases.push(p);
   if(c&&dealTrace[dealTrace.length-1]!==c)dealTrace.push(c);
   if(p==='deal'&&s.dataset.dealSlots&&packetTrace[packetTrace.length-1]!==s.dataset.dealSlots)packetTrace.push(s.dataset.dealSlots);
   if(p==='deal'&&Number(s.dataset.dealFaceCount)>=4)seenOwnFaces=true;
+  if(p==='await-roll'&&!didRoll&&++rollWaitTicks>6){
+   check(initialHand.dicePending&&c==='0,0,0,0','庄家未点击前停在待掷骰阶段，不自动抓牌');
+   check(!d.getElementById('threeRoll').classList.contains('hidden'),'本局庄家有可操作的掷骰按钮');
+   d.getElementById('threeRoll').click();didRoll=true;
+  }
   maxDiceFocus=Math.max(maxDiceFocus,Number(s.dataset.diceFocus)||0);
   if(s.dataset.machineBusy==='1'&&initialGame.hand.turnCount!==1)throw Error('抓牌动画期间电脑提前行动');
   return s.dataset.machineBusy==='0'&&d.querySelectorAll('[data-three-projected]').length===14;
  },80000);
- check(['shuffle','lift','dice','deal','ready'].every(p=>phases.includes(p)),'完整演示机内洗牌、升墙、掷骰、四张抓牌、开牌就绪：'+phases.join(' → '));
+ check(['shuffle','lift','await-roll','dice','deal','ready'].every(p=>phases.includes(p)),'完整演示洗牌、升墙、等待庄家点击、掷骰、抓牌、就绪：'+phases.join(' → '));
  check(dealTrace.includes('4,0,0,0')&&dealTrace.includes('4,4,0,0')&&dealTrace.includes('12,12,12,12')&&dealTrace.includes('14,12,12,12')&&dealTrace.includes('14,13,13,13'),'三轮各四张后，庄家先补到十四张，其他三家再各补一张');
  check(packetTrace.slice(-5).join('|')==='48|52|49|50|51','庄家从第 48 槽上层取一张，再隔墩跳到第 52 槽上层，三家取回留下的三张');
  check(seenOwnFaces,'抓牌途中与落手后使用自己的真实牌面模型，不再用牌背代替');
@@ -40,6 +45,10 @@ function paint(){return new Promise(r=>requestAnimationFrame(()=>requestAnimatio
  var same=cards.find(t=>t!==first&&t.dataset.tileId.split(':')[0]===first.dataset.tileId.split(':')[0]);
  var firstId=first.dataset.tileId,sameId=same.dataset.tileId;
  function card(id){return d.querySelector('.handRow [data-tile-id="'+id+'"]');}
+ var resting=first.getBoundingClientRect();first.dispatchEvent(new w.PointerEvent('pointerenter',{pointerType:'mouse'}));await wait(350);
+ var raisedHit=card(firstId).getBoundingClientRect();
+ check(Math.abs(raisedHit.top-resting.top)<0.5&&Math.abs(raisedHit.bottom-resting.bottom)<0.5,'手牌抬起时感应区固定，底缘鼠标不会因升降被反复移出');
+ check(!d.querySelector('.tileAnalysisDetails').open&&d.getElementById('tileAnalysis').getBoundingClientRect().height<300,'牌旁分析默认精简，详细依据折叠且不占大块画面');
  var startCount=g.hand.players[g.humanSeat()].concealed.reduce((a,b)=>a+b,0);
  first.click();await wait(250);
  check(d.querySelectorAll('.handRow .chosen').length===1&&card(firstId).classList.contains('chosen'),'首次点选只抬起实际的一张，同牌不联动');

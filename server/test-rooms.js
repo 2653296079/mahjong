@@ -80,6 +80,36 @@ test('四家共享同一骰点与接牌口，公开字段没有牌墙顺序或�
   assert.strictEqual(h.wallLeft + h.wallDraws.head + h.wallDraws.tail, 102);
 });
 
+test('三维开局由庄家亲自掷骰，非庄家、重复掷骰和抢先出牌被拒绝', () => {
+  const room = new RoomStore().create('1973',{seed:731});
+  const a=fakeClient(room,'甲'),b=fakeClient(room,'乙');
+  room.start({manualDice:true});
+  const events=room.game.hand.record.events.length;
+  assert.ok(room.viewFor(a).hand.dicePending);
+  assert.throws(()=>room.act(b,{act:'roll'}),/庄家/);
+  assert.throws(()=>room.act(a,{act:'discard',kind:0}),/掷骰/);
+  assert.strictEqual(room.tick(Date.now()+120000),false);
+  assert.strictEqual(room.game.hand.record.events.length,events);
+  room.act(a,{act:'roll'},{deferPump:true});
+  assert.strictEqual(room.viewFor(b).hand.dicePending,false);
+  assert.ok(room.viewFor(b).hand.dealRemainingMs>0);
+  assert.throws(()=>room.act(a,{act:'roll'}),/庄家/);
+  assert.throws(()=>room.act(a,{act:'discard',kind:0}),/抓牌/);
+  assert.strictEqual(room.tick(room.dealUntil-1),false);
+  assert.strictEqual(room.tick(room.dealUntil+1),true);
+  assert.strictEqual(room.viewFor(a).hand.dealRemainingMs,0);
+  assert.ok(step(room));
+});
+
+test('等待掷骰时庄家断线，由服务器托管掷骰并保留抓牌等待', () => {
+  const room = new RoomStore().create('1974',{seed:731});
+  const a=fakeClient(room,'甲');fakeClient(room,'乙');
+  room.start({manualDice:true});a.conn=null;
+  assert.strictEqual(room.tick(Date.now()),true);
+  assert.strictEqual(room.dicePending,false);
+  assert.ok(room.dealUntil>Date.now());
+});
+
 test('加入 / 重连：token 能把人认回来，而不是多开一个座位', () => {
   const store = new RoomStore();
   const room = store.create('1001');

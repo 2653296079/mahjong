@@ -578,6 +578,7 @@ main{background:#102c28;gap:0}
 #tileAnalysisClose{margin-left:auto;border:0;background:transparent;color:#627266;font-size:22px;min-width:32px;min-height:32px;cursor:pointer;border-radius:7px}#tileAnalysisClose:hover,#tileAnalysisClose:focus-visible{background:#e5e4d2;outline:2px solid #7c9274}
 .tileAnalysisStats{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:9px 0}.tileAnalysisStats>div{background:#e8ecde;border-radius:8px;padding:6px;text-align:center}.tileAnalysisStats b{display:block;font-size:20px;color:#205744}.tileAnalysisStats small{color:#637165;font-size:10px}
 .tileAnalysisCompare{border-left:3px solid #8c9e71;padding:5px 8px;background:#e8ecde;margin:8px 0}.tileAnalysisCompare.warn{border-color:#bc7955;background:#f2e7d7}
+.tileAnalysisDetails>summary{cursor:pointer;color:#66745d;font-size:12px;padding:5px 0}.tileAnalysisQuick{font-size:12px;color:#4d6356;margin:5px 0}#tileAnalysis{width:320px}.tileAnalysisHead{margin-bottom:6px}.tileAnalysisStats b{font-size:18px}
 .tileAnalysisTiles{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}.tileAnalysisTiles span{background:#fffdf6;border:1px solid #d5d7c5;border-radius:5px;padding:2px 6px;white-space:nowrap;font-size:12px}
 .tileAnalysisLabel{margin:12px 0 3px;font-size:11px;color:#6b775c;letter-spacing:1px;font-weight:600}.tileAnalysisMath{font-size:12px;background:#e5ebdc;border-radius:7px;padding:7px 9px;margin-top:8px}.tileAnalysisPath{border-bottom:1px solid #d7ddcb;padding:5px 0;font-size:12px}.tileAnalysisNote{font-size:11px;line-height:1.6;color:#6a7466;margin-top:7px}#tileAnalysis .risk-hi{color:#ab503d}#tileAnalysis .risk-mid{color:#946622}#tileAnalysis .risk-lo{color:#247456}
 .handRow .tile.analyzing{outline:2px solid #efdc9c;outline-offset:2px}.handRow .tile.analyzing:not(.chosen){transform:translateY(-5px)}
@@ -634,6 +635,7 @@ body.table3d #threeDiceReadout .diceChip small{font-size:11px;font-weight:500;wh
 body.table3d #threeDiceReadout svg{width:34px;height:34px;filter:drop-shadow(0 2px 2px #0005)}
 body.table3d #threeMachineInfo.diceClose #threeDiceReadout svg{width:50px;height:50px}
 body.table3d #threeMachineInfo.diceClose{border-color:#dbc181}
+body.table3d #threeRoll{display:block;pointer-events:auto;margin-top:8px;padding:9px 24px;font-size:17px;border:1px solid #d9bd75;border-radius:24px;background:#365c45;color:#ffe6a4;cursor:pointer}
 body.table3d.machineBusy #threeMachineInfo{border-color:#d3b574;box-shadow:0 6px 25px #0004}
 body.table3d #threeSkip{color:#f0d89a;border-color:#c9aa62}
 @media(max-width:680px){body.table3d #threeMachineInfo{top:112px;left:8px;max-width:52vw;font-size:10px;padding:6px 8px}body.table3d #threeMachineInfo b{font-size:11px}body.table3d.machineBusy #seat2{top:195px}}
@@ -675,7 +677,7 @@ body.table3d #actionBtns>div{color:#c2d0bd!important}
     <section id="table">
       <div id="threeStage"></div>
       <div id="threeControls" aria-label="三维牌桌视角"><button id="threeSkip" class="mini hidden">跳过动画</button><button id="threeSeated" class="mini" aria-pressed="true">坐席</button><button id="threeOverhead" class="mini" aria-pressed="false">俯视</button><button id="threeBack" class="mini">二维牌桌</button></div>
-      <div id="threeMachineInfo" role="status" aria-live="polite"><b id="threeMachineTitle">自动麻将机</b><div id="threeDiceReadout" class="hidden"></div><span id="threeMachineDetail"></span></div>
+      <div id="threeMachineInfo" role="status" aria-live="polite"><b id="threeMachineTitle">自动麻将机</b><div id="threeDiceReadout" class="hidden"></div><span id="threeMachineDetail"></span><button id="threeRoll" class="hidden">庄家掷骰</button></div>
       <div id="threeLoadStatus" role="status" aria-live="polite">正在摆好三维牌桌…</div>
       <div class="seat" id="seat2" data-seat="2"></div>
       <div class="seat" id="seat1" data-seat="1"></div>
@@ -2647,7 +2649,7 @@ window.onerror = function (msg, src, line, col) {
     try{localStorage.setItem('zmj_table3d_v1',wanted?'1':'0');}catch(e){}
     $('moreTools').open=false;hideTileAnalysis();
     $('btn3D').textContent=wanted?'切回二维牌桌':'3D 牌桌体验';$('btn3D').setAttribute('aria-pressed',String(!!wanted));
-    if(!wanted){document.body.classList.remove('table3d');$('table').classList.remove('threeLoading');if(table3D.api){table3D.api.skipOpening();table3D.api.setActive(false);}clear3DHitboxes();}
+    if(!wanted){document.body.classList.remove('table3d');$('table').classList.remove('threeLoading');if(table3D.api){table3D.api.skipOpening(true);table3D.api.setActive(false);}clear3DHitboxes();}
     else ensureTable3D();
     if(game&&game.hand){renderActions();syncTable3D();}
   }
@@ -2657,7 +2659,7 @@ window.onerror = function (msg, src, line, col) {
     if(table3D.loading)return;
     if(location.protocol==='file:'){failTable3D(Error('3D assets need an HTTP origin'));return;}
     $('table').classList.add('threeLoading');
-    table3D.loading=import('./assets/table3d/table3d.js?build=v31b').then(function(module){
+    table3D.loading=import('./assets/table3d/table3d.js?build=v32').then(function(module){
       return module.createTable3D($('threeStage'),{
         onProgress:function(done,total){$('threeLoadStatus').textContent='正在摆好三维牌桌 · '+done+' / '+total;},
         onError:failTable3D,
@@ -2677,6 +2679,15 @@ window.onerror = function (msg, src, line, col) {
           if(game&&game.hand){if(busy)renderActions();renderTimer();}
         },
         onMachine:function(phase,opening,counts){
+          var waiting=phase==='await-roll',canRoll=game&&game.humanSeat()===game.dealer;
+          $('threeRoll').classList.toggle('hidden',!waiting||!canRoll);
+          $('threeRoll').disabled=!!(game&&game.online&&NET.pendingAction);
+          if(waiting||phase==='collect'||phase==='shuffle'||phase==='lift'){
+            $('threeDiceReadout').classList.add('hidden');
+            $('threeMachineTitle').textContent=waiting?'请庄家掷骰':{collect:'收牌入机',shuffle:'机内洗牌',lift:'四方牌墙升起'}[phase];
+            $('threeMachineDetail').textContent=waiting?(canRoll?'轮到你，点击下方按钮掷骰。':'等待庄家 '+game.seats[game.dealer].name+' 掷骰。'):'牌墙就位后，由庄家点击掷骰。';
+            return;
+          }
           var names={collect:'收牌入机',shuffle:'机内洗牌',lift:'四方牌墙升起',dice:'掷骰 · 大定方，小定墩',deal:'每家四张，轮流抓牌',ready:'开牌位置'};
           $('threeMachineTitle').textContent=names[phase]||'自动麻将机';
           if(!opening){$('threeMachineDetail').textContent='旧牌局未记录骰点，下局开始显示。';return;}
@@ -2707,6 +2718,7 @@ window.onerror = function (msg, src, line, col) {
     if(!table3D.api){ensureTable3D();return;}
     if(table3D.lastGame!==game){table3D.lastGame=game;table3D.round++;}
     var H=game.hand,hs=game.humanSeat(),river=game.online?H.river:ZMJ.publicDiscards(H);
+    if(!game.online&&!H._diceGateInitialized){H._diceGateInitialized=true;H.dicePending=H.turnCount<=1&&hs===game.dealer;}
     var hand=Array.from(document.querySelectorAll('#seat0 .handRow [data-tile-id]')).map(function(t){return{id:t.getAttribute('data-tile-id'),kind:Number(t.getAttribute('data-tile-id').split(':')[0]),drawn:t.classList.contains('drawn'),chosen:t.classList.contains('chosen')};});
     // Only the human hand, public melds/discards and opponents' card COUNTS cross this display boundary.
     var seats=[0,1,2,3].map(function(pos){var seat=visSeat(pos),p=H.players[seat],me=seat===hs;
@@ -2719,7 +2731,7 @@ window.onerror = function (msg, src, line, col) {
     try{table3D.api.update({round:table3D.round+':'+game.handNo+':'+hs,seats:seats,river:shown,sources:cfg.discardSource,
       wallCount:H.wall.length,dealer:seatPos(game.dealer==null?0:game.dealer),opening:opening,wallDraws:H.wallDraws,
       turnCount:H.turnCount,openingAgeMs:H.openingAgeMs,over:!!H.over,gangDraw:!!H.gangDraw,
-      dealtKinds:dealtKinds.slice(),dealPlan:dealPlan});}catch(e){failTable3D(e);}
+      dealtKinds:dealtKinds.slice(),dealPlan:dealPlan,waitForRoll:!!H.dicePending});}catch(e){failTable3D(e);}
   }
   function dicePipSvg(value){
     var patterns={1:[[26,26]],2:[[15,15],[37,37]],3:[[15,15],[26,26],[37,37]],4:[[15,15],[37,15],[15,37],[37,37]],5:[[15,15],[37,15],[26,26],[15,37],[37,37]],6:[[15,14],[37,14],[15,26],[37,26],[15,38],[37,38]]};
@@ -2727,7 +2739,13 @@ window.onerror = function (msg, src, line, col) {
   }
   $('btn3D').onclick=function(){setTable3D(!table3D.wanted);};
   $('threeBack').onclick=function(){setTable3D(false);};
-  $('threeSkip').onclick=function(){if(table3D.api)table3D.api.skipOpening();};
+  function rollDice(){
+    if(!game||!game.hand||!game.hand.dicePending||game.humanSeat()!==game.dealer)return;
+    if(game.online){if(netSend({t:'act',act:'roll'}))$('threeRoll').disabled=true;return;}
+    game.hand.dicePending=false;if(table3D.api)table3D.api.rollDice();syncTable3D();renderActions();
+  }
+  $('threeRoll').onclick=rollDice;
+  $('threeSkip').onclick=function(){if(table3D.api&&!table3D.api.skipOpening())netToast('请庄家先掷骰，再跳过动画');};
   function threeView(view){if(!table3D.api)return;hideTileAnalysis();table3D.api.setView(view);$('threeSeated').setAttribute('aria-pressed',String(view==='seated'));$('threeOverhead').setAttribute('aria-pressed',String(view==='overhead'));}
   $('threeSeated').onclick=function(){threeView('seated');};$('threeOverhead').onclick=function(){threeView('overhead');};
   $('seat0').addEventListener('pointerover',function(e){var t=e.target.closest('[data-tile-id]');if(t&&table3D.api)table3D.api.hover(t.getAttribute('data-tile-id'));});
@@ -2924,7 +2942,7 @@ window.onerror = function (msg, src, line, col) {
   function tick() {
     clearTimeout(timer);
     if (!game) return;
-    if(table3D.busy&&!game.online){if(!pauseStarted)pauseStarted=Date.now();timer=setTimeout(tick,150);return;}
+    if((table3D.busy||game.hand&&game.hand.dicePending)&&!game.online){if(!pauseStarted)pauseStarted=Date.now();timer=setTimeout(tick,150);return;}
     if (!game.online && (($('home') && !$('home').classList.contains('hidden')) || !$('modal').classList.contains('hidden'))) { if (!pauseStarted) pauseStarted = Date.now(); timer = setTimeout(tick, 250); return; }
     if (game.online) {
       // 联机：牌局在服务器上跑，这里只把收到的状态画出来
@@ -3349,12 +3367,14 @@ window.onerror = function (msg, src, line, col) {
     var picked = opts.find(function(o) { return o.kind === active.kind; }), guide = getTrainingGuide(active.kind, !!paths);
     if (!picked || !guide) { hideTileAnalysis(); return; }
     var same = ZMJ.sameEfficiency(picked, best), hit = guide.shanten === 0 ? '和牌张' : '有效进张';
-    var compare = same ? '向听、进张与本轮牌效最优相同。' : picked.shanten > best.shanten ?
-      '比打 ' + ZMJ.tileName(best.kind) + ' 多 ' + (picked.shanten - best.shanten) + ' 向听，优先保留更近的牌形。' :
-      '同为 ' + shantenWords(picked.shanten) + '，比打 ' + ZMJ.tileName(best.kind) + ' 少 ' + (best.ukeire - picked.ukeire) + ' 张未见有效牌。';
+    var compare = same ? '牌效最优，可以打。' : picked.shanten > best.shanten ?
+      '建议打 ' + ZMJ.tileName(best.kind) + '，少 ' + (picked.shanten - best.shanten) + ' 向听。' :
+      '建议打 ' + ZMJ.tileName(best.kind) + '，多 ' + (best.ukeire - picked.ukeire) + ' 张进张。';
     var html = '<div class="tileAnalysisHead">' + tileEl(active.kind, 'small').outerHTML + '<div><h3>打出 ' + ZMJ.tileName(active.kind) + '</h3><small>这一张的牌效分析</small></div><button id="tileAnalysisClose" aria-label="收起此牌分析">×</button></div>' +
       '<div class="tileAnalysisStats" id="tileAnalysisSummary"><div><b>' + (guide.shanten === 0 ? '听牌' : guide.shanten + ' 向听') + '</b><small>打出后的距离</small></div><div><b>' + guide.draws.length + ' 种</b><small>' + hit + '</small></div><div><b>' + guide.total + ' 张</b><small>未见有效张</small></div></div>' +
       '<div class="tileAnalysisCompare' + (same ? '' : ' warn') + '">' + compare + '</div>' +
+      '<div class="tileAnalysisQuick">下一摸'+(guide.shanten===0?'和牌':'有效进张')+'约 '+(guide.chanceNext*100).toFixed(1)+'%（未见牌估算）</div>'+
+      '<details class="tileAnalysisDetails"'+(active.detailsOpen?' open':'')+'><summary>详细依据与做牌路线</summary>'+
       '<div class="tileAnalysisLabel">' + (guide.shanten === 0 ? '听哪些牌' : '摸哪些牌能推进') + '</div><div class="tileAnalysisTiles">' +
       (guide.draws.length ? guide.draws.map(function(d) { return '<span>' + ZMJ.tileName(d.kind) + ' <b>×' + d.count + '</b></span>'; }).join('') : '<span>目前没有未见有效牌</span>') + '</div>' +
       '<div class="tileAnalysisMath">下一摸' + (guide.shanten === 0 ? '和牌' : '有效推进') + '基准：<b>' + guide.total + ' ÷ ' + guide.unknown + ' ≈ ' + (guide.chanceNext * 100).toFixed(1) + '%</b></div>';
@@ -3368,13 +3388,14 @@ window.onerror = function (msg, src, line, col) {
     html += '<div class="tileAnalysisNote">普通牌型：' + shantenWords(guide.standardShanten) + '；小七对：' + (guide.sevenPairsShanten === null ? '已有副露，不适用' : shantenWords(guide.sevenPairsShanten)) + '。</div>';
     var risk = cfg.analyze && sitCache.key === active.key && sitCache.data ? sitCache.data.res : null;
     html += '<div class="tileAnalysisLabel">这张牌的风险</div>' + (risk ? '<span class="' + riskCls(risk.dealIn(active.kind).prob) + '">采样放铳风险约 ' + (risk.dealIn(active.kind).prob * 100).toFixed(1) + '%</span><span class="tileAnalysisNote">（' + risk.worlds + ' 组，模型估计）</span>' : cfg.analyze ? '风险采样尚未完成。' : '未开启风险采样。') +
-      '<div class="tileAnalysisNote">0 向听就是听牌。有效进张能降低向听，每种未见张数 = 4 − 自己手牌 − 公开牌。未见牌也可能在对手手中；概率是假设均匀分布的下一次自摸基准，牌效不等于安全程度。</div>';
+      '<div class="tileAnalysisNote">0 向听就是听牌。有效进张能降低向听，每种未见张数 = 4 − 自己手牌 − 公开牌。未见牌也可能在对手手中；概率是假设均匀分布的下一次自摸基准，牌效不等于安全程度。</div></details>';
     var scroll = $('tileAnalysis').firstElementChild, previousScroll = scroll.scrollTop;
     $('tileAnalysisContent').innerHTML = html; $('tileAnalysis').classList.remove('hidden');
     $('tileAnalysisClose').onclick = hideTileAnalysis;
+    $('tileAnalysisContent').querySelector('details').ontoggle=function(){active.detailsOpen=this.open;positionTileAnalysis();if(this.open&&!paths&&guide.shanten===1&&!guide.paths.length)renderTileAnalysis(true);};
     active.anchor.classList.add('analyzing'); active.anchor.setAttribute('aria-describedby', 'tileAnalysisSummary');
     positionTileAnalysis(); scroll.scrollTop = previousScroll;
-    if (!paths && guide.shanten === 1 && !guide.paths.length) {
+    if (active.detailsOpen && !paths && guide.shanten === 1 && !guide.paths.length) {
       clearTimeout(tileAnalysisPaths);
       tileAnalysisPaths = setTimeout(function() { if (tileAnalysis === active) renderTileAnalysis(true); }, 180);
     }
@@ -3899,7 +3920,15 @@ window.onerror = function (msg, src, line, col) {
 
   function renderActions() {
     var bar = $('actionBtns'); bar.innerHTML = '';
+    $('threeRoll').disabled=!!(game.online&&NET.pendingAction);
     var wb = $('waitingBanner');
+    if(game.hand.dicePending){
+      wb.classList.add('hidden');
+      if((!document.body.classList.contains('table3d')||!table3D.busy)&&game.humanSeat()===game.dealer){var roll=btn('庄家掷骰','act',rollDice);roll.id='btnRollDice';roll.disabled=!!(game.online&&NET.pendingAction);bar.appendChild(roll);}
+      else bar.textContent=game.humanSeat()===game.dealer?'牌墙就位后，点击「庄家掷骰」':'等待庄家 '+game.seats[game.dealer].name+' 掷骰';
+      return;
+    }
+    if(game.online&&game.hand.dealRemainingMs>0){wb.classList.add('hidden');bar.textContent='庄家已掷骰，正在抓牌…';return;}
     if(table3D.busy){wb.classList.add('hidden');bar.textContent='正在收牌、掷骰和抓牌 · 可点右上角跳过动画';return;}
     if(game.hand.over){
       wb.classList.add('hidden');
@@ -3956,7 +3985,7 @@ window.onerror = function (msg, src, line, col) {
     return b;
   }
   function act(fn) {
-    if(table3D.busy)return false;
+    if(table3D.busy||game.hand.dicePending||game.online&&game.hand.dealRemainingMs>0)return false;
     if (!fn()) return false;
     turnDeadline = 0; pauseStarted = 0;
     if (game.online) return true; // 已在发送时更新等待状态；不能重算旧牌面的讲解。
@@ -3987,7 +4016,7 @@ window.onerror = function (msg, src, line, col) {
       outsLoss: picked.shanten === best.shanten ? best.ukeire - picked.ukeire : 0 };
   }
   function onDiscardClick(kind, tileId) {
-    if(table3D.busy)return;
+    if(table3D.busy||game.hand.dicePending||game.online&&game.hand.dealRemainingMs>0)return;
     if (!game.awaiting || game.awaiting.type !== 'turn') return;
     if (game.online && (NET.pendingAction || NET.status !== 'on')) return;
     // 触屏：第一次点选、再点同一张才打出，避免误触
@@ -5286,7 +5315,7 @@ window.onerror = function (msg, src, line, col) {
     P.aiStep = function () { return false; };            // 电脑由服务器驱动
     P.hasPendingResolve = function () { return false; };
     P.resolvePending = function () { return false; };
-    P.startHand = function () { netSend({ t: 'start' }); };
+    P.startHand = function () { netSend({ t: 'start',manualDice:table3D.wanted }); };
     P.nextHand = function () { netSend({ t: 'next' }); };
     P.humanDiscard = function (kind) { return netSend({ t: 'act', act: 'discard', kind: kind }); };
     P.humanClaim = function (act, kind) { return netSend({ t: 'act', act: act, kind: kind }); };
@@ -5380,6 +5409,7 @@ window.onerror = function (msg, src, line, col) {
         players: players,
         opening:h.opening||null,wallDraws:h.wallDraws||null,openingAgeMs:h.openingAgeMs,gangDraw:!!h.gangDraw,
         dealtKinds:h.mine&&Array.isArray(h.mine.dealtKinds)?h.mine.dealtKinds.slice():[],
+        dicePending:!!h.dicePending,dealRemainingMs:h.dealRemainingMs||0,
         wall: { length: h.wallLeft },                          // 牌墙只给张数，顺序不出服务器
         turn: h.turn, lastDraw: h.lastDraw, lastDiscard: h.lastDiscard,
         turnCount: h.turnCount, over: !!h.over,
@@ -5592,7 +5622,7 @@ window.onerror = function (msg, src, line, col) {
       '规则和单机完全一样：服务器负责发牌和判定，所有人看到的都是同一副牌。' +
       '谁掉线了电脑先替他打，重连后接着自己打。</div>';
     box.innerHTML = h;
-    if ($('netStart')) $('netStart').onclick = function () { netSend({ t: 'start' }); };
+    if ($('netStart')) $('netStart').onclick = function () { netSend({ t: 'start',manualDice:table3D.wanted }); };
     if ($('netNext')) $('netNext').onclick = function () { netSend({ t: 'next' }); };
     $('netCopyLink').onclick = function () {
       var invite = new URL(location.protocol === 'file:' ? netURL().replace(/^ws/, 'http').replace(/\/ws$/, '/') : location.href);
@@ -5615,7 +5645,7 @@ window.onerror = function (msg, src, line, col) {
   }
 
   // 与离线缓存同步，保留远端新增的首页版本标识。
-  var BUILD = 'v31';
+  var BUILD = 'v32';
   // ---------- 主界面：先选单机还是联机 ----------
   function showHome() {
     if (!STATS) loadStats();

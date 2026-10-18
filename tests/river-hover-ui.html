@@ -42,7 +42,9 @@ async function paint(){await new Promise(r=>requestAnimationFrame(()=>requestAni
  check(text.includes('打出 '+w.ZMJ.tileName(kind))&&text.includes(guide.total+' ÷ '+guide.unknown)&&text.includes((guide.chanceNext*100).toFixed(1)+'%'),'悬停的是具体手牌，向听进张概率与独立引擎参照一致');
  check(text.includes('普通牌型')&&text.includes('小七对')&&text.includes('未开启风险采样'),'同时解释做牌路线与风险口径，不伪造风险数值');
  check(riskCalls===0,'逐张讲解不触发同步风险采样');
- check(!guide.paths.length||text.includes('→ 听'),'一向听补充摸牌、弃牌与宽听路线');
+ check(!box.querySelector('details').open,'悬停默认只展示精简结论，详细依据保持折叠');
+ box.querySelector('summary').click();await pause(250);text=box.textContent;
+ check(!guide.paths.length||text.includes('→ 听'),'展开后补充摸牌、弃牌与宽听路线');
  for(var dims of [[1366,900],[390,844],[844,390]]){
   f.style.width=dims[0]+'px';f.style.height=dims[1]+'px';w.dispatchEvent(new w.Event('resize'));await paint();
   var b=box.getBoundingClientRect(),r=d.querySelector('.handRow [data-tile-id="'+id+'"]').getBoundingClientRect();

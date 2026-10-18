@@ -79,6 +79,25 @@ async function driveHand(clients, ms) {
   return false;
 }
 
+test('真人掷骰经网络同步，非庄家被拒绝，重发不会重新掷骰', async () => {
+  const s=await startServer();
+  try {
+    const a=await connect(s.port,'甲'),b=await connect(s.port,'乙');
+    a.send({t:'join',room:'2099',create:true});await waitFor(()=>a.joined,2000,'甲进房');
+    b.send({t:'join',room:'2099'});await waitFor(()=>b.joined,2000,'乙进房');
+    a.send({t:'start',manualDice:true});
+    await waitFor(()=>a.last?.hand?.dicePending&&b.last?.hand?.dicePending,2000,'四家等待庄家');
+    b.send({t:'act',act:'roll'});await waitFor(()=>b.errors.some(e=>e.includes('庄家')),2000,'拒绝代掷');
+    a.send({t:'act',act:'roll'});
+    await waitFor(()=>a.acks.length&&a.last?.hand?.dealRemainingMs>0&&b.last?.hand?.dicePending===false,2000,'同步掷骰');
+    const room=s.hub.store.get('2099'),until=room.dealUntil,id=a.acks[0].requestId;
+    a.send({t:'act',act:'roll',requestId:id});
+    await waitFor(()=>a.acks.some(x=>x.duplicate),2000,'重复请求确认');
+    assert.strictEqual(room.dealUntil,until);
+    assert.deepStrictEqual(a.last.hand.opening,b.last.hand.opening);
+  } finally {s.hub.close();await new Promise(r=>s.server.close(r));}
+});
+
 test('两个真客户端连上同一个房间，能一起把牌局打完', async () => {
   const s = await startServer();
   try {
