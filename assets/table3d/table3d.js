@@ -385,6 +385,25 @@ export async function createTable3D(host, callbacks = {}) {
     return rotation(0).setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw)
       .multiply(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(...normals[number || 1]), new THREE.Vector3(0, 1, 0)));
   }
+  // 槽位契约（对外只读查询，供二维 wallSlotMap 对接与对照测试）：
+  // 槽空间 0..107 = 108 槽 / 54 墩。四家顺序 [0,3,2,1]；0、2 号位各 14 墩(28 槽)，1、3 号位各 13 墩(26 槽)。
+  // 每家内先列后层：column 0..count-1 从右向左数墩，每墩先上层 layer=0(y=TOP+0.018) 后下层 layer=1(y=TOP)。
+  // 槽号 = 家偏移 + column*2 + layer，家偏移依次 0 / 28 / 54 / 82。
+  // physicalWall() 随后按 startSlot 旋转，故可视下标 i 对应原始槽 ((i+startSlot)%108)。
+  // 本函数纯算术、不读写渲染状态、不触发 schedule()，返回结构不含牌种。
+  const WALL_SLOTS = 108;
+  function wallSlotInfo(index, opening) {
+    const start = opening?.startSlot || 0;
+    const raw = ((index % WALL_SLOTS) + WALL_SLOTS) % WALL_SLOTS;
+    const physical = (raw + start) % WALL_SLOTS;
+    let base = 0, seat = 0, column = 0, layer = 0;
+    for (const s of [0, 3, 2, 1]) {
+      const count = s % 2 ? 13 : 14, span = count * 2;
+      if (physical < base + span) { seat = s; column = Math.floor((physical - base) / 2); layer = (physical - base) % 2; break; }
+      base += span;
+    }
+    return { physical, seat, pos: (seat + (opening?.seatOffset || 0)) % 4, column, layer, upper: layer === 0 };
+  }
   function physicalWall(next) {
     const result = [], opening = next.opening;
     for (const seat of [0, 3, 2, 1]) {
@@ -815,6 +834,9 @@ export async function createTable3D(host, callbacks = {}) {
     hover(id) { if (hovered !== id) { hovered = id; updateHover(); } },
     setTileDrag,
     tileDragTarget() { return dragInsert ? { targetId: dragInsert.targetId, before: dragInsert.before } : null; },
+    // 只读槽位查询：index 为可视槽下标 0..107，返回 { physical, seat, pos, column, layer, upper }，不含牌种。
+    wallSlotAt(index) { return wallSlotInfo(index, snapshot?.opening); },
+    wallSlotCount() { return WALL_SLOTS; },
     noteDiscard(id) {
       const entry = entries.get('hand:' + id);
       if (entry) discardHint = { kind: entry.kind, position: entry.object.position.clone(), quaternion: entry.object.quaternion.clone(), time: performance.now() };

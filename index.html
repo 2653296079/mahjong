@@ -3210,7 +3210,7 @@ window.onerror = function (msg, src, line, col) {
     if(table3D.loading)return;
     if(location.protocol==='file:'){failTable3D(Error('3D assets need an HTTP origin'));return;}
     $('table').classList.add('threeLoading');
-    table3D.loading=import('./assets/table3d/table3d.js?build=v54').then(function(module){
+    table3D.loading=import('./assets/table3d/table3d.js?build=v55').then(function(module){
       return module.createTable3D($('threeStage'),{
         onProgress:function(done,total){$('threeLoadStatus').textContent='正在摆好三维牌桌 · '+done+' / '+total;},
         onError:failTable3D,
@@ -3292,6 +3292,26 @@ window.onerror = function (msg, src, line, col) {
       if(table3D.wanted){document.body.classList.add('table3d');syncTable3D();api.setActive(!$('app').inert);renderActions();}
     }).catch(failTable3D).finally(function(){table3D.loading=null;});
   }
+  // v55 牌墙槽位映射：把 H.wall[i] 解成三维可视槽位（含墩/层），供亲手抓牌定位。
+  // 契约：map[i] = 52 + i（i=0..H.wall.length-1，值域 52..101）；恒等式 head+len+tail===102。
+  // 只传槽位与几何，不含牌种；缓存键含 head/tail 防止每帧重建。
+  function wallSlotMapFor(H, opening) {
+    var draws = H.wallDraws || { head: 52, tail: 0 };
+    var len = H.wall.length;
+    var key = (opening && opening.startSlot || 0) + ':' + len + ':' + draws.head + ':' + draws.tail;
+    if (wallSlotMapFor._key === key && wallSlotMapFor._map) return wallSlotMapFor._map;
+    var api = table3D.api, map = new Array(len);
+    for (var i = 0; i < len; i++) {
+      var slot = 52 + i;
+      var info = null;
+      try { info = api && api.wallSlotAt ? api.wallSlotAt(slot) : null; } catch (e) { info = null; }
+      map[i] = info ? { slot: slot, physical: info.physical, seat: info.seat, pos: info.pos,
+        column: info.column, layer: info.layer, upper: !!info.upper } : { slot: slot };
+    }
+    wallSlotMapFor._key = key;
+    wallSlotMapFor._map = map;
+    return map;
+  }
   function syncTable3D() {
     if(!table3D.wanted||!game||!game.hand)return;
     if(!table3D.api){ensureTable3D();return;}
@@ -3307,10 +3327,11 @@ window.onerror = function (msg, src, line, col) {
     var opening=H.opening?Object.assign({},H.opening,{seatOffset:(4-Math.max(0,hs))%4}):null;
     var dealtKinds=H.dealtHands&&hs>=0?H.dealtHands[hs]:H.dealtKinds||[];
     var dealPlan=opening&&opening.rule!=='single-roll-packets-v1'?ZMJ.openingPackets(game.dealer).map(function(p){return{pos:seatPos(p.seat),slots:p.slots,jump:p.jump};}):null;
+    var slotMap=wallSlotMapFor(H,opening);
     try{table3D.api.update({round:table3D.round+':'+game.handNo+':'+hs,seats:seats,river:shown,sources:cfg.discardSource,
       wallCount:H.wall.length,dealer:seatPos(game.dealer==null?0:game.dealer),opening:opening,wallDraws:H.wallDraws,
       turnCount:H.turnCount,openingAgeMs:H.openingAgeMs,over:!!H.over,gangDraw:!!H.gangDraw,
-      dealtKinds:dealtKinds.slice(),dealPlan:dealPlan,waitForRoll:!!H.dicePending});}catch(e){failTable3D(e);}
+      dealtKinds:dealtKinds.slice(),dealPlan:dealPlan,waitForRoll:!!H.dicePending,wallSlotMap:slotMap});}catch(e){failTable3D(e);}
   }
   function dicePipSvg(value){
     var patterns={1:[[26,26]],2:[[15,15],[37,37]],3:[[15,15],[26,26],[37,37]],4:[[15,15],[37,15],[15,37],[37,37]],5:[[15,15],[37,15],[26,26],[15,37],[37,37]],6:[[15,14],[37,14],[15,26],[37,26],[15,38],[37,38]]};
@@ -7514,7 +7535,7 @@ window.onerror = function (msg, src, line, col) {
   }
 
   // 与离线缓存同步，保留远端新增的首页版本标识。
-  var BUILD = 'v54';
+  var BUILD = 'v55';
   // ---------- 主界面：先选单机还是联机 ----------
   function showHome() {
     if (!STATS) loadStats();

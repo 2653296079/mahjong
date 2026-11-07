@@ -19,6 +19,31 @@ const ROOT = path.join(__dirname, '..');
 const PORT = Number(process.env.PORT || 8123);
 const SHOT = process.argv.indexOf('--shot') >= 0;
 const PROFILE = fs.mkdtempSync(path.join(os.tmpdir(), 'zmj-online-test-'));
+// 临时配置目录必须自清理（曾泄漏把 C 盘写满）：启动清超过 1 天的旧目录，退出删本次目录。
+const PROFILE_TTL = 24 * 60 * 60 * 1000;
+try {
+  const tmp = os.tmpdir(), now = Date.now();
+  for (const name of fs.readdirSync(tmp)) {
+    if (!name.startsWith('zmj-online-test-')) continue;
+    const full = path.join(tmp, name);
+    if (full === PROFILE) continue;
+    try {
+      if (now - fs.statSync(full).mtimeMs > PROFILE_TTL) fs.rmSync(full, { recursive: true, force: true });
+    } catch (e) {}
+  }
+} catch (e) {}
+// Edge 子进程 kill 后句柄不会立刻释放，删目录要带重试，否则 rmSync 静默失败留下残留。
+const dropProfile = () => {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    try { fs.rmSync(PROFILE, { recursive: true, force: true }); } catch (e) {}
+    if (!fs.existsSync(PROFILE)) return;
+    try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100); } catch (e) {
+      const until = Date.now() + 100; while (Date.now() < until) {}
+    }
+  }
+};
+process.on('exit', dropProfile);
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(sig, () => { dropProfile(); process.exit(1); });
 const EDGE_CANDIDATES = [
   'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
   'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',

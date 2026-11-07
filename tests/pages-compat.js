@@ -16,6 +16,32 @@ const PORT = Number(process.env.PORT || 8171);
 const ARGS = process.argv.slice(2);
 const PAGE = (ARGS.filter((a) => a.indexOf('--') !== 0)[0] || 'pages-compat').replace(/\.html$/, '');
 const PROFILE = fs.mkdtempSync(path.join(os.tmpdir(), 'zmj-pages-test-'));
+// 临时配置目录必须自清理：历史上泄漏过 900+ 个目录把 C 盘写满（39GB），
+// 这里做两处保险——启动时清掉超过 1 天的旧目录，退出时删掉本次目录。
+const PROFILE_TTL = 24 * 60 * 60 * 1000;
+try {
+  const tmp = os.tmpdir(), now = Date.now();
+  for (const name of fs.readdirSync(tmp)) {
+    if (!name.startsWith('zmj-pages-test-')) continue;
+    const full = path.join(tmp, name);
+    if (full === PROFILE) continue;
+    try {
+      if (now - fs.statSync(full).mtimeMs > PROFILE_TTL) fs.rmSync(full, { recursive: true, force: true });
+    } catch (e) {}
+  }
+} catch (e) {}
+// Edge 子进程 kill 后句柄不会立刻释放，删目录要留一点余量并重试，否则 rmSync 静默失败留下残留。
+const dropProfile = () => {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    try { fs.rmSync(PROFILE, { recursive: true, force: true }); } catch (e) {}
+    if (!fs.existsSync(PROFILE)) return;
+    try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100); } catch (e) {
+      const until = Date.now() + 100; while (Date.now() < until) {}
+    }
+  }
+};
+process.on('exit', dropProfile);
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(sig, () => { dropProfile(); process.exit(1); });
 const WITH_HUB = ARGS.indexOf('--hub') >= 0;   // 需要联机时才接上 WebSocket 服务
 const ACCOUNTS = ARGS.includes('--accounts') ? new (require('../server/account-store').AccountStore)(':memory:') : null;
 const accountAPI = ACCOUNTS ? require('../server/account-api').createAccountAPI(ACCOUNTS) : null;

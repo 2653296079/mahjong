@@ -1,10 +1,91 @@
 'use strict';
 // 发布前运行：node tests/run-checks.js --browser
-const { spawnSync } = require('node:child_process');
+const { spawnSync, execSync } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
+
+// ---- 环境前置检查：不达标直接拒跑，不带着脏环境出结果 ----
+// 背景：历史上页面测试的 Edge 临时配置目录泄漏，曾把 C 盘写满至 0GB，
+// 磁盘满会让页面写入失败、渲染中断，跑出一整晚不可信的“卡住/崩溃/超时”。
+// 因此盘余 <20GB 或 %TEMP%\zmj-* 仍有残留时，直接拒绝运行并说明原因。
+const MIN_FREE_GB = 20;
+const TEMP_PREFIX = 'zmj-';
+function envProblems() {
+  const problems = [];
+  try {
+    const freeGB = (() => {
+      if (process.platform === 'win32') {
+        const out = execSync(
+          'powershell -NoProfile -Command "[math]::Round((Get-PSDrive C).Free/1GB,2)"',
+          { encoding: 'utf8', timeout: 20000 }).trim();
+        return Number(out);
+      }
+      const stat = fs.statfsSync ? fs.statfsSync(root) : null;
+      return stat ? (stat.bavail * stat.bsize) / Math.pow(1024, 3) : Infinity;
+    })();
+    if (Number.isFinite(freeGB) && freeGB < MIN_FREE_GB) {
+      problems.push('C 盘剩余 ' + freeGB + 'GB，低于 ' + MIN_FREE_GB + 'GB 下限');
+    }
+  } catch (e) {
+    problems.push('读取磁盘余量失败（' + String(e.message || e).slice(0, 120) + '）');
+  }
+  try {
+    const stale = fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith(TEMP_PREFIX));
+    if (stale.length) {
+      // 列出创建时间，便于区分「刚建出来正在用」与「昨天的残留」
+      const detail = stale.slice(0, 8).map((n) => {
+        let at = '时间未知';
+        try { at = fs.statSync(path.join(os.tmpdir(), n)).birthtime.toLocaleString('zh-CN', { hour12: false }); } catch (e) {}
+        return n + '（建于 ' + at + '）';
+      }).join(', ');
+      problems.push('%TEMP% 仍有 ' + stale.length + ' 个 ' + TEMP_PREFIX + '* 目录：'
+        + detail + (stale.length > 8 ? ' …' : ''));
+      if (browserTestsRunning()) {
+        problems.push('检测到 pages-compat/browser-online/node tests 进程正在运行，'
+          + '这些目录大概率「正在使用中」，不是泄漏 —— 请等其结束再跑，不要删别人的配置目录');
+      } else {
+        problems.push('未检测到相关测试进程，判定为残留，可安全删除后重试');
+      }
+    }
+  } catch (e) {
+    problems.push('扫描临时目录失败（' + String(e.message || e).slice(0, 120) + '）');
+  }
+  return problems;
+}
+
+// 是否有人的页面测试正在跑（用来区分「正在用」与「真残留」）
+function browserTestsRunning() {
+  try {
+    if (process.platform !== 'win32') {
+      const out = execSync('ps -A -o args=', { encoding: 'utf8', timeout: 15000 });
+      return /pages-compat\.js|browser-online\.js|run-checks\.js/.test(out);
+    }
+    const out = execSync(
+      'powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \\"Name=\'node.exe\'\\" '
+      + '| ForEach-Object { $_.CommandLine }"',
+      { encoding: 'utf8', timeout: 20000 });
+    return /pages-compat\.js|browser-online\.js|run-checks\.js/.test(out || '');
+  } catch (e) {
+    return false;
+  }
+}
+const problems = envProblems();
+if (problems.length) {
+  process.stderr.write('环境检查未通过，拒绝运行（拒跑不等于通过，请先清理后再跑）：\n');
+  for (const p of problems) process.stderr.write('  - ' + p + '\n');
+  if (browserTestsRunning()) {
+    process.stderr.write('结论：有其他测试正在运行，等它结束后再跑本门禁；不要删除别人正在用的目录。\n');
+  } else {
+    process.stderr.write('结论：可安全删除 %TEMP%\\zmj-* 残留目录后重试。\n');
+  }
+  process.exit(1);
+}
+process.stdout.write('环境检查通过（C 盘可用、%TEMP%\\zmj-* 无残留）\n');
+
 const jobs = [
-  ['--test', 'tests/online-service.test.js', 'tests/accounts.test.js', 'tests/river.test.js', 'tests/core.test.js', 'tests/multi.test.js', 'tests/training.test.js', 'tests/decision.test.js', 'tests/progress.test.js', 'tests/lessons.test.js', 'tests/settlement.test.js', 'tests/server-limits.test.js', 'tests/evaluation.test.js', 'tests/connection-check.test.js', 'tests/offline.test.js', 'tests/personas.test.js', 'tests/audio.test.js', 'tests/atmosphere.test.js'],
+  ['--test', 'tests/online-service.test.js', 'tests/accounts.test.js', 'tests/river.test.js', 'tests/core.test.js', 'tests/multi.test.js', 'tests/training.test.js', 'tests/decision.test.js', 'tests/progress.test.js', 'tests/lessons.test.js', 'tests/settlement.test.js', 'tests/server-limits.test.js', 'tests/evaluation.test.js', 'tests/connection-check.test.js', 'tests/offline.test.js', 'tests/personas.test.js', 'tests/audio.test.js', 'tests/atmosphere.test.js', 'tests/wall-slot-map.test.js'],
   ['server/test-ws.js'], ['server/test-rooms.js'], ['server/test-online.js'],
   ['tests/no-build-check.js'], ['tests/smoke-server.js']
 ];
