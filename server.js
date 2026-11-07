@@ -1,4 +1,4 @@
-/* 转转麻将 · 手机访问用迷你静态服务器（零依赖，只需 Node）
+﻿/* 转转麻将 · 手机访问用迷你静态服务器（零依赖，只需 Node）
  * 用法：双击「启动手机服务器.bat」，或 node server.js 8000
  */
 const http = require('http');
@@ -21,7 +21,7 @@ const PUBLIC_FILES = new Set([GAME, 'sw.js', 'manifest.webmanifest', 'icon-512.p
 PUBLIC_FILES.add('assets/table3d/table3d.js');
 for (const file of ['three.module.js','three.core.min.js','GLTFLoader.js','BufferGeometryUtils.js','RoomEnvironment.js']) PUBLIC_FILES.add('assets/vendor/three/'+file);
 for (const suit of ['wan','suo','tong']) for(let rank=1;rank<=9;rank++) PUBLIC_FILES.add('assets/mahjong-3d/glb/tiles/'+suit+'-'+String(rank).padStart(2,'0')+'.glb');
-for (const file of ['mahjong-table','tile-back','dice','dealer-marker']) PUBLIC_FILES.add('assets/mahjong-3d/glb/'+file+'.glb');
+for (const file of ['mahjong-table','tile-back','dice','glass-dice-cup','dealer-marker']) PUBLIC_FILES.add('assets/mahjong-3d/glb/'+file+'.glb');
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -56,7 +56,7 @@ const server = http.createServer(async (req, res) => {
   }
   if(urlPath==='/healthz' && (req.method==='GET'||req.method==='HEAD')){
     const core=loadCore();
-    const body=JSON.stringify({status:'ok',app:'zhuanzhuan-mahjong',build:'v32',rulesVersion:core.rulesVersion,analysisVersion:core.analysisVersion,questionVersion:core.questionVersion,...hub.stats()});
+    const body=JSON.stringify({status:'ok',app:'zhuanzhuan-mahjong',build:'v54',rulesVersion:core.rulesVersion,analysisVersion:core.analysisVersion,questionVersion:core.questionVersion,...hub.stats()});
     res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Content-Length':Buffer.byteLength(body)});
     res.end(req.method==='HEAD'?undefined:body);return;
   }

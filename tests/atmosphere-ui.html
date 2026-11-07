@@ -1,0 +1,326 @@
+<!doctype html><meta charset="utf-8"><title>牌友头像 / 教练短句验收</title>
+<pre id="log"></pre><iframe id="game" style="width:730px;height:545px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]};
+function check(ok,msg){if(!ok)throw Error(msg);out.steps.push(msg);}
+var f=document.getElementById('game');
+function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
+function paint(){return new Promise(function(r){requestAnimationFrame(function(){requestAnimationFrame(r);});});}
+function pageError(s){var b=s.d.getElementById('boot');return !!(b&&b.textContent.indexOf('运行出错')>=0);}
+async function reload(){
+  await new Promise(function(res){f.onload=res;f.src='/index.html?t='+Date.now();});
+  return {w:f.contentWindow,d:f.contentWindow.document};
+}
+async function enterGame(cfg){
+  if(cfg)localStorage.setItem('zmj_cfg_v2',JSON.stringify(cfg));
+  localStorage.setItem('zmj_noRotate','1');
+  var s=await reload();
+  var hv=s.d.getElementById('homeAvatar');
+  s.homeAvatar=!!hv;
+  s.homeAvatarWidth=hv?hv.getBoundingClientRect().width:0;
+  s.d.getElementById('homeSolo').click();
+  var t0=Date.now();
+  while(!(s.w.__zmjGame&&s.w.__zmjGame.hand)&&Date.now()-t0<8000)await sleep(50);
+  check(s.w.__zmjGame&&s.w.__zmjGame.hand,'进入单机对局');
+  s.g=s.w.__zmjGame;
+  await paint();await sleep(180);await paint();
+  return s;
+}
+async function bootFrame(cfg){
+  localStorage.setItem('zmj_cfg_v2',JSON.stringify(cfg));
+  localStorage.setItem('zmj_noRotate','1');
+  await new Promise(function(res){f.onload=res;f.src='/index.html?t='+Date.now();});
+  var w=f.contentWindow,d=w.document;
+  var hva=!!d.getElementById('homeAvatar');
+  d.getElementById('homeSolo').click();
+  var t0=Date.now();
+  while(!(w.__zmjGame&&w.__zmjGame.hand)&&Date.now()-t0<8000)await sleep(50);
+  check(w.__zmjGame&&w.__zmjGame.hand,'进入单机对局');
+  await paint();await sleep(180);await paint();
+  return {w:w,d:d,g:w.__zmjGame,homeAvatar:hva};
+}
+function avatars(d){return Array.prototype.slice.call(d.querySelectorAll('.seatAvatar'));}
+function visibleAvatars(d){return avatars(d).filter(function(c){return c.getClientRects().length>0&&getComputedStyle(c).display!=='none';});}
+function openSettings(s){s.d.getElementById('btnSettings').click();}
+function closeSettings(s){var b=s.d.getElementById('btnCancel');if(b&&!s.d.getElementById('modal').classList.contains('hidden'))b.click();}
+function setSelect(s,id,v){var el=s.d.getElementById(id);el.value=v;el.dispatchEvent(new s.w.Event('change',{bubbles:true}));}
+function setRange(s,id,v){var el=s.d.getElementById(id);el.value=v;el.dispatchEvent(new s.w.Event('input',{bubbles:true}));}
+async function waitTurn(s,ms){
+  var t0=Date.now();
+  while(!(s.g.awaiting&&s.g.awaiting.type==='turn'&&s.g.awaiting.seat===s.g.humanSeat())&&Date.now()-t0<ms)await sleep(60);
+  return !!(s.g.awaiting&&s.g.awaiting.type==='turn'&&s.g.awaiting.seat===s.g.humanSeat());
+}
+async function frameSize(s,w,h){
+  f.style.width=w+'px';f.style.height=h+'px';
+  s.w.dispatchEvent(new s.w.Event('resize'));
+  await paint();await paint();
+}
+function coachTexts(s){var all=[];var L=s.w.__zmjCoach.lines;Object.keys(L).forEach(function(k){L[k].forEach(function(l){all.push(l.text);});});return all;}
+function seatHeights(s){
+  return ['seat0','seat1','seat2','seat3'].map(function(id){
+    var el=s.d.getElementById(id).querySelector('.seatName');
+    return el?el.getBoundingClientRect().height:0;
+  });
+}
+async function discardWorst(s){
+  if(!await waitTurn(s,8000))return false;
+  var seat=s.g.humanSeat();
+  var opts=s.g.evaluateDiscards(seat);
+  if(!opts||!opts.length)return false;
+  var best=opts[0],pick=null;
+  for(var i=opts.length-1;i>=1;i--){
+    if(opts[i].shanten>best.shanten||opts[i].ukeire<best.ukeire){pick=opts[i];break;}
+  }
+  if(!pick)pick=opts[opts.length-1];
+  var drawBtn=s.d.getElementById('btnDrawTile');if(drawBtn)drawBtn.click();
+  var t=s.d.querySelector('.handRow .tile[role="button"][data-tile-id^="'+pick.kind+'"]');
+  if(!t)return false;
+  t.click();await sleep(350);
+  return true;
+}
+(async function(){try{
+  // ---------- P1 730×545 默认：头像、侧家隐藏、行高预算 ----------
+  var s=await enterGame({seed:20261016,sound:false,analyze:false,turnTime:0});
+  check(!pageError(s),'默认无启动错误');
+  check(s.homeAvatar&&Math.round(s.homeAvatarWidth)===36,'首页账号区有 36px 程序化头像，实际 '+s.homeAvatarWidth);
+  check(s.d.querySelectorAll('.seatName').length===4,'.seatName 结构仍是 4 个');
+  check(s.d.querySelectorAll('.seatName b').length===0,'.seatName 内没有 <b>');
+  var all=avatars(s.d);
+  check(all.length===4&&all.every(function(c){return c.tagName==='CANVAS';}),'四个座位都有 canvas 头像');
+  check(all.every(function(c){return c.getAttribute('aria-hidden')==='true'&&c.tabIndex===-1;}),'头像不进无障碍树与 Tab 序列');
+  check(new Set(all.map(function(c){return c.toDataURL();})).size===4,'四个座位头像互不相同（同局不撞脸）');
+  check(visibleAvatars(s.d).length===2,'730 宽侧家按窄屏策略隐藏，只显示 #seat0/#seat2，实际 '+visibleAvatars(s.d).length);
+  check(getComputedStyle(s.d.querySelector('#seat1 .seatAvatar')).display==='none','#seat1 的头像在 ≤820 隐藏');
+  var hOn=seatHeights(s);
+  openSettings(s);
+  setSelect(s,'setAvatar','off');
+  await paint();
+  check(avatars(s.d).length===0,'关闭头像后不创建任何 canvas');
+  var hOff=seatHeights(s);
+  var deltas=[];
+  for(var hi=0;hi<4;hi++)deltas.push((hOn[hi]-hOff[hi]).toFixed(1));
+  check(Math.max.apply(null,deltas.map(Number))<=8,'730×545 座位行高增量 ≤8px，实测 '+deltas.join('/'));
+  check(s.d.querySelectorAll('#coach>*').length===3,'切换头像不影响 #coach 三行结构');
+  setSelect(s,'setAvatar','on');
+  await paint();
+  check(visibleAvatars(s.d).length===2,'重新开启后可见头像即时恢复');
+  closeSettings(s);
+
+  // ---------- P2 1440×900：四座可见、无溢出、手牌在屏、头像不压名字 ----------
+  await frameSize(s,1440,900);
+  check(await waitTurn(s,8000),'1440 下等到自己出牌');
+  var drawBtn=s.d.getElementById('btnDrawTile');if(drawBtn)drawBtn.click();await paint();
+  s.w.dispatchEvent(new s.w.Event('resize'));await paint();
+  check(visibleAvatars(s.d).length===4,'1440 四座头像全部可见，实际 '+visibleAvatars(s.d).length);
+  check(s.d.documentElement.scrollWidth<=1441,'1440 宽无横向溢出（实际 '+s.d.documentElement.scrollWidth+'）');
+  var tiles=Array.prototype.slice.call(s.d.querySelectorAll('#seat0 .handRow .tile'));
+  check(tiles.length===14,'1440 下自己手牌 14 张，实际 '+tiles.length);
+  check(tiles.every(function(el){var b=el.getBoundingClientRect();return b.left>=0&&b.right<=1441&&b.top>=0&&b.bottom<900;}),'1440×900 的 14 张手牌均在屏幕内');
+  var cv0=s.d.querySelector('#seat0 .seatAvatar'),lb0=s.d.querySelector('#seat0 .seatLabel');
+  var cb=cv0.getBoundingClientRect(),lbb=lb0.getBoundingClientRect();
+  check(cb.right<=lbb.left+1.5,'头像排在名字之前，不遮挡名字');
+  check(cb.width>=29,'桌面档头像约 30px，实际 '+cb.width);
+
+  // ---------- P3 390×844：两个头像、无溢出、行高 ≤4px ----------
+  await frameSize(s,390,844);
+  check(await waitTurn(s,8000),'390 下等到自己出牌');
+  s.w.dispatchEvent(new s.w.Event('resize'));await paint();
+  check(s.d.documentElement.scrollWidth<=391,'390 宽无横向溢出（实际 '+s.d.documentElement.scrollWidth+'）');
+  check(visibleAvatars(s.d).length===2,'390 竖屏只显示 2 个头像，实际 '+visibleAvatars(s.d).length);
+  var sn0=s.d.getElementById('seat0').querySelector('.seatName');
+  check(sn0.getBoundingClientRect().height<=27,'390 下座位行高增量 ≤4px（实际 '+sn0.getBoundingClientRect().height+'）');
+  var t390=Array.prototype.slice.call(s.d.querySelectorAll('#seat0 .handRow .tile'));
+  check(t390.length===14,'390 下自己手牌 14 张，实际 '+t390.length);
+  check(t390.every(function(el){var b=el.getBoundingClientRect();return b.left>=0&&b.right<=391&&b.top>=0&&b.bottom<844;}),'390×844 的 14 张手牌均在屏幕内');
+  var ab=s.d.getElementById('actionbar').getBoundingClientRect();
+  check(ab.bottom<=845&&ab.top>=0,'操作栏仍完整在屏内');
+
+  // ---------- P4 844×390 横屏 ----------
+  await frameSize(s,844,390);
+  check(await waitTurn(s,8000),'横屏下等到自己出牌');
+  s.w.dispatchEvent(new s.w.Event('resize'));await paint();
+  check(visibleAvatars(s.d).length===4,'844 宽横屏四座头像可见');
+  check(s.d.documentElement.scrollWidth<=845,'844 宽横屏无横向溢出（实际 '+s.d.documentElement.scrollWidth+'）');
+  var tL=Array.prototype.slice.call(s.d.querySelectorAll('#seat0 .handRow .tile'));
+  check(tL.length===14&&tL.every(function(el){var b=el.getBoundingClientRect();return b.left>=0&&b.right<=845&&b.top>=0&&b.bottom<390;}),'844×390 的 14 张手牌均在屏幕内');
+
+  // ---------- P5 3D：on→off→on = 4→0→4（stable3D 早退键含 cfg.avatar） ----------
+  await frameSize(s,730,545);
+  s.d.body.classList.add('table3d');
+  s.w.dispatchEvent(new s.w.Event('resize'));await paint();
+  check(visibleAvatars(s.d).length===4,'3D 布局四座头像全部可见，实际 '+visibleAvatars(s.d).length);
+  check(avatars(s.d).every(function(c){return Math.round(c.getBoundingClientRect().width)===26;}),'3D 档头像 26px');
+  openSettings(s);
+  setSelect(s,'setAvatar','off');
+  await paint();
+  check(avatars(s.d).length===0,'3D 下关闭头像即时归零，实际 '+avatars(s.d).length);
+  setSelect(s,'setAvatar','on');
+  await paint();
+  check(visibleAvatars(s.d).length===4,'3D 下重新开启即时恢复 4 个（不是 3 个），实际 '+visibleAvatars(s.d).length);
+  check(!!s.d.querySelector('#seat0 .seatAvatar'),'3D 下自家人席头像即时回来');
+  closeSettings(s);
+  s.d.body.classList.remove('table3d');
+  s.w.dispatchEvent(new s.w.Event('resize'));await paint();
+
+  // ---------- P7 昵称转义：注入 <b> 仍按文本显示 ----------
+  var name0=s.g.seats[1].name;
+  s.g.seats[1].name='<b>乙</b>';
+  s.w.dispatchEvent(new s.w.Event('resize'));await paint();
+  check(s.d.querySelectorAll('.seatName b').length===0,'注入昵称后 .seatName 内仍无 <b>');
+  var lbl=s.d.querySelector('#seat1 .seatLabel');
+  check(!!lbl&&lbl.textContent==='<b>乙</b>','昵称按文本原样显示（仍走 netEsc 转义）');
+  s.g.seats[1].name=name0;
+  s.w.dispatchEvent(new s.w.Event('resize'));await paint();
+
+  // ---------- P8 纯函数：同名字同参数、值域、1000 个名字不抛错 ----------
+  var A=s.w.__zmjAvatar;
+  check(JSON.stringify(A.params('阿湘'))===JSON.stringify(A.params('阿湘')),'同名字同参数');
+  var bad=0;
+  for(var i=0;i<1000;i++){
+    try{
+      var p=A.params('牌友'+i,i%4===0);
+      if(!(p.face>=0&&p.face<=2&&p.hair>=0&&p.hair<=5&&p.beard>=0&&p.beard<=3&&p.glasses>=0&&p.glasses<=2&&p.hat>=0&&p.hat<=4&&p.accent>=0&&p.accent<=5))bad++;
+      if(p.hair===3&&p.beard!==0)bad++;
+    }catch(e){bad++;}
+  }
+  check(bad===0,'1000 个名字参数在值域内且不抛错');
+  check(!!A.params('座位1').stamp&&!!A.params('').stamp,'空名/座位名有稳定印章字');
+  var pick1=s.w.__zmjCoach.pick('wait',2,5),pick2=s.w.__zmjCoach.pick('wait',2,5);
+  check(pick1&&pick1.id===pick2.id,'教练短句选取是确定性的');
+
+  // ---------- P9 等待态：显示教练短句，且不写 #hint / #announce / #log ----------
+  var waitTexts=s.w.__zmjCoach.lines.wait.map(function(l){return l.text;});
+  // AI 回合时引擎不挂待决：同步把 awaiting 置空渲染一次再还原，不留下不一致状态
+  var savedAwait=s.g.awaiting;
+  s.g.awaiting=null;
+  s.w.dispatchEvent(new s.w.Event('resize'));
+  var mainNow=s.d.getElementById('coachMain').textContent;
+  s.g.awaiting=savedAwait;
+  s.w.dispatchEvent(new s.w.Event('resize'));
+  await paint();
+  check(waitTexts.indexOf(mainNow)>=0,'等待态 #coach 显示原创短句：'+mainNow);
+  check(s.d.querySelectorAll('#coach>*').length===3,'#coach 仍是三行结构，没有第四行');
+  check(s.d.getElementById('hint').textContent.indexOf(mainNow)<0,'#hint 不含教练短句');
+  check(s.d.getElementById('miniHint').textContent.indexOf(mainNow)<0,'#miniHint 不含教练短句');
+  check(s.d.getElementById('announce').textContent.indexOf(mainNow)<0,'#announce 不含教练短句');
+  check(s.d.getElementById('log').textContent.indexOf(mainNow)<0,'#log 不写教练短句');
+
+  // ---------- P10 反馈落点：原结论与 detail 必须保留 ----------
+  check(await discardWorst(s),'打出一张非最优牌，生成上一手复盘');
+  check(s.d.getElementById('coachEyebrow').textContent==='上一手复盘','反馈仍显示「上一手复盘」，实际 '+s.d.getElementById('coachEyebrow').textContent+' / '+s.d.getElementById('coachMain').textContent+' / '+(s.g.awaiting?s.g.awaiting.type:'null')+' / over='+s.g.hand.over);
+  var main10=s.d.getElementById('coachMain').textContent;
+  var detail10=s.d.getElementById('coachDetail').textContent;
+  var wrongTexts=s.w.__zmjCoach.lines.wrong.map(function(l){return l.text;});
+  var riskTexts=s.w.__zmjCoach.lines.risk.map(function(l){return l.text;});
+  check(detail10.indexOf('；牌效推荐')>=0,'原 feedback.detail（牌效结论）保留');
+  if(detail10.charAt(0)==='『'){
+    check(wrongTexts.indexOf(main10)>=0,'答错分支：main 换成 COACH_LINES.wrong：'+main10);
+    check(detail10.indexOf('』')>0,'答错分支：原结论包在 detail 里');
+  }else if(detail10.indexOf('｜')>=0){
+    check(riskTexts.indexOf(detail10.split('｜').pop())>=0,'风险分支：风险句追加在 detail 末尾');
+    check(/向听|进张|牌效/.test(main10),'风险分支：main 保持原结论：'+main10);
+  }else{
+    check(wrongTexts.indexOf(main10)<0&&riskTexts.indexOf(main10)<0,'牌效一致时不替换 main');
+  }
+
+  // ---------- P12a coach=off：反馈回到原值 ----------
+  openSettings(s);
+  setSelect(s,'setCoach','off');
+  await paint();
+  var all12=coachTexts(s);
+  var coachTxt12=s.d.getElementById('coach').textContent;
+  check(!all12.some(function(t){return coachTxt12.indexOf(t)>=0;}),'关闭教练提示后 #coach 不再出现原创短句');
+  check(s.d.getElementById('coachDetail').textContent.indexOf('；牌效推荐')>=0,'关闭后反馈 detail 回到原值');
+  check(JSON.parse(localStorage.getItem('zmj_cfg_v2')).coach==='off','关闭教练提示即时写入 localStorage');
+  closeSettings(s);
+
+  // ---------- P11 结算落点：coach 开 → 独立新节点 ----------
+  openSettings(s);
+  setSelect(s,'setCoach','on');
+  await paint();
+  closeSettings(s);
+  s.g.fastForward=true;
+  for(var fi=0;fi<3000&&!s.g.hand.over;fi++){
+    if(s.g.hasPendingResolve())s.g.resolvePending();
+    else if(s.g.pendingAwaits().length)s.g.autoPlaySeat(s.g.pendingAwaits()[0].seat);
+    else if(!s.g.aiStep())break;
+  }
+  s.g.fastForward=false;
+  check(s.g.hand.over,'快进到结算');
+  s.w.dispatchEvent(new s.w.Event('resize'));await paint();await sleep(200);
+  var viewBtn=s.d.getElementById('btnViewFinalHands');
+  if(viewBtn)viewBtn.click();
+  await paint();await sleep(150);
+  check(!s.d.getElementById('modal').classList.contains('hidden'),'结算弹窗已打开');
+  var reviewEl=s.d.getElementById('reviewCoach');
+  var reviewTexts=s.w.__zmjCoach.lines.review.map(function(l){return l.text;});
+  check(!!reviewEl,'有回顾时出现 #reviewCoach');
+  if(reviewEl){
+    check(reviewTexts.indexOf(reviewEl.textContent)>=0,'#reviewCoach 文本来自 COACH_LINES.review');
+    check(reviewEl.childNodes.length===1&&reviewEl.firstChild.nodeType===3,'#reviewCoach 是纯文本节点（textContent 写入）');
+  }
+  var r11=s.g.lastResult,settleEl=s.d.getElementById('settleCoach');
+  var birdTexts=s.w.__zmjCoach.lines.bird.map(function(l){return l.text;});
+  if(r11&&r11.type!=='draw'&&r11.birds&&r11.birds.length){
+    check(!!settleEl,'有鸟牌时出现 #settleCoach');
+    if(settleEl){
+      check(birdTexts.indexOf(settleEl.textContent)>=0,'#settleCoach 文本来自 COACH_LINES.bird');
+      check(settleEl.childNodes.length===1&&settleEl.firstChild.nodeType===3,'#settleCoach 是纯文本节点');
+    }
+  }else{
+    check(!settleEl,'荒庄或无鸟牌时不出现 #settleCoach');
+  }
+  check(s.d.documentElement.scrollWidth<=731,'结算弹窗无横向溢出');
+
+  // ---------- P12b coach=off：结算不再出现两个教练行 ----------
+  s.d.getElementById('modalDismiss').click();await paint();
+  openSettings(s);
+  setSelect(s,'setCoach','off');
+  await paint();
+  closeSettings(s);
+  var vb2=s.d.getElementById('btnViewFinalHands');
+  check(!!vb2,'结算后仍可重新查看终局');
+  if(vb2)vb2.click();
+  await paint();await sleep(150);
+  check(!s.d.getElementById('settleCoach')&&!s.d.getElementById('reviewCoach'),'关闭教练提示后结算无两个教练行');
+  s.d.getElementById('modalDismiss').click();await paint();
+
+  // ---------- P13 exam：不泄题、不显示教练短句 ----------
+  s=await bootFrame({seed:20261016,sound:false,analyze:false,turnTime:0,learningMode:'exam'});
+  var savedAwait13=s.g.awaiting;
+  s.g.awaiting=null;
+  s.w.dispatchEvent(new s.w.Event('resize'));
+  var examText=s.d.getElementById('coach').textContent;
+  var examMain=s.d.getElementById('coachMain').textContent;
+  s.g.awaiting=savedAwait13;
+  s.w.dispatchEvent(new s.w.Event('resize'));
+  await paint();
+  var all13=coachTexts(s);
+  check(!all13.some(function(t){return examText.indexOf(t)>=0;}),'exam 模式 #coach 不出现原创短句');
+  check(examMain==='观察对手的出牌','exam 等待态保持 v33 文案');
+  check(s.d.getElementById('hint').textContent.indexOf('牌效推荐打')<0,'exam 模式 #hint 不泄题');
+
+  // ---------- P14 设置与持久化：4 键写盘、重载恢复 ----------
+  openSettings(s);
+  setSelect(s,'setAvatar','off');
+  setSelect(s,'setMusic','on');
+  setRange(s,'setMusicVolume','70');
+  setSelect(s,'setCoach','off');
+  closeSettings(s);
+  var saved14=JSON.parse(localStorage.getItem('zmj_cfg_v2'));
+  check(saved14.avatar==='off'&&saved14.music==='on'&&saved14.musicVolume===70&&saved14.coach==='off','四个设置键即时写入 localStorage：'+JSON.stringify([saved14.avatar,saved14.music,saved14.musicVolume,saved14.coach]));
+  s=await bootFrame(saved14);
+  check(avatars(s.d).length===0,'重载后头像仍关闭');
+  check(s.homeAvatar===false,'重载后首页不再创建头像');
+  openSettings(s);
+  check(s.d.getElementById('setAvatar').value==='off','重载后 #setAvatar 仍为 off');
+  check(s.d.getElementById('setMusic').value==='on','重载后 #setMusic 仍为 on');
+  check(s.d.getElementById('setMusicVolume').value==='70','重载后音乐音量仍是 70');
+  check(s.d.getElementById('setCoach').value==='off','重载后 #setCoach 仍为 off');
+  check(!!s.d.getElementById('setAvatar').getAttribute('aria-label')&&!!s.d.getElementById('setMusic').getAttribute('aria-label')&&!!s.d.getElementById('setMusicVolume').getAttribute('aria-label')&&!!s.d.getElementById('setCoach').getAttribute('aria-label'),'新控件都有 aria-label');
+  closeSettings(s);
+  check(!pageError(s),'全流程无启动错误');
+
+  out.ok=true;
+}catch(e){out.errors.push(e.message);}document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));})();
+</script>

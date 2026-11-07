@@ -1,0 +1,91 @@
+<!doctype html><meta charset="utf-8"><title>理牌手感验收</title>
+<pre id="log"></pre><iframe id="game" style="width:390px;height:844px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]};
+function check(ok,msg){if(!ok)throw Error(msg);out.steps.push(msg);}
+function pause(ms){return new Promise(r=>setTimeout(r,ms));}
+async function paint(){await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));}
+(async function(){try{
+  localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:20261016,sound:false,analyze:false,turnTime:0,discardSource:false}));
+  localStorage.setItem('zmj_noRotate','1');
+  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html';});
+  var w=f.contentWindow,d=w.document;d.getElementById('homeSolo').click();var g=w.__zmjGame;
+  var H=w.ZMJ.practiceHand('wide-1');g.hand.players=H.players;g.hand.lastDraw=0;
+  g.hand.turn=0;g.awaiting={type:'turn',seat:0,options:{canZimo:false,anGang:[],buGang:[]}};
+  w.dispatchEvent(new w.Event('resize'));await paint();
+  var drawBtn=d.getElementById('btnDrawTile');
+  check(!!drawBtn,'二维轮到自己时先出现摸牌按钮');
+  drawBtn.click();await paint();
+  check(d.querySelectorAll('#seat0 .handRow [data-tile-id]').length===14,'摸牌后手牌 14 张');
+
+  // 1. 窄屏几何：14 张全部落在手牌区内，不横向溢出
+  for(var dims of [[390,844],[360,844],[430,932]]){
+    f.style.width=dims[0]+'px';f.style.height=dims[1]+'px';w.dispatchEvent(new w.Event('resize'));await paint();await pause(80);
+    var row= d.querySelector('#seat0 .handRow'),rr=row.getBoundingClientRect();
+    var tiles=Array.from(row.querySelectorAll('[data-tile-id]'));
+    var first=tiles[0].getBoundingClientRect(),last=tiles[tiles.length-1].getBoundingClientRect();
+    check(tiles.length===14&&first.left>=rr.left-1&&last.right<=rr.right+1,dims.join('×')+' 14 张手牌全部在手牌区内，不裁切');
+    check(row.scrollWidth<=row.clientWidth+1,dims.join('×')+' 手牌区没有隐藏溢出内容');
+  }
+  f.style.width='390px';f.style.height='844px';w.dispatchEvent(new w.Event('resize'));await paint();await pause(120);
+
+  // 2. 横向拖动是理牌：拖动中出现插入位与牌影，松手后顺序改变且不出牌
+  var row= d.querySelector('#seat0 .handRow');
+  var ids=Array.from(row.querySelectorAll('[data-tile-id]')).map(t=>t.dataset.tileId);
+  var discardsBefore=g.hand.players[0].discards.length,handBefore=JSON.stringify(g.hand.players[0].concealed);
+  var src=row.querySelector('[data-tile-id="'+ids[0]+'"]'),dst=row.querySelector('[data-tile-id="'+ids[6]+'"]');
+  var sr=src.getBoundingClientRect(),dr=dst.getBoundingClientRect();
+  function pe(type,x,y,id){return new w.PointerEvent(type,{bubbles:true,cancelable:true,clientX:x,clientY:y,button:0,pointerId:id||11,pointerType:'touch'});}
+  src.dispatchEvent(pe('pointerdown',sr.left+sr.width/2,sr.top+sr.height/2));
+  row.dispatchEvent(pe('pointermove',sr.left+sr.width/2+20,sr.top+sr.height/2-2));
+  check(!!d.querySelector('.drag-ghost'),'横向拖动时出现跟手牌影');
+  check(!!d.querySelector('#seat0 .handRow .insert-right')||!!d.querySelector('#seat0 .handRow .insert-left'),'拖动经过目标牌时亮出左右插入位');
+  check(d.querySelectorAll('#seat0 .handRow .insert-caret').length===1,'拖动时手牌行内出现金色插入竖条');
+  check(!d.getElementById('center').classList.contains('drop-ready'),'手牌区内横向拖动不点亮牌河投放区');
+  row.dispatchEvent(pe('pointermove',dr.left+dr.width*0.8,dr.top+dr.height/2));
+  row.dispatchEvent(pe('pointerup',dr.left+dr.width*0.8,dr.top+dr.height/2));
+  await paint();
+  var after=Array.from(d.querySelectorAll('#seat0 .handRow [data-tile-id]')).map(t=>t.dataset.tileId);
+  check(after.length===14,'理牌后手牌仍 14 张');
+  check(after.indexOf(ids[0])===after.indexOf(ids[6])+1,'松手后拖动牌吸附到目标牌右侧');
+  check(after.filter(id=>id!==ids[0]).join()===ids.filter(id=>id!==ids[0]).join(),'其余手牌相对顺序不受影响');
+  check(g.hand.players[0].discards.length===discardsBefore&&JSON.stringify(g.hand.players[0].concealed)===handBefore,'理牌不改变手牌与弃牌，只是排列顺序');
+  check(!d.querySelector('#seat0 .handRow .insert-left,#seat0 .handRow .insert-right,#seat0 .handRow .insert-caret'),'松手后插入位清除');
+  var said=d.getElementById('announce').textContent;
+  var want='已把 '+w.ZMJ.tileName(Number(ids[0].split(':')[0]))+' 移到第 '+(after.indexOf(ids[0])+1)+' 张';
+  check(said===want,'松手后向读屏播报可见位置（实际：'+(said||'空')+'）');
+
+  // 3. 紧贴手牌上方横拖也不会被当成出牌（误触防护）
+  row=d.querySelector('#seat0 .handRow');
+  var ids3=Array.from(row.querySelectorAll('[data-tile-id]')).map(t=>t.dataset.tileId);
+  var src3=row.querySelector('[data-tile-id="'+ids3[2]+'"]'),dst3=row.querySelector('[data-tile-id="'+ids3[9]+'"]');
+  var s3=src3.getBoundingClientRect(),d3=dst3.getBoundingClientRect(),rowTop=row.getBoundingClientRect().top;
+  var discards3=g.hand.players[0].discards.length;
+  src3.dispatchEvent(pe('pointerdown',s3.left+s3.width/2,s3.top+s3.height/2,12));
+  row.dispatchEvent(pe('pointermove',d3.left+d3.width*0.3,rowTop-6,12));
+  check(!d.getElementById('center').classList.contains('drop-ready'),'手牌正上方的横向拖动不点亮牌河');
+  row.dispatchEvent(pe('pointerup',d3.left+d3.width*0.3,rowTop-6,12));
+  await paint();
+  check(g.hand.players[0].discards.length===discards3,'手牌上方松手不会误出牌');
+  var after3=Array.from(d.querySelectorAll('#seat0 .handRow [data-tile-id]')).map(t=>t.dataset.tileId);
+  check(after3.indexOf(ids3[2])===after3.indexOf(ids3[9])-1,'手牌上方的拖动仍按理牌吸附落到目标左侧');
+
+  // 4. 仍可拖出牌：抬到中央牌河点亮投放区，松手进牌河
+  row=d.querySelector('#seat0 .handRow');
+  var ids4=Array.from(row.querySelectorAll('[data-tile-id]')).map(t=>t.dataset.tileId);
+  var src4=row.querySelector('[data-tile-id="'+ids4[0]+'"]');
+  var s4=src4.getBoundingClientRect(),c=d.getElementById('center').getBoundingClientRect();
+  var discards4=g.hand.players[0].discards.length;
+  src4.dispatchEvent(pe('pointerdown',s4.left+s4.width/2,s4.top+s4.height/2,13));
+  row.dispatchEvent(pe('pointermove',c.left+c.width/2,c.top+c.height/2,13));
+  check(d.getElementById('center').classList.contains('drop-ready'),'拖到中央牌河点亮投放区');
+  row.dispatchEvent(pe('pointerup',c.left+c.width/2,c.top+c.height/2,13));
+  await paint();await pause(60);
+  check(g.hand.players[0].discards.length===discards4+1,'拖到牌河松手仍能正常出牌');
+  check(!d.getElementById('center').classList.contains('drop-ready'),'出牌后投放区提示收起');
+  out.ok=true;
+}catch(e){out.ok=false;out.errors.push(String(e&&e.stack||e));}
+document.getElementById('log').textContent=JSON.stringify(out);
+await fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));
+})();
+</script>

@@ -1,0 +1,51 @@
+<!doctype html><meta charset="utf-8"><title>窄屏牌面可读性验收</title>
+<pre id="log"></pre><iframe id="game" style="width:360px;height:844px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]};
+function check(ok,msg){if(!ok)throw Error(msg);out.steps.push(msg);}
+function pause(ms){return new Promise(r=>setTimeout(r,ms));}
+async function paint(){await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));}
+(async function(){try{
+  localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:20261020,sound:false,analyze:false,turnTime:0,discardSource:false,learningMode:'guided'}));
+  localStorage.setItem('zmj_noRotate','1');
+  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html?view=2d';});
+  var w=f.contentWindow,d=w.document;d.getElementById('homeSolo').click();
+  for(var i=0;i<40&&!d.getElementById('btnDrawTile');i++)await pause(50);
+  var db=d.getElementById('btnDrawTile');if(db)db.click();await paint();
+  function tiles(){return Array.from(d.querySelectorAll('#seat0 .handRow [data-tile-id]'));}
+
+  // 360：牌更宽更高、图形更大，14 张仍全部可见
+  var t=tiles();check(t.length===14,'360 摸牌后 14 张手牌');
+  var b=t[0].getBoundingClientRect();
+  check(b.width>=23.4,'360 单张牌宽 ≥23.4px（实际 '+b.width.toFixed(1)+'）');
+  check(b.height>=45,'360 单张牌高 ≥45px（实际 '+b.height.toFixed(1)+'）');
+  var svg=t[0].querySelector('svg');
+  check(!!svg&&svg.getBoundingClientRect().width>=19.3,'360 牌面图形宽 ≥19.3px（实际 '+(svg?svg.getBoundingClientRect().width.toFixed(1):'无')+'）');
+  var row=d.querySelector('#seat0 .handRow'),rr=row.getBoundingClientRect();
+  var last=t[t.length-1].getBoundingClientRect();
+  check(t.every(x=>{var q=x.getBoundingClientRect();return q.left>=rr.left-1&&q.right<=rr.right+1;}),'360 的 14 张牌都落在手牌区内，不裁切');
+  check(row.scrollWidth<=row.clientWidth+1,'360 手牌区没有隐藏溢出（无横向滚动）');
+
+  // 选中一张：放大预览且不改变手牌张数
+  t[0].click();await paint();
+  var chosen=d.querySelectorAll('#seat0 .handRow .chosen');
+  check(chosen.length===1,'点选后恰好一张牌处于选中态');
+  var cb=chosen[0].getBoundingClientRect();
+  check(cb.width>=b.width*1.12,'选中牌宽度放大 ≥12%（'+b.width.toFixed(1)+' → '+cb.width.toFixed(1)+'）');
+  check(cb.height>=b.height*1.12,'选中牌高度同步放大（'+b.height.toFixed(1)+' → '+cb.height.toFixed(1)+'）');
+  check(cb.top>=rr.top-2,'放大后的牌仍在手牌区内，不压到上方区域');
+  check(tiles().length===14,'选中只是预览，不出牌');
+
+  // 390：同样收紧，尺寸比 360 更大
+  f.style.width='390px';w.dispatchEvent(new w.Event('resize'));await paint();await pause(200);
+  var t390=tiles(),b390=t390[0].getBoundingClientRect();
+  check(t390.length>=13,'390 手牌数量正常');
+  check(b390.width>=25.4,'390 单张牌宽 ≥25.4px（实际 '+b390.width.toFixed(1)+'）');
+  check(b390.height>=48,'390 单张牌高 ≥48px（实际 '+b390.height.toFixed(1)+'）');
+  check(d.documentElement.scrollWidth<=390,'390 无横向溢出');
+  out.ok=true;
+}catch(e){out.ok=false;out.errors.push(String(e&&e.stack||e));}
+document.getElementById('log').textContent=JSON.stringify(out);
+await fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));
+})();
+</script>

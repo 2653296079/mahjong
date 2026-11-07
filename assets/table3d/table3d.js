@@ -27,8 +27,16 @@ function surfaceTexture(type) {
   let seed = 618033;
   for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    const shade = clamp(Math.round(135 + ((seed >>> 24) - 128) * (type === 'felt' ? 0.14 : 0.24)), 0, 255), i = (y * 256 + x) * 4;
-    pixels.data[i] = pixels.data[i + 1] = pixels.data[i + 2] = shade; pixels.data[i + 3] = 255;
+    const grain = type === 'rail' ? 13 * Math.sin(y * 0.48 + 1.8 * Math.sin(x / 51)) : 0;
+    const shade = clamp(Math.round(135 + grain + ((seed >>> 24) - 128) * (type === 'felt' ? 0.14 : 0.24)), 0, 255), i = (y * 256 + x) * 4;
+    if (type === 'walnut') {
+      const vein = Math.sin(y * 0.59 + 2.3 * Math.sin(x * Math.PI / 128) + 1.2 * Math.sin(y * 0.12));
+      const value = shade * 0.14 + vein * 8;
+      pixels.data[i] = 79 + value; pixels.data[i + 1] = 53 + value; pixels.data[i + 2] = 35 + value;
+    } else {
+      pixels.data[i] = pixels.data[i + 1] = pixels.data[i + 2] = shade;
+    }
+    pixels.data[i + 3] = 255;
   }
   context.putImageData(pixels, 0, 0);
   const texture = new THREE.CanvasTexture(canvas);
@@ -39,11 +47,14 @@ function surfaceTexture(type) {
 export async function createTable3D(host, callbacks = {}) {
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, innerWidth < 700 ? 1.25 : 1.75));
+  const gl = renderer.getContext();
+  const rendererInfo = gl.getExtension('WEBGL_debug_renderer_info');
+  const softwareRendering = rendererInfo && /swiftshader|llvmpipe|software rasterizer/i.test(gl.getParameter(rendererInfo.UNMASKED_RENDERER_WEBGL));
+  renderer.setPixelRatio(softwareRendering ? 0.55 : Math.min(devicePixelRatio || 1, innerWidth < 700 ? 1.25 : 1.75));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = !softwareRendering;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.domElement.setAttribute('role', 'img');
   renderer.domElement.setAttribute('aria-label', '可交互的三维麻将牌桌');
@@ -59,8 +70,8 @@ export async function createTable3D(host, callbacks = {}) {
   scene.environmentIntensity = 0.38;
   room.dispose();
   generator.dispose();
-  scene.add(new THREE.HemisphereLight(0xe6e9e1, 0x17241d, 0.32));
-  const keyLight = new THREE.DirectionalLight(0xffeed7, 2.7);
+  scene.add(new THREE.HemisphereLight(0xffeed7, 0x28372c, 0.42));
+  const keyLight = new THREE.DirectionalLight(0xffe7c6, 2.55);
   keyLight.position.set(-0.85, 2.2, 0.65);
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.setScalar(innerWidth < 700 ? 512 : 1024);
@@ -68,8 +79,11 @@ export async function createTable3D(host, callbacks = {}) {
   keyLight.shadow.bias = -0.00008;
   keyLight.shadow.normalBias = 0.00035;
   scene.add(keyLight);
-  const fillLight = new THREE.DirectionalLight(0xb9cfdf, 0.55); fillLight.position.set(1.3, 1.2, -0.9); scene.add(fillLight);
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: '#101b16', roughness: 0.96 }));
+  const fillLight = new THREE.DirectionalLight(0xd9dfce, 0.56); fillLight.position.set(1.3, 1.2, -0.9); scene.add(fillLight);
+  const floorWood = surfaceTexture('walnut');
+  floorWood.colorSpace = THREE.SRGBColorSpace;
+  floorWood.repeat.set(140, 140);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: '#807c6f', map: floorWood, roughness: 0.89 }));
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -0.004;
   floor.receiveShadow = true;
@@ -78,24 +92,30 @@ export async function createTable3D(host, callbacks = {}) {
   const loader = new GLTFLoader(), templates = new Map(), materialCache = new Map();
   const feltBump = surfaceTexture('felt'), railBump = surfaceTexture('rail');
   feltBump.anisotropy = railBump.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  const clothUrl = getComputedStyle(host).getPropertyValue('--room-table').trim().match(/^url\(["']?(data:image\/webp;base64,[A-Za-z0-9+/=]+)["']?\)$/);
+  const clothMap = clothUrl ? await new THREE.TextureLoader().loadAsync(clothUrl[1]) : null;
+  if (clothMap) clothMap.colorSpace = THREE.SRGBColorSpace;
+  const railWood = surfaceTexture('walnut');
+  railWood.colorSpace = THREE.SRGBColorSpace;
+  railWood.repeat.set(2, 2);
   function finishMaterial(source) {
     if (materialCache.has(source)) return materialCache.get(source);
     let material = source;
     if (/ivory resin|jade green resin/i.test(source.name)) {
       material = new THREE.MeshPhysicalMaterial();
       THREE.MeshStandardMaterial.prototype.copy.call(material, source);
-      material.roughness = /ivory/i.test(source.name) ? 0.30 : 0.26;
-      material.clearcoat = 0.18; material.clearcoatRoughness = 0.32; material.ior = 1.49;
+      material.roughness = /ivory/i.test(source.name) ? 0.36 : 0.32;
+      material.clearcoat = 0.12; material.clearcoatRoughness = 0.32; material.ior = 1.49;
       material.envMapIntensity = 0.7;
     } else if (/playing felt/i.test(source.name)) {
-      material.color.set('#145440'); material.bumpMap = feltBump; material.bumpScale = 0.00006; material.roughness = 0.96;
+      material.color.set(clothMap ? '#ffffff' : '#275449'); material.map = clothMap; material.bumpMap = feltBump; material.bumpScale = 0.00006; material.roughness = 0.96;
     } else if (/padded rail/i.test(source.name)) {
-      material.color.set('#263b32'); material.bumpMap = railBump; material.bumpScale = 0.00012; material.roughness = 0.65;
+      material.color.set('#f1e5d5'); material.map = railWood; material.bumpMap = railBump; material.bumpScale = 0.00012; material.roughness = 0.65;
     } else if (/ink/i.test(source.name)) { material.roughness = 0.58; material.envMapIntensity = 0.25; }
     materialCache.set(source, material); return material;
   }
   const requests = Array.from({ length: 27 }, (_, kind) => [modelId(kind), 'tiles/' + modelId(kind) + '.glb']);
-  requests.push(['mahjong-table', 'mahjong-table.glb'], ['tile-back', 'tile-back.glb'], ['dice', 'dice.glb'], ['dealer-marker', 'dealer-marker.glb']);
+  requests.push(['mahjong-table', 'mahjong-table.glb'], ['tile-back', 'tile-back.glb'], ['dice', 'dice.glb'], ['glass-dice-cup', 'glass-dice-cup.glb'], ['dealer-marker', 'dealer-marker.glb']);
   let loaded = 0;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25000);
@@ -108,6 +128,21 @@ export async function createTable3D(host, callbacks = {}) {
       gltf.scene.traverse(obj => {
         if (obj.isMesh) {
           obj.material = Array.isArray(obj.material) ? obj.material.map(finishMaterial) : finishMaterial(obj.material);
+          if ((clothMap && obj.material.map === clothMap) || obj.material.map === railWood) {
+            // Project across the two broad axes for continuous cloth and rail textures.
+            const geometry = obj.geometry;
+            geometry.computeBoundingBox();
+            const bounds = geometry.boundingBox, size = bounds.getSize(new THREE.Vector3());
+            const [u,v] = ['x','y','z'].sort((a,b) => size[b] - size[a]);
+            const pos = geometry.getAttribute('position'), uv = new Float32Array(pos.count * 2);
+            const point = new THREE.Vector3();
+            for (let i = 0; i < pos.count; i++) {
+              point.fromBufferAttribute(pos,i);
+              uv[2*i] = (point[u] - bounds.min[u]) / size[u];
+              uv[2*i+1] = (point[v] - bounds.min[v]) / size[v];
+            }
+            geometry.setAttribute('uv', new THREE.BufferAttribute(uv,2));
+          }
           obj.castShadow = !/face|rank|character|pip/i.test(obj.name);
           obj.receiveShadow = true;
         }
@@ -155,6 +190,12 @@ export async function createTable3D(host, callbacks = {}) {
     button.position.x = Math.sin(pos * Math.PI / 2) * 0.059;
     button.position.z = Math.cos(pos * Math.PI / 2) * 0.059;
   }
+  const glassCup = templates.get('glass-dice-cup').clone(true);
+  glassCup.position.set(0, TOP + 0.018, 0);
+  glassCup.visible = false;
+  glassCup.traverse(obj => { obj.castShadow = false; });
+  scene.add(glassCup);
+  let cupShake = { x: 0, z: 0, spin: 0 };
   const takeMarker = new THREE.Group();
   const markerBorder = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.033, 0.044, 0.041)),
     new THREE.LineBasicMaterial({ color: '#edcd77' }));
@@ -188,7 +229,7 @@ export async function createTable3D(host, callbacks = {}) {
   const entries = new Map(), dummy = new THREE.Object3D(), matrix = new THREE.Matrix4();
   let machineRun = null, lastBacks = [], recycling = null;
   let snapshot = null, round = null, active = false, disposed = false, overview = false;
-  let hovered = null, dirty = true, request = 0, animatedUntil = 0, lastFrame = 0, discardHint = null;
+  let hovered = null, dirty = true, request = 0, animatedUntil = 0, lastFrame = 0, discardHint = null, dragTile = null, dragInsert = null;
   let yaw = 0, pitch = 0.67, drag = null, width = 0, height = 0;
   const projected = new Map();
   const bounds = new THREE.Box3(), corners = Array.from({ length: 8 }, () => new THREE.Vector3());
@@ -286,17 +327,57 @@ export async function createTable3D(host, callbacks = {}) {
   }
   function updateHover() {
     if (machineRun) return;
+    const gapX = dragInsert ? dragInsert.gapX : null;
     for (const entry of entries.values()) {
       if (entry.type !== 'hand') continue;
+      // 三维拖拽：被拖的牌直接放在指针抬起的平面上，不走抬牌补间，手指和模型同步。
+      if (dragTile && entry.id === dragTile.id) {
+        entry.tween = null;
+        entry.object.position.copy(dragTile.target);
+        entry.liftTarget = dragTile.target;
+        continue;
+      }
       const lifted = entry.chosen || entry.id === hovered;
       const next = entry.base.clone();
+      // 理牌让位：插入槽之后的牌整体右移一格，给被拖的牌腾出空位。
+      if (gapX != null && Math.abs(next.z - HAND_Z) < 0.05 && next.x >= gapX - 1e-3) next.x += HAND_STEP;
       if (lifted) { next.y += entry.chosen ? 0.016 : 0.009; next.z -= entry.chosen ? 0.015 : 0.006; }
       if (!entry.liftTarget || entry.liftTarget.distanceToSquared(next) > 1e-10) {
         entry.liftTarget = next;
-        animate(entry, next, entry.q, 150);
+        animate(entry, next, entry.q, gapX != null ? 130 : 150);
       }
     }
+    if (dragTile) dirty = true;
     schedule();
+  }
+  // 指针在「牌桌上方一个虚拟平面」上反投影，得到被拖牌的落点；松手后模型回到原位或由弃牌动画接管。
+  const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(TOP + 0.115));
+  const dragRay = new THREE.Raycaster(), dragNdc = new THREE.Vector2(), dragHit = new THREE.Vector3();
+  function setTileDrag(id, clientX, clientY) {
+    if (id == null) {
+      if (dragTile || dragInsert) { dragTile = null; dragInsert = null; host.dataset.tileInsert = ''; host.dataset.tileDrag = ''; updateHover(); }
+      return;
+    }
+    const rect = renderer.domElement.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    dragNdc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    dragRay.setFromCamera(dragNdc, camera);
+    if (!dragRay.ray.intersectPlane(dragPlane, dragHit)) return;
+    dragHit.x = clamp(dragHit.x, -0.42, 0.42);
+    dragHit.z = clamp(dragHit.z, -0.01, 0.40);
+    dragTile = { id, target: dragHit.clone() };
+    // 靠近自己手牌时找插入槽：左侧第一张比落点靠右的牌就是插入点，找不到就插到最后。
+    dragInsert = null;
+    const others = [...entries.values()].filter(e => e.type === 'hand' && e.id !== id).sort((a, b) => a.base.x - b.base.x);
+    if (dragHit.z > 0.25 && others.length) {
+      const after = others.find(e => dragHit.x < e.base.x - 0.004);
+      dragInsert = after
+        ? { gapX: after.base.x, targetId: after.id, before: true }
+        : { gapX: others[others.length - 1].base.x + HAND_STEP, targetId: others[others.length - 1].id, before: false };
+    }
+    host.dataset.tileDrag = id;
+    host.dataset.tileInsert = dragInsert ? dragInsert.targetId + ':' + (dragInsert.before ? 'b' : 'a') : '';
+    dirty = true; updateHover(); schedule();
   }
 
   function diceQuaternion(number, yaw = 0) {
@@ -351,7 +432,7 @@ export async function createTable3D(host, callbacks = {}) {
     const initial = round !== next.round;
     if (initial) {
       for (const entry of entries.values()) tiles.remove(entry.object);
-      entries.clear(); projected.clear(); hovered = null; discardHint = null; round = next.round;
+      entries.clear(); projected.clear(); hovered = null; discardHint = null; dragTile = null; round = next.round;
     }
     const wanted = new Set(), hidden = [];
     contact.count = 0;
@@ -458,6 +539,7 @@ export async function createTable3D(host, callbacks = {}) {
     dirty = true; schedule();
   }
   function finishMachine(notify = true) {
+    glassCup.visible = false;
     if (!machineRun) return;
     const run = machineRun;
     machineRun = null;
@@ -485,9 +567,9 @@ export async function createTable3D(host, callbacks = {}) {
   }
   function frameMachine(now) {
     const run = machineRun;
-    if (!run) return;
+    if (!run) { glassCup.visible = false; return; }
     // 首次 shader 编译或后台恢复不能吞掉整段升墙／掷骰动画。
-    if (run.lastTime !== null) run.elapsed += Math.min(100, Math.max(0, now - run.lastTime));
+    if (run.lastTime !== null) run.elapsed += Math.min(run.phase === 'deal' ? 140 : 300, Math.max(0, now - run.lastTime));
     if (!run.rolled) run.elapsed = Math.min(run.elapsed, run.collect + 1400);
     run.lastTime = now;
     let t = run.elapsed, phase, p;
@@ -503,7 +585,7 @@ export async function createTable3D(host, callbacks = {}) {
       callbacks.onMachine?.(phase, run.opening, [0, 0, 0, 0]);
     }
     const smooth = n => { n = clamp(n, 0, 1); return n * n * (3 - 2 * n); };
-    const focus = phase === 'dice' ? smooth(p / 0.18) * (1 - smooth((p - 0.82) / 0.18)) : 0;
+    const focus = phase === 'await-roll' ? 0.55 : phase === 'dice' ? (0.55 + 0.45 * smooth(p / 0.18)) * (1 - smooth((p - 0.82) / 0.18)) : 0;
     if (focus !== run.focus) { run.focus = focus; cameraPose(focus); }
     host.dataset.diceFocus = focus.toFixed(2);
     const settled = phase !== 'dice' || p >= 0.62, diceState = (phase === 'dice') + ':' + settled;
@@ -511,14 +593,30 @@ export async function createTable3D(host, callbacks = {}) {
     run.faces.forEach(f => { f.object.visible = false; });
     lid.position.y = phase === 'collect' ? 0.105 * Math.sin(Math.min(p * 2, 1) * Math.PI / 2)
       : phase === 'shuffle' ? 0.105 : phase === 'lift' ? 0.105 * (1 - ease(p)) : 0;
+    glassCup.visible = phase === 'await-roll' || phase === 'dice' && p < 0.96;
+    const handShaking = phase === 'await-roll';
+    const rolling = phase === 'dice' && p < 0.62;
+    const shakeFade = rolling ? Math.pow(1 - p / 0.62, 2) : 0;
+    glassCup.position.set(handShaking ? cupShake.x : Math.sin(p * 35) * 0.018 * shakeFade,
+      TOP + 0.018 + (phase === 'dice' ? smooth((p - 0.65) / 0.3) * 0.17 : 0),
+      handShaking ? cupShake.z : Math.cos(p * 29) * 0.012 * shakeFade);
+    glassCup.rotation.set(handShaking ? cupShake.z * 2 : 0, 0,
+      handShaking ? -cupShake.x * 2.5 : Math.sin(p * 35) * 0.12 * shakeFade);
+    host.dataset.cupModel = glassCup.visible ? 'glass-dice-cup.glb' : '';
+    host.dataset.cupShake = cupShake.spin.toFixed(2);
     const diceEntries = [entries.get('dice:0'), entries.get('dice:1')];
     diceEntries.forEach((entry, i) => {
       if (!entry) return;
-      entry.object.visible = phase === 'dice' || phase === 'deal';
+      entry.object.visible = phase === 'await-roll' || phase === 'dice' || phase === 'deal';
       entry.tween = null;
       const target = diceQuaternion(run.opening.dice[i], i ? 0.3 : -0.25);
       entry.object.position.copy(entry.base); entry.object.position.y += lid.position.y;
-      if (phase === 'dice' && p < 0.62) {
+      if (handShaking) {
+        entry.object.position.x += cupShake.x + Math.sin(cupShake.spin + i * 3) * 0.009;
+        entry.object.position.z += cupShake.z + Math.cos(cupShake.spin + i * 3) * 0.009;
+        entry.object.position.y += Math.abs(Math.sin(cupShake.spin * 1.7 + i)) * 0.022;
+        entry.object.quaternion.setFromEuler(new THREE.Euler(cupShake.spin * 1.3, cupShake.spin + i, cupShake.spin * 0.8));
+      } else if (phase === 'dice' && p < 0.62) {
         const f = p / 0.62, motion = Math.pow(1 - f, 2);
         const spin = new THREE.Quaternion().setFromEuler(new THREE.Euler((10 * Math.PI + i) * motion, 8 * Math.PI * motion, 6 * Math.PI * motion));
         entry.object.quaternion.copy(spin.multiply(target));
@@ -644,6 +742,18 @@ export async function createTable3D(host, callbacks = {}) {
       scene.updateMatrixWorld();
       renderer.render(scene, camera);
       projectHand();
+      if (glassCup.visible) {
+        const box = new THREE.Box3().setFromObject(glassCup);
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (let i = 0; i < 8; i++) {
+          const point = new THREE.Vector3(i & 1 ? box.max.x : box.min.x,
+            i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).project(camera);
+          const x = (point.x + 1) * width / 2, y = (1 - point.y) * height / 2;
+          minX = Math.min(minX,x); maxX = Math.max(maxX,x);
+          minY = Math.min(minY,y); maxY = Math.max(maxY,y);
+        }
+        callbacks.onCupProject?.({x:minX,y:minY,width:maxX-minX,height:maxY-minY});
+      }
       host.dataset.viewport = Math.round(width) + 'x' + Math.round(height);
       host.dataset.drawCalls = String(renderer.info.render.calls);
       host.dataset.triangles = String(renderer.info.render.triangles);
@@ -683,7 +793,10 @@ export async function createTable3D(host, callbacks = {}) {
   renderer.domElement.addEventListener('webglcontextlost', event => {
     event.preventDefault(); setActive(false); callbacks.onError?.(Error('图形上下文已中断'));
   });
-  function visibility() { if (!document.hidden) { dirty = true; schedule(); } }
+  function visibility() {
+    if (machineRun) machineRun.lastTime = null;
+    if (!document.hidden) { dirty = true; schedule(); }
+  }
   document.addEventListener('visibilitychange', visibility);
   resize();
   host.dataset.phase = 'ready';
@@ -693,8 +806,15 @@ export async function createTable3D(host, callbacks = {}) {
       if (machineRun && !machineRun.rolled && !force) return false;
       finishMachine(); return true;
     },
+    shakeDice(x,z,spin) {
+      if (!machineRun || machineRun.phase !== 'await-roll') return;
+      cupShake = { x: clamp(x,-0.03,0.03), z: clamp(z,-0.02,0.02), spin };
+      dirty = true; schedule();
+    },
     rollDice() { if (machineRun) { machineRun.rolled = true; machineRun.lastTime = null; dirty = true; schedule(); } },
     hover(id) { if (hovered !== id) { hovered = id; updateHover(); } },
+    setTileDrag,
+    tileDragTarget() { return dragInsert ? { targetId: dragInsert.targetId, before: dragInsert.before } : null; },
     noteDiscard(id) {
       const entry = entries.get('hand:' + id);
       if (entry) discardHint = { kind: entry.kind, position: entry.object.position.clone(), quaternion: entry.object.quaternion.clone(), time: performance.now() };

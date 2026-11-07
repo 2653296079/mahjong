@@ -1,0 +1,215 @@
+<!doctype html><meta charset="utf-8"><title>背景音乐验收</title>
+<pre id="log"></pre><iframe id="game" style="width:730px;height:545px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]};
+function check(ok,msg){if(!ok)throw Error(msg);out.steps.push(msg);}
+var f=document.getElementById('game');
+function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
+function paint(){return new Promise(function(r){requestAnimationFrame(function(){requestAnimationFrame(r);});});}
+function def(w,name,value){try{Object.defineProperty(w,name,{value:value,configurable:true,writable:true});}catch(e){try{w[name]=value;}catch(_){}}}
+function setHidden(d,v){Object.defineProperty(d,'hidden',{value:!!v,configurable:true});}
+function pageError(s){var b=s.d.getElementById('boot');return !!(b&&b.textContent.indexOf('运行出错')>=0);}
+
+function makeStub(w){
+  var counts={contexts:0,osc:0,gain:0,filter:0,buf:0,forbidden:0};
+  var gains=[],oscillators=[],filters,buffers,spoken=[],utterances=[],ramps=[];
+  filters=[];buffers=[];
+  function param(owner,name){
+    return {
+      value:0,
+      setValueAtTime:function(v,t){ramps.push({owner:owner,name:name,type:'set',target:v,time:t});},
+      linearRampToValueAtTime:function(v,t){ramps.push({owner:owner,name:name,type:'linear',target:v,time:t});},
+      exponentialRampToValueAtTime:function(v,t){ramps.push({owner:owner,name:name,type:'exp',target:v,time:t});},
+      setTargetAtTime:function(){counts.forbidden++;},
+      cancelScheduledValues:function(){counts.forbidden++;}
+    };
+  }
+  function Ctx(){
+    counts.contexts++;
+    this.sampleRate=8000;this.state='running';this.destination={};
+    var started=Date.now();
+    Object.defineProperty(this,'currentTime',{get:function(){return (Date.now()-started)/1000;}});
+  }
+  Ctx.prototype.createGain=function(){
+    counts.gain++;
+    var g={connect:function(t){g.targets.push(t);},targets:[]};
+    g.gain=param(g,'gain');gains.push(g);return g;
+  };
+  Ctx.prototype.createOscillator=function(){
+    counts.osc++;
+    var o={type:'',connect:function(t){o.targets.push(t);},targets:[],start:function(){},stop:function(){}};
+    o.frequency=param(o,'frequency');oscillators.push(o);return o;
+  };
+  Ctx.prototype.createBiquadFilter=function(){
+    counts.filter++;
+    var q={type:'',connect:function(t){q.targets.push(t);},targets:[]};
+    q.frequency=param(q,'frequency');q.Q=param(q,'Q');filters.push(q);return q;
+  };
+  Ctx.prototype.createBufferSource=function(){
+    counts.buf++;
+    var b={buffer:null,connect:function(t){b.targets.push(t);},targets:[],start:function(){},stop:function(){}};
+    buffers.push(b);return b;
+  };
+  Ctx.prototype.createBuffer=function(ch,len){return {getChannelData:function(){return new Float32Array(len||1);}};};
+  Ctx.prototype.resume=function(){};
+  def(w,'AudioContext',Ctx);def(w,'webkitAudioContext',Ctx);
+  var synth={
+    speak:function(u){spoken.push(String(u.text));utterances.push(u);},
+    cancel:function(){},getVoices:function(){return [{lang:'zh-CN'}];},
+    speaking:false,addEventListener:function(){}
+  };
+  def(w,'speechSynthesis',synth);
+  def(w,'SpeechSynthesisUtterance',function(text){this.text=text;});
+  return {counts:counts,gains:gains,oscillators:oscillators,filters:filters,buffers:buffers,
+    spoken:spoken,utterances:utterances,ramps:ramps};
+}
+function musicGainOf(s){try{return s.w.__zmjMusic.gain();}catch(e){return null;}}
+function musicGainNodes(s){
+  var mg=musicGainOf(s);
+  if(!mg)return [];
+  return s.env.gains.filter(function(g){return g.targets&&g.targets.indexOf(mg)>=0;});
+}
+function musicOscCount(s){
+  var mg=musicGainOf(s);
+  if(!mg)return 0;
+  var mgs=musicGainNodes(s);
+  var mfs=s.env.filters.filter(function(fl){return fl.targets&&fl.targets.some(function(t){return mgs.indexOf(t)>=0;});});
+  return s.env.oscillators.filter(function(o){
+    return o.targets&&(o.targets.some(function(t){return mgs.indexOf(t)>=0;})||o.targets.some(function(t){return mfs.indexOf(t)>=0;}));
+  }).length;
+}
+function rampsOn(s,node){
+  return s.env.ramps.filter(function(r){return r.owner===node&&r.name==='gain';});
+}
+async function boot(cfg){
+  localStorage.setItem('zmj_cfg_v2',JSON.stringify(cfg));
+  localStorage.setItem('zmj_noRotate','1');
+  await new Promise(function(res){f.onload=res;f.src='/index.html?t='+Date.now();});
+  var w=f.contentWindow,d=w.document;
+  var env=makeStub(w);
+  d.getElementById('homeSolo').click();
+  var t0=Date.now();
+  while(!(w.__zmjGame&&w.__zmjGame.hand)&&Date.now()-t0<8000)await sleep(50);
+  check(w.__zmjGame&&w.__zmjGame.hand,'进入单机对局');
+  await paint();await sleep(200);await paint();
+  return {w:w,d:d,g:w.__zmjGame,env:env};
+}
+function openSettings(s){s.d.getElementById('btnSettings').click();}
+function setMusic(s,v){
+  openSettings(s);
+  s.d.getElementById('setMusic').value=v;
+  s.d.getElementById('setMusic').dispatchEvent(new s.w.Event('change',{bubbles:true}));
+}
+(async function(){try{
+  // ---------- M1 默认关闭：没有音乐振荡器、没有定时器 ----------
+  var s=await boot({seed:20261016,analyze:false,turnTime:0});
+  check(s.w.__zmjMusic.state().running===false,'默认不播放音乐');
+  check(s.w.__zmjMusic.debug.timers===0,'默认没有音乐定时器');
+  check(musicOscCount(s)===0,'默认没有音乐振荡器，实际 '+musicOscCount(s));
+  check(s.env.counts.contexts>=1,'音效开启时仍创建 AudioContext（既有行为）');
+  check(s.w.__zmjMusic.state().base<0.40&&s.w.__zmjMusic.state().base>0.30,'音乐基准增益默认 ≈0.36，实际 '+s.w.__zmjMusic.state().base);
+
+  // ---------- M2 开启：出现音乐振荡器，总线增益 0.36 ----------
+  s=await boot({seed:20261016,music:'on',voice:'key',analyze:false,turnTime:0});
+  await sleep(900);
+  check(s.w.__zmjMusic.state().running===true,'开启音乐后处于运行态');
+  check(s.w.__zmjMusic.debug.timers>0,'音乐调度器已启动');
+  check(musicOscCount(s)>0,'开启后有音乐振荡器，实际 '+musicOscCount(s));
+  var mg=musicGainOf(s);
+  check(!!mg,'音乐总线节点存在');
+  check(Math.abs(mg.gain.value-0.36)<0.02,'音乐总线增益 ≈0.36，实际 '+mg.gain.value);
+  check(s.w.__zmjMusic.state().layer==='calm','开局分层是 calm，实际 '+s.w.__zmjMusic.state().layer);
+
+  // ---------- M5 页面隐藏停止、恢复重起不补播 ----------
+  var beforeHidden=musicOscCount(s);
+  setHidden(s.d,true);
+  s.d.dispatchEvent(new s.w.Event('visibilitychange'));
+  await sleep(120);
+  check(s.w.__zmjMusic.state().running===false,'页面隐藏后音乐停止');
+  check(s.w.__zmjMusic.debug.timers===0,'页面隐藏后没有音乐定时器');
+  await sleep(500);
+  check(musicOscCount(s)===beforeHidden,'隐藏期间不再排新音符，实际 '+musicOscCount(s));
+  setHidden(s.d,false);
+  s.d.dispatchEvent(new s.w.Event('visibilitychange'));
+  await sleep(120);
+  check(s.w.__zmjMusic.state().running===true,'恢复可见后音乐重新运行');
+  check(musicOscCount(s)>beforeHidden,'恢复后从新小节继续（不补播隐藏期间）');
+
+  // ---------- M6 报牌时自动压低音乐，句尾恢复 ----------
+  var mg2=musicGainOf(s);
+  var maxBefore=0;
+  rampsOn(s,mg2).forEach(function(r){if(r.target>maxBefore)maxBefore=r.target;});
+  var drawBtn=s.d.getElementById('btnDrawTile');if(drawBtn)drawBtn.click();
+  var tile=s.d.querySelector('.handRow .tile[role="button"]');
+  check(!!tile,'轮到自己出牌，可触发报牌');
+  tile.click();
+  await sleep(500);
+  check(s.env.spoken.length>0,'报牌触发 speak：'+s.env.spoken.join(' / '));
+  var duck=rampsOn(s,mg2).filter(function(r){return r.target<=0.36*0.35+0.02;});
+  check(duck.length>0,'报牌时出现压低到 ≤基准 ×0.35 的 ramp');
+  var u=s.env.utterances[s.env.utterances.length-1];
+  check(!!u,'捕获到语音播报对象');
+  var beforeEnd=rampsOn(s,mg2).length;
+  if(u.onend)u.onend();
+  await sleep(80);
+  var back=rampsOn(s,mg2).slice(beforeEnd).filter(function(r){return r.target>=0.30;});
+  check(back.length>0,'语音结束后出现恢复到基准的 ramp');
+  check(s.env.counts.forbidden===0,'没有使用 setTargetAtTime/cancelScheduledValues');
+
+  // ---------- M3 音量滑杆即时生效 ----------
+  openSettings(s);
+  var range=s.d.getElementById('setMusicVolume');
+  check(!!range,'设置里有音乐音量滑杆');
+  range.value='0';range.dispatchEvent(new s.w.Event('input',{bubbles:true}));
+  var mg3=musicGainOf(s);
+  check(mg3.gain.value===0,'音量 0 时音乐总线为 0，实际 '+mg3.gain.value);
+  check(rampsOn(s,mg3).some(function(r){return r.type==='linear'&&r.target===0;}),'音量变化走 linearRampToValueAtTime');
+  range.value='100';range.dispatchEvent(new s.w.Event('input',{bubbles:true}));
+  check(Math.abs(mg3.gain.value-0.9)<0.02,'音量 100 时音乐总线 ≈0.9，实际 '+mg3.gain.value);
+  var saved=JSON.parse(localStorage.getItem('zmj_cfg_v2'));
+  check(saved.musicVolume===100&&saved.music==='on','音乐设置写进 zmj_cfg_v2：'+JSON.stringify([saved.music,saved.musicVolume]));
+  check(saved.sfxVolume===100,'改音乐音量不改动音效音量');
+
+  // ---------- M4 关闭：停止排程 ----------
+  var frozen=musicOscCount(s);
+  setMusic(s,'off');
+  await sleep(100);
+  check(s.w.__zmjMusic.state().running===false,'关闭后停止运行');
+  check(s.w.__zmjMusic.debug.timers===0,'关闭后没有音乐定时器');
+  await sleep(1200);
+  check(musicOscCount(s)===frozen,'关闭后不再产生音乐音符，实际 '+musicOscCount(s));
+  s.d.getElementById('btnCancel').click();
+
+  // ---------- M7 音效总闸关闭：不建 AudioContext、不发声 ----------
+  s=await boot({seed:20261016,music:'on',sound:false,analyze:false,turnTime:0});
+  await sleep(300);
+  check(s.env.counts.contexts===0,'音效关闭时不创建 AudioContext，实际 '+s.env.counts.contexts);
+  check(s.env.counts.osc===0,'音效关闭时没有振荡器');
+  check(s.w.__zmjMusic.state().running===false,'音效关闭时不播放音乐');
+  check(!pageError(s),'音效关闭页面正常');
+
+  // ---------- M9 紧张分层只读公开信息 ----------
+  s=await boot({seed:20261016,music:'on',analyze:false,turnTime:0});
+  await sleep(600);
+  check(s.w.__zmjMusic.state().layer==='calm','开局分层是 calm');
+  s.g.hand.wall.length=12;   // drawsLeft = 3 ≤ 4，只有桌面可见事实
+  await sleep(400);
+  check(s.w.__zmjMusic.state().layer==='tense','牌墙见底时切到 tense，实际 '+s.w.__zmjMusic.state().layer);
+
+  // ---------- M8 结算短句 ----------
+  var beforeSettle=musicOscCount(s);
+  for(var i=0;i<900&&!s.g.hand.over;i++){
+    if(s.g.hasPendingResolve())s.g.resolvePending();
+    else if(s.g.pendingAwaits().length)s.g.autoPlaySeat(s.g.pendingAwaits()[0].seat);
+    else if(!s.g.aiStep())break;
+  }
+  check(s.g.hand.over,'快进到结算');
+  s.w.dispatchEvent(new s.w.Event('resize'));
+  await sleep(150);
+  check(s.w.__zmjMusic.state().layer==='settle','结算后音乐分层为 settle，实际 '+s.w.__zmjMusic.state().layer);
+  check(musicOscCount(s)>beforeSettle,'结算时播出短句音符，实际 '+musicOscCount(s));
+  check(!pageError(s),'音乐全流程无启动错误');
+
+  out.ok=true;
+}catch(e){out.errors.push(e.message);}document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));})();
+</script>

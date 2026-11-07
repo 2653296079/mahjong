@@ -4,16 +4,21 @@ const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
 const jobs = [
-  ['--test', 'tests/online-service.test.js', 'tests/accounts.test.js', 'tests/river.test.js', 'tests/core.test.js', 'tests/multi.test.js', 'tests/training.test.js', 'tests/decision.test.js', 'tests/progress.test.js', 'tests/lessons.test.js', 'tests/settlement.test.js', 'tests/server-limits.test.js', 'tests/evaluation.test.js', 'tests/connection-check.test.js', 'tests/offline.test.js'],
+  ['--test', 'tests/online-service.test.js', 'tests/accounts.test.js', 'tests/river.test.js', 'tests/core.test.js', 'tests/multi.test.js', 'tests/training.test.js', 'tests/decision.test.js', 'tests/progress.test.js', 'tests/lessons.test.js', 'tests/settlement.test.js', 'tests/server-limits.test.js', 'tests/evaluation.test.js', 'tests/connection-check.test.js', 'tests/offline.test.js', 'tests/personas.test.js', 'tests/audio.test.js', 'tests/atmosphere.test.js'],
   ['server/test-ws.js'], ['server/test-rooms.js'], ['server/test-online.js'],
   ['tests/no-build-check.js'], ['tests/smoke-server.js']
 ];
 if (process.argv.includes('--browser')) jobs.push(
-  ['tests/pages-compat.js', 'table-3d-ui'],
+  ['tests/pages-compat.js', 'table-3d-ui'], ['tests/pages-compat.js', 'table-3d-drag'],
+  ['tests/pages-compat.js', 'persona-ui'],
+  ['tests/pages-compat.js', 'audio-ui'],
   ['tests/pages-compat.js', 'account-ui', '--accounts'],
   ['tests/pages-compat.js', 'connection-ui', '--accounts'],
   ['tests/pages-compat.js', 'table-layout'],
   ['tests/pages-compat.js', 'river-hover-ui'],
+  ['tests/pages-compat.js', 'hand-sort-ui'],
+  ['tests/pages-compat.js', 'mobile-ui'],
+  ['tests/pages-compat.js', 'tile-legibility-ui'],
   ['tests/pages-compat.js', 'visual-ui'],
   ['tests/pages-compat.js', 'training-ui'], ['tests/pages-compat.js', 'training-release'],
   ['tests/pages-compat.js', 'lesson-ui'],
@@ -21,14 +26,18 @@ if (process.argv.includes('--browser')) jobs.push(
   ['tests/pages-compat.js', 'selection-ui'], ['tests/pages-compat.js', 'online-response', '--hub'],
   ['tests/pages-compat.js', 'worker-ui', '--hub'],
   ['tests/pages-compat.js', 'coach-advice'], ['tests/pages-compat.js', 'reconnect', '--hub'],
+  ['tests/pages-compat.js', 'atmosphere-ui'],
+  ['tests/pages-compat.js', 'music-ui'],
   ['tests/pages-compat.js'], ['tests/browser-online.js']
 );
 for (const args of jobs) {
   process.stdout.write('\n运行 node ' + args.join(' ') + '\n');
-  const result = spawnSync(process.execPath, args, { cwd: root, stdio: 'inherit', timeout: 150000 });
+  const started = Date.now();
+  const result = spawnSync(process.execPath, args, { cwd: root, stdio: 'inherit', timeout: 300000 });
   if (result.error || result.status !== 0) {
     if (result.error) process.stderr.write(result.error.message + '\n');
     process.exit(result.status || 1);
   }
+  process.stdout.write('完成（' + Math.round((Date.now() - started) / 1000) + 's）\n');
 }
 process.stdout.write('\n全部检查通过。\n');

@@ -1,0 +1,68 @@
+<!doctype html><meta charset="utf-8"><title>三维拖拽出牌验收</title>
+<pre id="log"></pre><iframe id="game" style="width:1366px;height:850px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]},f=document.getElementById('game');
+function check(ok,msg){if(!ok)throw Error(msg);out.steps.push(msg);}
+function wait(ms){return new Promise(r=>setTimeout(r,ms));}
+async function until(fn,ms){var start=Date.now();ms=ms||60000;while(!fn()){if(Date.now()-start>ms)throw Error('等待超时：'+fn.toString().slice(0,160));await wait(50);}}
+(async function(){try{
+  localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:20261016,sound:false,analyze:false,turnTime:0,aiThink:5,aiStyle:'v1',rotate:false}));
+  localStorage.setItem('zmj_noRotate','1');
+  await new Promise(function(r){f.onload=r;f.src='/index.html';});
+  var w=f.contentWindow,d=w.document;
+  await until(function(){return d.getElementById('homeSolo');},15000);
+  d.getElementById('homeSolo').click();
+  await until(function(){return !d.getElementById('btnDrawTile').classList.contains('hidden');},20000);
+  d.getElementById('btnDrawTile').click();await wait(200);
+  check(d.querySelectorAll('.handRow [data-tile-id]').length===14,'二维摸牌后手牌 14 张');
+  var g=w.__zmjGame;
+  g.hand._diceGateInitialized=true;g.hand.dicePending=false;
+  d.getElementById('btn3D').click();
+  await until(function(){return d.body.classList.contains('table3d')&&d.getElementById('threeStage').dataset.machineBusy==='0'&&d.querySelectorAll('[data-three-projected]').length>0;},60000);
+  check(d.querySelectorAll('[data-three-projected]').length>=13,'二维摸牌后切三维，同一手牌层可操作');
+  var hs=g.humanSeat(),cards=Array.prototype.slice.call(d.querySelectorAll('[data-three-projected]'));
+  var tile=cards.find(function(t){var r=t.getBoundingClientRect();return r.width>0&&r.height>0;})||cards[0];
+  check(!!tile,'三维点击层拿到可拖拽手牌');
+  var before=g.hand.players[hs].discards.length,tr=tile.getBoundingClientRect();
+  var cx=w.innerWidth/2,cy=w.innerHeight*0.42;
+  function pe(type,x,y){return new w.PointerEvent(type,{bubbles:true,cancelable:true,clientX:x,clientY:y,button:0,pointerId:9,pointerType:'touch'});}
+  var row=d.querySelector('#seat0 .handRow');
+  function order(){return Array.prototype.map.call(d.querySelectorAll('#seat0 .handRow [data-tile-id]'),function(t){return t.dataset.tileId;});}
+  var orderBefore=order(),stage=d.getElementById('threeStage');
+  // 1. 拖到手牌中段：真实牌模跟手、相邻牌让位开槽，且不再出现二维牌影
+  var anchor=d.querySelectorAll('[data-three-projected]')[7]||tile;
+  var ar=anchor.getBoundingClientRect();
+  tile.dispatchEvent(pe('pointerdown',tr.left+tr.width/2,tr.top+tr.height/2));
+  row.dispatchEvent(pe('pointermove',ar.left+ar.width*0.85,ar.top+ar.height/2));
+  await wait(120);
+  check(stage.dataset.tileDrag===tile.dataset.tileId,'三维拖动时由场景里的真实牌模跟手（tileDrag='+stage.dataset.tileDrag+'）');
+  check(!!stage.dataset.tileInsert,'拖到手牌上方时出现插入槽（tileInsert='+stage.dataset.tileInsert+'）');
+  var insRaw=String(stage.dataset.tileInsert||''),insCut=insRaw.lastIndexOf(':'),insId=insRaw.slice(0,insCut),insBefore=insRaw.slice(insCut+1)==='b';
+  check(!d.querySelector('.drag-ghost'),'三维拖动不再生成二维牌图片');
+  check(!stage.classList.contains('drop-ready'),'手牌区按拖动不点亮牌河');
+  row.dispatchEvent(pe('pointerup',ar.left+ar.width*0.85,ar.top+ar.height/2));
+  await wait(250);
+  var orderAfter=order();
+  check(orderAfter.length===14&&orderAfter.join()!==orderBefore.join(),'三维松手后手牌顺序按插入槽重排');
+  check(orderAfter.indexOf(tile.dataset.tileId)===orderAfter.indexOf(insId)+(insBefore?-1:1),'被拖的牌按插入槽落在目标牌 '+(insBefore?'左':'右')+'侧');
+  check(g.hand.players[hs].discards.length===before,'理牌松手不出牌');
+  check(!stage.dataset.tileDrag&&!stage.dataset.tileInsert,'松手后清空插入槽状态');
+  // 2. 拖到中央牌河：舞台亮起、真实牌模跟手，松手进牌河
+  row=d.querySelector('#seat0 .handRow');
+  tile=row.querySelector('[data-tile-id]');
+  tr=tile.getBoundingClientRect();
+  tile.dispatchEvent(pe('pointerdown',tr.left+tr.width/2,tr.top+tr.height/2));
+  row.dispatchEvent(pe('pointermove',cx,cy));
+  await wait(80);
+  check(stage.classList.contains('drop-ready'),'三维拖到中央时舞台亮起落点');
+  check(stage.dataset.tileDrag===tile.dataset.tileId,'三维拖向牌河时仍是场景牌模跟手');
+  check(!stage.dataset.tileInsert,'离开手牌后插入槽收起');
+  check(!d.querySelector('.drag-ghost'),'三维拖向牌河也不生成二维牌图片');
+  row.dispatchEvent(pe('pointerup',cx,cy));
+  await wait(250);
+  check(g.hand.players[hs].discards.length===before+1,'三维松手后这张牌真正进入牌河');
+  check(!stage.classList.contains('drop-ready'),'三维出牌后清除落点高亮');
+  out.ok=true;
+}catch(e){out.errors.push(e.message);}
+document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));})();
+</script>

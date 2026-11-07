@@ -30,6 +30,7 @@ async function until(fn,label){for(var i=0;i<300;i++){if(fn())return;await pause
   await until(function(){return w.__zmjGame&&w.__zmjGame.awaiting;},'自己的回合');
   var g=w.__zmjGame,initial=g.hand.players[0].discards.length;
   function clickDiscard(){
+    var drawBtn=d.getElementById('btnDrawTile');if(drawBtn)drawBtn.click();
     var tile=d.querySelector('.handRow .clickable');clicking=true;tile.click();if(!d.getElementById('netPendingAction'))tile.click();clicking=false;return tile;
   }
   // 一次过期请求必须恢复操作，且不能乐观地删掉暗牌。

@@ -12,6 +12,12 @@ function check(ok,msg){if(!ok)throw new Error(msg);out.steps.push(msg);}
   var H=w.ZMJ.practiceHand('pairs-1');g.hand.players=H.players;g.hand.lastDraw=0;
   g.awaiting={type:'turn',seat:0,options:{canZimo:false,anGang:[],buGang:[]}};
   w.dispatchEvent(new w.Event('resize'));
+  var drawBtn=d.getElementById('btnDrawTile');
+  check(!!drawBtn,'二维轮到自己时先出现摸牌按钮');
+  check(d.querySelectorAll('.handRow [data-tile-id]').length===13,'摸牌前手牌仍是 13 张');
+  drawBtn.click();
+  check(d.querySelectorAll('.handRow [data-tile-id]').length===14,'摸牌后翻开第 14 张');
+  check(!d.getElementById('btnDrawTile'),'摸牌后按钮收起');
   var before=JSON.stringify(g.hand),tiles=Array.from(d.querySelectorAll('.handRow [aria-label="打出一万"]'));
   check(tiles.length>=2,'同种牌有多个可独立选择的位置');
   var ids=tiles.map(function(t){return t.dataset.tileId;});check(new Set(ids).size===ids.length,'相同牌的位置标识互不相同');
@@ -28,6 +34,39 @@ function check(ok,msg){if(!ok)throw new Error(msg);out.steps.push(msg);}
   chosen.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
   check(sent,'再次确认同一张牌可正常打出，键盘确认也生效');
   check(d.querySelectorAll('.handRow .chosen').length===0,'出牌后清除选择状态');
+  // v41：把手牌拖到中央牌河，松手即出牌（保留点选二次确认）
+  var H2=w.ZMJ.practiceHand('pairs-1');
+  g.hand.players=H2.players;g.hand.lastDraw=0;
+  g.awaiting={type:'turn',seat:0,options:{canZimo:false,anGang:[],buGang:[]}};
+  w.dispatchEvent(new w.Event('resize'));
+  var drawBtn2=d.getElementById('btnDrawTile');
+  if(drawBtn2){
+    var wall=d.getElementById('wallInfo'),row2=d.querySelector('#seat0 .handRow');
+    var wr=wall.getBoundingClientRect(),rr=row2.getBoundingClientRect();
+    function pe2(type,x,y){return new w.PointerEvent(type,{bubbles:true,cancelable:true,clientX:x,clientY:y,button:0,pointerId:8,pointerType:'touch'});}
+    wall.dispatchEvent(pe2('pointerdown',wr.left+wr.width/2,wr.top+wr.height/2));
+    wall.dispatchEvent(pe2('pointermove',rr.left+rr.width/2,rr.top-4));
+    check(!!d.querySelector('.draw-ghost'),'把牌墙拖向手牌时出现牌背跟随');
+    wall.dispatchEvent(pe2('pointerup',rr.left+rr.width/2,rr.top-4));
+    check(!d.getElementById('btnDrawTile'),'把牌墙拖到手牌完成摸牌');
+  }
+  var row=d.querySelector('#seat0 .handRow');
+  var dragTile=row&&row.querySelector('[data-tile-id]');
+  check(dragTile,'可打状态下拿到一张可拖拽手牌');
+  var beforeDiscards=g.hand.players[0].discards.length;
+  var centerEl=d.getElementById('center'),cr=centerEl.getBoundingClientRect(),tr=dragTile.getBoundingClientRect();
+  function pe(type,x,y){return new w.PointerEvent(type,{bubbles:true,cancelable:true,clientX:x,clientY:y,button:0,pointerId:7,pointerType:'touch'});}
+  dragTile.dispatchEvent(pe('pointerdown',tr.left+tr.width/2,tr.top+tr.height/2));
+  row.dispatchEvent(pe('pointermove',cr.left+cr.width/2,cr.top+cr.height/2));
+  check(centerEl.classList.contains('drop-ready'),'拖到中央时牌河亮起落点');
+  row.dispatchEvent(pe('pointerup',cr.left+cr.width/2,cr.top+cr.height/2));
+  check(g.hand.players[0].discards.length===beforeDiscards+1,'松手后这张牌真正进入牌河');
+  check(!!d.querySelector('.riverEntry.impact')||d.getElementById('table').classList.contains('discard-impact'),'出牌落桌有命中反馈');
+  check(!centerEl.classList.contains('drop-ready'),'出牌后清除牌河落点高亮');
+  g.hand.players[0].melds=[{type:'peng',kind:3,from:1}];
+  w.dispatchEvent(new w.Event('resize'));
+  check(d.querySelectorAll('.meld.fresh').length===1,'碰牌副露有聚拢反馈');
+  check(!!d.querySelector('.meld-fly'),'被碰的牌从牌河飞向副露');
   out.ok=true;
 }catch(e){out.errors.push(e.message);}
 document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));})();

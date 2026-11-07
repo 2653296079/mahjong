@@ -1,0 +1,252 @@
+<!doctype html><meta charset="utf-8"><title>音效与报牌验收</title>
+<pre id="log"></pre><iframe id="game" style="width:730px;height:545px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]};
+function check(ok,msg){if(!ok)throw Error(msg);out.steps.push(msg);}
+var f=document.getElementById('game');
+function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
+function paint(){return new Promise(function(r){requestAnimationFrame(function(){requestAnimationFrame(r);});});}
+function def(w,name,value){
+  try{Object.defineProperty(w,name,{value:value,configurable:true,writable:true});}catch(e){try{w[name]=value;}catch(_){}}
+}
+function setHidden(d,v){Object.defineProperty(d,'hidden',{value:!!v,configurable:true});}
+function makeStub(w,opt){
+  opt=opt||{};
+  var counts={contexts:0,osc:0,buf:0,gain:0,filter:0};
+  var gains=[],spoken=[],timeline=[],cancels=0,voiceCalls=0;
+  function param(){return {value:0,setValueAtTime:function(){},linearRampToValueAtTime:function(){},exponentialRampToValueAtTime:function(){}};}
+  function Ctx(){counts.contexts++;this.currentTime=0;this.sampleRate=8000;this.state='running';this.destination={};}
+  Ctx.prototype.createGain=function(){counts.gain++;var g={gain:param(),connect:function(){}};gains.push(g);return g;};
+  Ctx.prototype.createBufferSource=function(){counts.buf++;return {buffer:null,connect:function(){},start:function(){},stop:function(){}};};
+  Ctx.prototype.createBiquadFilter=function(){counts.filter++;return {type:'',frequency:param(),Q:param(),connect:function(){}};};
+  Ctx.prototype.createOscillator=function(){counts.osc++;return {type:'',frequency:param(),connect:function(){},start:function(){},stop:function(){}};};
+  Ctx.prototype.createBuffer=function(ch,len){return {getChannelData:function(){return new Float32Array(len);}};};
+  Ctx.prototype.resume=function(){};
+  if(!opt.noAudio){def(w,'AudioContext',Ctx);def(w,'webkitAudioContext',Ctx);}
+  else {def(w,'AudioContext',undefined);def(w,'webkitAudioContext',undefined);}
+  if(!opt.noTts){
+    var synth={
+      speak:function(u){
+        if(opt.throwSpeak)throw Error('blocked');
+        var text=String(u.text);
+        spoken.push(text);timeline.push({type:'speak',text:text,at:Date.now()});
+      },
+      cancel:function(){cancels++;timeline.push({type:'cancel',at:Date.now()});},
+      getVoices:function(){voiceCalls++;return opt.noZh?[{lang:'en-US'}]:[{lang:'zh-CN'}];},
+      speaking:false,addEventListener:function(){}
+    };
+    def(w,'speechSynthesis',synth);
+    def(w,'SpeechSynthesisUtterance',function(text){this.text=text;});
+  }else{
+    def(w,'speechSynthesis',undefined);def(w,'SpeechSynthesisUtterance',undefined);
+  }
+  return {counts:counts,spoken:spoken,timeline:timeline,cancels:function(){return cancels;},
+    voiceCalls:function(){return voiceCalls;},gains:gains};
+}
+async function boot(cfg,setup){
+  localStorage.setItem('zmj_cfg_v2',JSON.stringify(cfg));
+  localStorage.setItem('zmj_noRotate','1');
+  await new Promise(function(res){f.onload=res;f.src='/index.html?t='+Date.now();});
+  var w=f.contentWindow,d=w.document;
+  var env=setup?setup(w):makeStub(w,{});
+  d.getElementById('homeSolo').click();
+  var t0=Date.now();
+  while(!(w.__zmjGame&&w.__zmjGame.hand)&&Date.now()-t0<8000)await sleep(50);
+  check(w.__zmjGame&&w.__zmjGame.hand,'进入单机对局');
+  await paint();await sleep(180);await paint();
+  return {w:w,d:d,get g(){return w.__zmjGame;},env:env};
+}
+async function waitTurn(s,ms){
+  var t0=Date.now();
+  while(!(s.g.awaiting&&s.g.awaiting.type==='turn')&&Date.now()-t0<ms)await sleep(60);
+  check(!!(s.g.awaiting&&s.g.awaiting.type==='turn'),'轮到自己出牌');
+}
+async function discard(s){
+  var draw=s.d.getElementById('btnDrawTile');
+  if(draw&&!draw.classList.contains('hidden')){draw.click();await sleep(150);}
+  var t=s.d.querySelector('.handRow .tile[role="button"]');
+  check(!!t,'手牌可点击');
+  t.click();
+  await sleep(350);
+}
+function pageError(s){
+  var b=s.d.getElementById('boot');
+  return !!(b&&b.textContent.indexOf('运行出错')>=0);
+}
+var ALLOWED=[/^轮到你$/,/^你摸.+$/,/^你打.+$/,/^下家打.+$/,/^对家打.+$/,/^上家打.+$/,/^.+碰$/,/^.+杠$/,
+  /^你胡了$/,/^你自摸$/,/^你放炮$/,/^.+胡了$/,/^.+自摸$/,/^荒庄$/];
+var FORBIDDEN=/建议|推荐|牌效|向听|风险|概率|%|\d/;
+function checkTexts(list,tag){
+  list.forEach(function(text){
+    check(ALLOWED.some(function(re){return re.test(text);}),tag+' 报牌文本命中白名单：'+text);
+    check(!FORBIDDEN.test(text),tag+' 报牌不得含建议/概率/数字：'+text);
+  });
+}
+function speakIndex(list,re,from){
+  for(var i=from||0;i<list.length;i++)if(list[i].type==='speak'&&re.test(list[i].text))return i;
+  return -1;
+}
+(async function(){try{
+  // 阶段 1：默认（音效开、报牌关）+ 无障碍契约
+  var s=await boot({seed:20261016,analyze:false,turnTime:0});
+  await waitTurn(s,5000);
+  check(!pageError(s),'默认无启动错误');
+  check(s.env.counts.contexts>=1,'音效开启时创建 AudioContext，实际 '+s.env.counts.contexts);
+  check(s.w.__zmjSfxKinds.length>=10,'音效表 ≥10 类，实际 '+s.w.__zmjSfxKinds.length);
+  ['shuffle','deal','draw','discard','peng','gang','win','lose','drawGame','bird','dice','turn','select','correct','wrong'].forEach(function(k){
+    check(s.w.__zmjSfxKinds.indexOf(k)>=0,'音效表包含 '+k);
+  });
+  // 新控件的无障碍名称：滑杆/下拉都要能被读屏叫出名字
+  s.d.getElementById('btnSettings').click();
+  ['setPersona','setSfxVolume','setVoice','setVoiceVolume'].forEach(function(id){
+    var el=s.d.getElementById(id);
+    check(!!el&&!!el.getAttribute('aria-label'),id+' 有 aria-label');
+  });
+  var live=s.d.getElementById('announce');
+  check(!!live&&live.getAttribute('role')==='status'&&live.getAttribute('aria-live')==='polite','#announce live region 语义正确');
+  check(!s.d.getElementById('app').contains(live),'#announce 在 #app 之外');
+  check(!live.closest('[inert]'),'弹窗打开时报牌 live region 不 inert');
+  s.d.getElementById('modalDismiss').click();
+  await sleep(120);
+  await discard(s);
+  check(s.env.spoken.length===0,'报牌默认关闭：speak 调用 0 次，实际 '+s.env.spoken.length);
+  check(s.env.cancels()===0,'默认报牌关闭时不调用 speechSynthesis.cancel，实际 '+s.env.cancels());
+  check(s.d.getElementById('announce').textContent==='','默认 #announce 为空');
+  check(s.w.__zmjSfxLog.indexOf('discard')>=0||s.w.__zmjSfxLog.indexOf('select')>=0,'出牌/选牌触发合成音');
+  check(s.w.__zmjSfxLog.length<=120,'音效日志没有无限膨胀');
+
+  // 阶段 2：voice=key 只报关键；切到关闭时强制 cancel
+  s=await boot({seed:20261016,voice:'key',analyze:false,turnTime:0});
+  await waitTurn(s,5000);
+  check(s.env.spoken.indexOf('轮到你')>=0,'轮到你时有报牌');
+  check(s.env.cancels()>=1,'换局时取消上一句（voice 开启）');
+  await discard(s);
+  await sleep(900);
+  check(s.env.spoken.some(function(t){return /^你打.+$/.test(t);}),'自己出牌报牌名');
+  check(!s.env.spoken.some(function(t){return /^你摸.+$/.test(t);}),'仅关键模式不报自己摸牌');
+  checkTexts(s.env.spoken,'key');
+  check(!pageError(s),'key 模式无启动错误');
+  var cOff=s.env.cancels();
+  s.d.getElementById('btnSettings').click();
+  s.d.getElementById('setVoice').value='off';
+  s.d.getElementById('btnApply').click();
+  await paint();await sleep(250);
+  check(s.env.cancels()>cOff,'设置切到关闭时强制取消（cancel 计数增加）');
+
+  // 阶段 3：voice=all；事件文本先播、轮到你延迟播，不能被立刻 cancel
+  s=await boot({seed:20261016,voice:'all',analyze:false,turnTime:0});
+  await sleep(1400);
+  var drawIdx=speakIndex(s.env.timeline,/^你摸.+$/);
+  check(drawIdx>=0,'全部模式报自己摸牌');
+  var turnIdx=speakIndex(s.env.timeline,/^轮到你$/,drawIdx+1);
+  check(turnIdx>drawIdx,'轮到你排在事件文本之后播报');
+  var nextSpeak=speakIndex(s.env.timeline,/.*/ ,drawIdx+1);
+  var betweenCancel=s.env.timeline.slice(drawIdx+1,turnIdx>0?turnIdx:nextSpeak>0?nextSpeak:drawIdx+1)
+    .filter(function(e){return e.type==='cancel';}).length;
+  check(betweenCancel===0,'“你摸X”没有被紧随的 cancel 立刻取消');
+  await waitTurn(s,5000);
+  await discard(s);
+  await sleep(2500);
+  check(s.env.spoken.some(function(t){return /^(下家|对家|上家)打/.test(t)||/^你打/.test(t);}),'全部模式报出牌牌名');
+  checkTexts(s.env.spoken,'all');
+  check(!pageError(s),'all 模式无启动错误');
+
+  // 阶段 3b：快进遇到 awaiting 用 autoPlaySeat 代打，直到结算，只报结算
+  var beforeSpoken=s.env.spoken.length;
+  s.g.fastForward=true;
+  for(var fi=0;fi<600&&!s.g.hand.over;fi++){
+    if(s.g.hasPendingResolve())s.g.resolvePending();
+    else if(s.g.pendingAwaits().length)s.g.autoPlaySeat(s.g.pendingAwaits()[0].seat);
+    else if(!s.g.aiStep())break;
+  }
+  check(s.g.hand.over,'快进在确定 seed 下打到结算');
+  s.w.dispatchEvent(new s.w.Event('resize'));
+  await sleep(1400);
+  var fastSpoken=s.env.spoken.slice(beforeSpoken);
+  check(fastSpoken.length>0,'快进结算有报牌：'+fastSpoken.join(' / '));
+  check(fastSpoken.length<=2,'快进不逐张刷屏：'+fastSpoken.join(' / '));
+  check(fastSpoken.some(function(t){return /^(荒庄|你胡了|你自摸|你放炮|.+胡了|.+自摸)$/.test(t);}),
+    '结算文本实际出现：'+fastSpoken.join(' / '));
+  s.g.fastForward=false;
+
+  // 阶段 3c：页面隐藏不 speak、推进游标；恢复可见不补播
+  s=await boot({seed:20261016,voice:'key',analyze:false,turnTime:0});
+  await waitTurn(s,5000);
+  var hiddenSpoken=s.env.spoken.length, hiddenCancels=s.env.cancels();
+  setHidden(s.d,true);
+  for(var hi=0;hi<10&&!s.g.hand.over;hi++){
+    if(s.g.hasPendingResolve())s.g.resolvePending();
+    else if(s.g.pendingAwaits().length)s.g.autoPlaySeat(s.g.pendingAwaits()[0].seat);
+    else if(!s.g.aiStep())break;
+  }
+  s.w.dispatchEvent(new s.w.Event('resize'));
+  await sleep(150);
+  check(s.env.spoken.length===hiddenSpoken,'页面隐藏期间不 speak');
+  check(s.env.cancels()>hiddenCancels,'隐藏时取消当前报牌');
+  setHidden(s.d,false);
+  s.w.dispatchEvent(new s.w.Event('resize'));
+  await sleep(150);
+  check(s.env.spoken.length===hiddenSpoken,'恢复可见后不补播隐藏期间事件');
+  check(!pageError(s),'隐藏/恢复不报错');
+
+  // 阶段 4：没有 SpeechSynthesis 时静默降级
+  s=await boot({seed:20261016,voice:'all',analyze:false,turnTime:0},function(w){return makeStub(w,{noTts:true});});
+  await waitTurn(s,5000);
+  await discard(s);
+  check(!pageError(s),'无 speechSynthesis 不报错');
+  check(s.d.getElementById('announce').textContent!=='','无 TTS 时仍写 #announce 供读屏');
+  check(s.env.spoken.length===0,'无 TTS 时 speak 0 次');
+
+  // 阶段 4b：有嗓音但没有中文 → 完全静默
+  s=await boot({seed:20261016,voice:'key',analyze:false,turnTime:0},function(w){return makeStub(w,{noZh:true});});
+  await waitTurn(s,5000);
+  await sleep(300);
+  check(s.env.spoken.length===0,'无中文嗓音时完全静默');
+  check(!pageError(s),'无中文嗓音不报错');
+
+  // 阶段 5：没有 AudioContext 时音效静默、页面照常
+  s=await boot({seed:20261016,analyze:false,turnTime:0},function(w){return makeStub(w,{noAudio:true});});
+  await waitTurn(s,5000);
+  await discard(s);
+  check(s.env.counts.contexts===0,'无 AudioContext 不创建音频上下文');
+  check(!pageError(s),'无 AudioContext 仍可出牌');
+
+  // 阶段 5b：speak 抛错被吞掉
+  s=await boot({seed:20261016,voice:'key',analyze:false,turnTime:0},function(w){return makeStub(w,{throwSpeak:true});});
+  await waitTurn(s,5000);
+  await discard(s);
+  check(!pageError(s),'speak 抛错不崩页面');
+
+  // 阶段 6：音效总开关关闭 → 不创建 AudioContext、不 speak、不预热 TTS
+  s=await boot({seed:20261016,sound:false,voice:'key',analyze:false,turnTime:0});
+  await waitTurn(s,5000);
+  await discard(s);
+  check(s.env.counts.contexts===0,'音效关闭时不创建 AudioContext，实际 '+s.env.counts.contexts);
+  check(s.env.spoken.length===0,'音效关闭时也不报牌');
+  check(s.env.voiceCalls()===0,'音效关闭时不预热 TTS（getVoices 0 次）');
+  check(s.d.getElementById('announce').textContent==='','音效关闭时 #announce 为空');
+  check(!pageError(s),'音效关闭页面正常');
+
+  // 阶段 7：音量滑杆即时保存并在重载后保留
+  s=await boot({seed:20261016,analyze:false,turnTime:0});
+  s.d.getElementById('btnSettings').click();
+  var range=s.d.getElementById('setSfxVolume');
+  check(!!range,'设置里有音效音量滑杆');
+  range.value='0';range.dispatchEvent(new s.w.Event('input',{bubbles:true}));
+  var saved=JSON.parse(localStorage.getItem('zmj_cfg_v2')||'{}');
+  check(saved.sfxVolume===0,'音量即时写入 localStorage：'+JSON.stringify(saved.sfxVolume));
+  check(s.env.gains.length>0&&s.env.gains[0].gain.value===0,'音量滑杆即时作用到音效总线');
+  s.d.getElementById('btnCancel').click();
+  await new Promise(function(res){f.onload=res;f.src='/index.html?t='+Date.now();});
+  var w=f.contentWindow,d=w.document;
+  d.getElementById('homeSolo').click();
+  var t0=Date.now();while(!(w.__zmjGame&&w.__zmjGame.hand)&&Date.now()-t0<8000)await sleep(50);
+  d.getElementById('btnSettings').click();
+  check(d.getElementById('setSfxVolume').value==='0','重载后音量仍是 0');
+  d.getElementById('setSfxVolume').value='100';
+  d.getElementById('setSfxVolume').dispatchEvent(new w.Event('input',{bubbles:true}));
+  d.getElementById('btnCancel').click();
+
+  out.ok=true;
+}catch(e){out.errors.push(e.message);}document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));})();
+</script>

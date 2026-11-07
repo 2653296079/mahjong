@@ -15,3 +15,6 @@ data/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+# 本地验收产物与临时探针页：只留在本机当证据，不进仓库
+out/
+tests/_probe-*.html

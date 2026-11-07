@@ -1,0 +1,85 @@
+<!doctype html><meta charset="utf-8"><title>对手性格验收</title>
+<pre id="log"></pre><iframe id="game" style="width:730px;height:545px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]};
+function check(ok,msg){if(!ok)throw Error(msg);out.steps.push(msg);}
+var f=document.getElementById('game');
+function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
+function paint(){return new Promise(function(r){requestAnimationFrame(function(){requestAnimationFrame(r);});});}
+async function boot(cfg){
+  localStorage.setItem('zmj_cfg_v2',JSON.stringify(cfg));
+  localStorage.setItem('zmj_noRotate','1');
+  await new Promise(function(res){f.onload=res;f.src='/index.html?t='+Date.now();});
+  var w=f.contentWindow,d=w.document;
+  var boot=d.getElementById('boot');
+  check(!boot||boot.classList.contains('hidden')||boot.textContent.indexOf('运行出错')<0,'页面无启动错误');
+  d.getElementById('homeSolo').click();
+  var t0=Date.now();
+  while(!(w.__zmjGame&&w.__zmjGame.hand)&&Date.now()-t0<8000)await sleep(50);
+  check(w.__zmjGame&&w.__zmjGame.hand,'进入单机对局');
+  await paint();await sleep(150);await paint();
+  return {w:w,d:d,g:w.__zmjGame};
+}
+function tags(d){return Array.prototype.slice.call(d.querySelectorAll('.seatPersona'));}
+(async function(){try{
+  // 阶段 1：默认关闭
+  var s=await boot({seed:20261016,sound:false,analyze:false,turnTime:0});
+  check(tags(s.d).length===0,'默认没有性格标签');
+  check(s.g.seats.every(function(p){return !Object.prototype.hasOwnProperty.call(p,'persona');}),'默认座席无 persona');
+  s.d.getElementById('btnSettings').click();
+  check(s.d.getElementById('setPersona')&&s.d.getElementById('setPersona').value==='off','设置里默认 off');
+  s.d.getElementById('modalDismiss').click();
+
+  // 阶段 2：经典三人组
+  s=await boot({persona:'classic',seed:20261016,sound:false,analyze:false,turnTime:0});
+  var tt=tags(s.d);
+  check(tt.length===3,'classic 三个 AI 座位有标签，实际 '+tt.length);
+  var labels=tt.map(function(t){return t.textContent;}).sort().join(',');
+  check(labels==='猛攻,稳健,龟缩','标签文本正确：'+labels);
+  check(tt.every(function(t){return !!t.title&&t.className==='seatPersona';}),'标签有 title 说明');
+  check(s.g.seats[1].persona==='steady'&&s.g.seats[2].persona==='raider'&&s.g.seats[3].persona==='turtle','座席性格与设置对应');
+  check(s.d.querySelectorAll('.seatName b').length===0,'.seatName 内没有 <b>');
+  check(s.d.querySelectorAll('.seatName').length===4,'.seatName 结构不变');
+  check(s.d.querySelector('#scorebar').textContent.indexOf('稳健')<0,'分数条不加可见文字，只改 title');
+  check(s.d.querySelectorAll('.scoreChip')[1].title.indexOf('性格')>=0,'分数条 title 带性格说明');
+
+  // 阶段 3：按名字随机 + 重新开局稳定
+  s=await boot({persona:'random',seed:20261016,sound:false,analyze:false,turnTime:0});
+  var before=s.g.seats.slice(1).map(function(p){return p.persona;});
+  check(before.every(function(id){return ZMJhas(s.w,id);}),'random 三个 AI 都有合法性格');
+  s.d.getElementById('btnNew').click();
+  await paint();await sleep(200);await paint();
+  s.g=s.w.__zmjGame;
+  var after=s.g.seats.slice(1).map(function(p){return p.persona;});
+  check(before.join(',')===after.join(','),'重新开局性格按名字稳定');
+  check(tags(s.d).length===3,'重新开局标签仍在');
+
+  // 阶段 4：设置里关闭
+  s.d.getElementById('btnSettings').click();
+  s.d.getElementById('setPersona').value='off';
+  s.d.getElementById('btnApply').click();
+  await paint();await sleep(250);await paint();
+  s.g=s.w.__zmjGame;
+  check(tags(s.d).length===0,'关闭后标签消失');
+  check(s.g.seats.every(function(p){return !Object.prototype.hasOwnProperty.call(p,'persona');}),'关闭后座席无 persona');
+
+  // 阶段 5：持久化（重载后仍是 random）
+  s.d.getElementById('btnSettings').click();
+  s.d.getElementById('setPersona').value='random';
+  s.d.getElementById('btnApply').click();
+  await paint();await sleep(250);
+  s=await boot({persona:'random',seed:20261017,sound:false,analyze:false,turnTime:0});
+  s.d.getElementById('btnSettings').click();
+  check(s.d.getElementById('setPersona').value==='random','设置持久化到 localStorage');
+  s.d.getElementById('modalDismiss').click();
+  check(tags(s.d).length===3,'重载后标签仍在');
+
+  // 布局：窄屏与横屏都不横向溢出
+  for(var wx of [360,390,430,844]){
+    f.style.width=wx+'px';f.style.height='844px';s.w.dispatchEvent(new s.w.Event('resize'));await paint();await paint();
+    check(s.d.documentElement.scrollWidth<=wx+1,wx+'px 无横向溢出（实际 '+s.d.documentElement.scrollWidth+'）');
+  }
+  out.ok=true;
+}catch(e){out.errors.push(e.message);}document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));})();
+function ZMJhas(w,id){return !!(w.ZMJ&&w.ZMJ.PERSONA_IDS&&w.ZMJ.PERSONA_IDS.indexOf(id)>=0);}
+</script>

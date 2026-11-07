@@ -62,9 +62,9 @@ server.listen(PORT, '127.0.0.1', () => {
   }
   const child = execFile(EDGE, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
     ...(PAGE==='table-3d-ui'?['--enable-unsafe-swiftshader','--use-angle=swiftshader']:[]),
-    ...(['selection-ui','river-hover-ui'].includes(PAGE) ? ['--touch-events=enabled'] : []),
+    ...(['selection-ui','river-hover-ui','tile-legibility-ui','mobile-ui'].includes(PAGE) ? ['--touch-events=enabled'] : []),
     '--user-data-dir=' + PROFILE,
-    base + '/tests/' + PAGE + '.html'], { timeout: 120000 }, () => {});
+    base + '/tests/' + PAGE + '.html'], { timeout: 220000 }, () => {});
   const t0 = Date.now();
   const poll = setInterval(() => {
     if (result) {
@@ -78,7 +78,7 @@ server.listen(PORT, '127.0.0.1', () => {
       server.close();
       process.exit(ok ? 0 : 1);
     }
-    if (Date.now() - t0 > 100000) {
+    if (Date.now() - t0 > 200000) {
       clearInterval(poll);
       console.log('=== 超时 ===');
       try { child.kill(); } catch (e) {}

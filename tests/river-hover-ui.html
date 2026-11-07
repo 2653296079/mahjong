@@ -27,6 +27,11 @@ async function paint(){await new Promise(r=>requestAnimationFrame(()=>requestAni
  // 各家副露单独布置，验证窄屏下四张杠牌也不会侵入中央。
  g.hand.players[1].melds=[{type:'peng',kind:6,from:2},{type:'gang',kind:10,ming:true,from:3}];
  g.hand.players[2].melds=[{type:'gang',kind:19,ming:false}];g.hand.players[3].melds=[{type:'gang',kind:22,ming:true,bu:true}];
+ // 碰杠聚拢是 260ms 的 transform 动画，动画中途 getBoundingClientRect 会按 scale(1.18) 短暂越界；
+ // 这里只等动画收尾，再按静止布局校验副露是否侵入中央，断言口径不变。
+ await until(()=>d.querySelectorAll('#seat1 .meld').length===2,'各家副露渲染完成');
+ await until(()=>![].some.call(d.querySelectorAll('.meld.fresh'),m=>m.getAnimations().some(a=>a.playState==='running')),'碰杠聚拢动画结束');
+ await until(()=>!d.querySelector('.meld-fly'),'副露飞行动画结束');
  for(var dims of [[1366,900],[730,545],[390,844],[844,390]]){
   f.style.width=dims[0]+'px';f.style.height=dims[1]+'px';w.dispatchEvent(new w.Event('resize'));await paint();
   var bad=[];[1,2,3].forEach(s=>{var seat=d.getElementById('seat'+s),r=seat.getBoundingClientRect(),clip=seat.querySelector('.seatCards'),b=clip.getBoundingClientRect();if(!(b.left>=r.left-1&&b.right<=r.right+1&&b.top>=r.top-1&&b.bottom<=r.bottom+1&&w.getComputedStyle(clip).overflowY==='auto'))bad.push(s);Array.from(seat.querySelectorAll('.meld .tile')).forEach(t=>{var tbox=t.getBoundingClientRect();if(tbox.left<r.left-1||tbox.right>r.right+1)bad.push(s);});});
@@ -35,6 +40,7 @@ async function paint(){await new Promise(r=>requestAnimationFrame(()=>requestAni
  // 用真实训练局面做独立数值对照，鼠标悬停、焦点、触屏都走实际 UI 事件。
  var H=w.ZMJ.practiceHand('wide-1');g.hand.players=H.players;g.hand.lastDraw=H.lastDraw;g.hand.turn=0;g.awaiting={type:'turn',seat:0,options:{canZimo:false,anGang:[],buGang:[]}};
  f.style.width='1366px';f.style.height='900px';w.dispatchEvent(new w.Event('resize'));await paint();
+ var drawBtn=d.getElementById('btnDrawTile');if(drawBtn)drawBtn.click();await paint();
  var tiles=Array.from(d.querySelectorAll('.handRow [role=button]')),tile=tiles[0],kind=+tile.dataset.tileId.split(':')[0],id=tile.dataset.tileId,guide=w.ZMJ.trainingGuide(g.hand,0,kind,true),riskCalls=0;
  w.ZMJ.analyzeSituation=function(){riskCalls++;throw Error('不应由悬停启动采样');};
  tile.dispatchEvent(new w.PointerEvent('pointerenter',{pointerType:'mouse'}));await until(()=>!d.getElementById('tileAnalysis').classList.contains('hidden'),'悬停面板');await pause(250);
