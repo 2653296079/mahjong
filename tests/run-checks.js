@@ -12,6 +12,40 @@ const root = path.join(__dirname, '..');
 // 因此盘余 <20GB 或 %TEMP%\zmj-* 仍有残留时，直接拒绝运行并说明原因。
 const MIN_FREE_GB = 20;
 const TEMP_PREFIX = 'zmj-';
+
+// ---- 指纹前置检查：BOM 与清单登记必须是预期状态，否则拒跑 ----
+// 背景：2026-11-08 一晚上 BOM 被踩了三次（洗掉、写进去、再洗掉），
+// 靠群里互相提醒守不住，改成机器判定，不达标直接拒跑并指出是哪一项。
+const BOM = [0xEF, 0xBB, 0xBF];
+const FINGERPRINTS = [
+  { file: 'index.html', bom: true },
+  { file: 'sw.js', bom: true },
+  { file: 'server.js', bom: true },
+  { file: 'assets/table3d/table3d.js', bom: false },
+];
+function hasBom(buf) {
+  return buf.length >= 3 && buf[0] === BOM[0] && buf[1] === BOM[1] && buf[2] === BOM[2];
+}
+function fingerprintProblems() {
+  const problems = [];
+  for (const spec of FINGERPRINTS) {
+    const full = path.join(root, spec.file);
+    if (!fs.existsSync(full)) { problems.push(spec.file + ' 不存在'); continue; }
+    const buf = fs.readFileSync(full);
+    const actual = hasBom(buf);
+    if (actual !== spec.bom) {
+      problems.push(spec.file + ' 的 BOM 应为 ' + spec.bom + '，实际 ' + actual + '（' + buf.length + ' 字节）');
+    }
+  }
+  return problems;
+}
+function manifestProblems() {
+  const problems = [];
+  const self = fs.readFileSync(__filename, 'utf8');
+  if (self.indexOf("tests/draw-nth.test.js") < 0) problems.push('清单缺少 tests/draw-nth.test.js');
+  if (self.indexOf("tests/wall-slot-map.test.js") < 0) problems.push('清单缺少 tests/wall-slot-map.test.js');
+  return problems;
+}
 function envProblems() {
   const problems = [];
   try {
@@ -71,7 +105,7 @@ function browserTestsRunning() {
     return false;
   }
 }
-const problems = envProblems();
+const problems = envProblems().concat(fingerprintProblems(), manifestProblems());
 if (problems.length) {
   process.stderr.write('环境检查未通过，拒绝运行（拒跑不等于通过，请先清理后再跑）：\n');
   for (const p of problems) process.stderr.write('  - ' + p + '\n');
@@ -85,7 +119,7 @@ if (problems.length) {
 process.stdout.write('环境检查通过（C 盘可用、%TEMP%\\zmj-* 无残留）\n');
 
 const jobs = [
-  ['--test', 'tests/online-service.test.js', 'tests/accounts.test.js', 'tests/river.test.js', 'tests/core.test.js', 'tests/multi.test.js', 'tests/training.test.js', 'tests/decision.test.js', 'tests/progress.test.js', 'tests/lessons.test.js', 'tests/settlement.test.js', 'tests/server-limits.test.js', 'tests/evaluation.test.js', 'tests/connection-check.test.js', 'tests/offline.test.js', 'tests/personas.test.js', 'tests/audio.test.js', 'tests/atmosphere.test.js', 'tests/wall-slot-map.test.js'],
+  ['--test', 'tests/online-service.test.js', 'tests/accounts.test.js', 'tests/river.test.js', 'tests/core.test.js', 'tests/multi.test.js', 'tests/training.test.js', 'tests/decision.test.js', 'tests/progress.test.js', 'tests/lessons.test.js', 'tests/settlement.test.js', 'tests/server-limits.test.js', 'tests/evaluation.test.js', 'tests/connection-check.test.js', 'tests/offline.test.js', 'tests/personas.test.js', 'tests/audio.test.js', 'tests/atmosphere.test.js', 'tests/wall-slot-map.test.js', 'tests/draw-nth.test.js'],
   ['server/test-ws.js'], ['server/test-rooms.js'], ['server/test-online.js'],
   ['tests/no-build-check.js'], ['tests/smoke-server.js']
 ];

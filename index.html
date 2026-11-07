@@ -1714,7 +1714,7 @@ body.table3d #threeStage.drop-ready::after{top:38%}
       events: [], birds: null, result: null
     };
     return {
-      wall: wall, birds: birds, opening: opening, dealtHands: dealtHands, wallDraws: { head: 52, tail: 0 }, players: players, turn: dealer,
+      wall: wall, birds: birds, opening: opening, dealtHands: dealtHands, wallDraws: { head: 52, head0: 52, tail: 0 }, players: players, turn: dealer,
       lastDiscard: null, lastDraw: null, gangDraw: false, over: false,
       result: null, claimDecisions: null, turnCount: 0, record: rec
     };
@@ -2045,6 +2045,18 @@ body.table3d #threeStage.drop-ready::after{top:38%}
   }
 
   function drawsLeft(hand) { return Math.floor(hand.wall.length / 4); }
+  // v56：这一摸是「从该端数的第几摸」。口径固定为"第几摸"而不是"墙上第几个位置"。
+  // 墙头：wallDraws.head 初值 52（发牌后），本次为 head-52+1；杠补尾摸：drawFor 已先 tail++，本次为 tail。
+  // v56：本局第 N 次摸牌 = (head - head0) + tail。
+  // head0 是发牌完成后 wallDraws.head 的初值，在 createHand 里写入；这里不硬编码 52，改发牌规则也不会悄悄错。
+  // 头摸与杠补尾摸共用同一个口径，玩家看到的是"这是本局第几次摸牌"，不是墙上的位置。
+  function drawNthOf(hand) {
+    var d = hand && hand.wallDraws;
+    if (!d) return 1;
+    var head0 = (d.head0 == null) ? 52 : d.head0;
+    // 下限 1：还没摸过牌时不该显示「第 0 次」
+    return Math.max(1, ((d.head == null ? head0 : d.head) - head0) + (d.tail || 0));
+  }
 
   // ---------- 对手性格：纯数据参数层 ----------
   // 一套 AI + 一层参数：性格只调「倾向」，不新写搜索、不改规则/牌墙/发牌，也不消耗随机数。
@@ -2838,6 +2850,7 @@ body.table3d #threeStage.drop-ready::after{top:38%}
   }
   return {
     openingBreak: openingBreak,
+    drawNthOf: drawNthOf,
     openingPackets: openingPackets,
     publicDiscards: publicDiscards,
     RULES: RULES, KINDS: KINDS,
@@ -3036,7 +3049,9 @@ window.onerror = function (msg, src, line, col) {
     renderTimer();
     renderHint();
     renderMiniHint();
-    sfx('draw');
+    // v56 两段音效：拉出牌背 → 约 120ms 后翻开轻响
+    sfx('drawPull');
+    setTimeout(function () { sfx('draw'); }, 120);
     return true;
   }
   function moveHandTile(id, target, before) {
@@ -3210,7 +3225,7 @@ window.onerror = function (msg, src, line, col) {
     if(table3D.loading)return;
     if(location.protocol==='file:'){failTable3D(Error('3D assets need an HTTP origin'));return;}
     $('table').classList.add('threeLoading');
-    table3D.loading=import('./assets/table3d/table3d.js?build=v55').then(function(module){
+    table3D.loading=import('./assets/table3d/table3d.js?build=v56').then(function(module){
       return module.createTable3D($('threeStage'),{
         onProgress:function(done,total){$('threeLoadStatus').textContent='正在摆好三维牌桌 · '+done+' / '+total;},
         onError:failTable3D,
@@ -3931,8 +3946,8 @@ window.onerror = function (msg, src, line, col) {
   }
   // 16 类程序合成音效：旧 kind（discard/draw/meld/win/lose）逐字保留，默认听感不变
   var SFX_KINDS = ['shuffle', 'dice', 'deal', 'draw', 'oppDraw', 'discard', 'peng', 'gang',
-                   'turn', 'select', 'correct', 'wrong', 'win', 'lose', 'drawGame', 'bird', 'land'];
-  var SFX_PRIORITY = { oppDraw: 0, shuffle: 1, draw: 1, deal: 1, select: 1, discard: 2, land: 2, turn: 3,
+                   'turn', 'select', 'correct', 'wrong', 'win', 'lose', 'drawGame', 'bird', 'land', 'drawPull'];
+  var SFX_PRIORITY = { oppDraw: 0, shuffle: 1, draw: 1, deal: 1, select: 1, drawPull: 1, discard: 2, land: 2, turn: 3,
                        peng: 4, meld: 4, gang: 5, correct: 3, wrong: 3, dice: 3, bird: 6,
                        win: 9, lose: 9, drawGame: 9 };
   function sfxLog(kind) {
@@ -3951,6 +3966,8 @@ window.onerror = function (msg, src, line, col) {
     if (kind === 'discard') { hit(a, t, 2100 * j, 1.1, 0.09, 0.34); tone(a, t, 620 * j, 0.05, 0.10, 'triangle'); }
     else if (kind === 'land') { hit(a, t, 760 * j, 1.7, 0.12, 0.20); tone(a, t, 150 * j, 0.10, 0.05, 'sine'); }
     else if (kind === 'draw') { hit(a, t, 3200 * j, 2.2, 0.05, 0.12, 'highpass'); }
+    // v56 摸牌两段：拉出（牌背擦桌，短促低频摩擦）→ 翻开（沿用 draw 的高频轻响）
+    else if (kind === 'drawPull') { hit(a, t, 900 * j, 2.6, 0.06, 0.14, 'lowpass'); tone(a, t, 180 * j, 0.07, 0.05, 'triangle'); }
     else if (kind === 'oppDraw') { hit(a, t, 2400 * j, 2.0, 0.04, 0.05, 'highpass'); }
     else if (kind === 'peng' || kind === 'meld') { hit(a, t, 1500 * j, 0.9, 0.11, 0.34); hit(a, t + 0.055, 1150 * j, 0.9, 0.13, 0.30); }
     else if (kind === 'gang') {
@@ -5388,11 +5405,17 @@ window.onerror = function (msg, src, line, col) {
       var wkey = 'draw:' + H.wall.length;
       if (wallEl.getAttribute('data-key') !== wkey) {
         wallEl.setAttribute('data-key', wkey);
-        wallEl.innerHTML = '<i class="drawBack" aria-hidden="true"></i>牌墙 ' + H.wall.length + ' 张 · <b>摸牌</b>';
+        // v56：这一摸是「从该端数的第几摸」，口径由 ZMJ.drawNthOf 统一定义（并有 node 断言兜底）。
+        // 取哪张始终由 hand.wall 的 shift/pop 决定，提示只描述"摸的是第几摸"，不构成选牌。
+        var tailTaken = !!(H.wallDraws && H.wallDraws.tail > 0 && H.gangDraw);
+        var nth = ZMJ.drawNthOf(H);
+        wallEl.innerHTML = '<i class="drawBack" aria-hidden="true"></i>牌墙 ' + H.wall.length + ' 张 · <b>摸牌</b>'
+          + (tailTaken ? '（杠补·从尾部取）' : '')
+          + '<small style="opacity:.72;margin-left:2px">本次第 ' + nth + ' 次摸牌</small>';
       }
       wallEl.setAttribute('role', 'button');
       wallEl.setAttribute('tabindex', '0');
-      wallEl.setAttribute('aria-label', '从牌墙摸牌，剩余 ' + H.wall.length + ' 张');
+      wallEl.setAttribute('aria-label', '从牌墙摸牌，剩余 ' + H.wall.length + ' 张，本次第 ' + nth + ' 次摸牌');
     } else {
       if (wallEl.getAttribute('data-key') !== 'wall:' + H.wall.length) {
         wallEl.setAttribute('data-key', 'wall:' + H.wall.length);
@@ -7535,7 +7558,7 @@ window.onerror = function (msg, src, line, col) {
   }
 
   // 与离线缓存同步，保留远端新增的首页版本标识。
-  var BUILD = 'v55';
+  var BUILD = 'v56';
   // ---------- 主界面：先选单机还是联机 ----------
   function showHome() {
     if (!STATS) loadStats();
