@@ -793,18 +793,66 @@ export async function createTable3D(host, callbacks = {}) {
     if (snapshot) update(snapshot);
     dirty = true; schedule();
   }
+  // 牌墙拾取：牌墙牌背是 InstancedMesh，raycast 原生返回 instanceId（= paintBacks 数组下标，不是槽位号）。
+  // paintBacks 收到的数组 = [主段 0..(102-tail-head-1)] + [尾部鸟牌区 6 张]，故：
+  //   mainCount = 102 - tail - head；instanceId < mainCount 属主段，墙下标 = head + instanceId；否则属鸟牌区。
+  // 五条边界：①只有 head（杠补时 101-tail）可抽；②鸟牌区一律无效；③无效不给“最近槽”提示；
+  //          ④位移 <8px 才算点击（否则拖视角）；⑤ machineBusy 必须为 '0'（演出中 instanceId 与墙下标会错位）。
+  const pickRay = new THREE.Raycaster(), pickNdc = new THREE.Vector2();
+  function pickWallSlot(clientX, clientY) {
+    if (!active || disposed || overview) return null;
+    // 演出期间一律不可拾取（instanceId 与墙下标会错位）。
+    // 待抽态（A 方案：引擎不 drawFor，玩家点牌墙才抽）属于"可拾取"，它没有演出，machineBusy 恒为 '0'，天然放行。
+    if (host.dataset.machineBusy !== '0') return null;
+    const rect = renderer.domElement.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    pickNdc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    pickRay.setFromCamera(pickNdc, camera);
+    let best = null;
+    for (const { batch } of backParts) {
+      if (!batch.count) continue;
+      const hits = pickRay.intersectObject(batch, false);
+      if (hits.length && (!best || hits[0].distance < best.distance)) best = hits[0];
+    }
+    if (!best || best.instanceId == null) return null;
+    const instanceId = best.instanceId;
+    const draws = snapshot?.wallDraws, opening = snapshot?.opening;
+    if (!draws || !snapshot) return null;
+    const head = draws.head, tail = draws.tail || 0;
+    const mainCount = Math.max(0, 102 - tail - head);
+    const segment = instanceId < mainCount ? 'main' : 'birds';
+    const wallIndex = segment === 'main' ? head + instanceId : null;
+    // 按摸牌方向收紧（Chief 定）：杠补(fromTail) 只许墙尾 101-tail；否则只许墙头 head(instanceId===0)。
+    // 不能两边都放开，否则杠补时能从墙头抽，方向就错了。
+    const fromTail = !!snapshot.gangDraw;
+    const legal = segment === 'main' && (fromTail
+      ? (tail > 0 && wallIndex === 101 - tail)
+      : instanceId === 0);
+    const info = wallIndex == null ? null : wallSlotInfo(wallIndex, opening);
+    return { instanceId, segment, wallIndex, legal, slot: info };
+  }
   function pointerDown(event) {
     if (!active || event.target !== renderer.domElement || event.button !== 0) return;
-    drag = { x: event.clientX, y: event.clientY, yaw, pitch };
+    drag = { x: event.clientX, y: event.clientY, yaw, pitch, moved: 0, id: event.pointerId };
     renderer.domElement.setPointerCapture(event.pointerId);
   }
   function pointerMove(event) {
-    if (!drag || overview) return;
+    if (!drag) return;
+    // 记录累计位移：<8px 判为“点一下”（交给 pointerUp 做牌墙拾取），否则才是拖视角。
+    drag.moved = Math.max(drag.moved, Math.hypot(event.clientX - drag.x, event.clientY - drag.y));
+    if (drag.moved < 8 || overview) return;
     yaw = clamp(drag.yaw - (event.clientX - drag.x) * 0.0025, -0.32, 0.32);
     pitch = clamp(drag.pitch + (event.clientY - drag.y) * 0.002, 0.53, 0.92);
     cameraPose(); dirty = true; schedule();
   }
-  function pointerUp() { drag = null; }
+  function pointerUp(event) {
+    // 位移 <8px 视为点击：尝试拾取牌墙槽位并通知上层（只报槽号，不决定拿哪张）。
+    if (drag && drag.moved < 8 && event && event.clientX != null) {
+      const slot = pickWallSlot(event ? event.clientX : 0, event ? event.clientY : 0);
+      if (slot) callbacks.onWallPick?.(slot);
+    }
+    drag = null;
+  }
   renderer.domElement.addEventListener('pointerdown', pointerDown);
   renderer.domElement.addEventListener('pointermove', pointerMove);
   renderer.domElement.addEventListener('pointerup', pointerUp);
