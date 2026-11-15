@@ -29,6 +29,9 @@ async function until(fn,ms){var start=Date.now();ms=ms||60000;while(!fn()){if(Da
   var row=d.querySelector('#seat0 .handRow');
   function order(){return Array.prototype.map.call(d.querySelectorAll('#seat0 .handRow [data-tile-id]'),function(t){return t.dataset.tileId;});}
   var orderBefore=order(),stage=d.getElementById('threeStage');
+  check(Number(stage.dataset.contactCount)>=14,'真实手牌有接触阴影');
+  check(stage.dataset.companions==='4'&&stage.dataset.cast==='cat,fox,panda,rabbit','四位 Blender 动物模型已载入');
+  var landings=Number(stage.dataset.tileLandings||0);
   // 1. 拖到手牌中段：真实牌模跟手、相邻牌让位开槽，且不再出现二维牌影
   var anchor=d.querySelectorAll('[data-three-projected]')[7]||tile;
   var ar=anchor.getBoundingClientRect();
@@ -37,6 +40,8 @@ async function until(fn,ms){var start=Date.now();ms=ms||60000;while(!fn()){if(Da
   await wait(120);
   check(stage.dataset.tileDrag===tile.dataset.tileId,'三维拖动时由场景里的真实牌模跟手（tileDrag='+stage.dataset.tileDrag+'）');
   check(!!stage.dataset.tileInsert,'拖到手牌上方时出现插入槽（tileInsert='+stage.dataset.tileInsert+'）');
+  check(stage.dataset.gripping.split(',').includes('0'),'拖牌时玩家爪子进入抓握状态');
+  check(Number(stage.dataset.gripError)<0.001,'爪子与牌共享位置，抓握误差小于 1 毫米');
   var insRaw=String(stage.dataset.tileInsert||''),insCut=insRaw.lastIndexOf(':'),insId=insRaw.slice(0,insCut),insBefore=insRaw.slice(insCut+1)==='b';
   check(!d.querySelector('.drag-ghost'),'三维拖动不再生成二维牌图片');
   check(!stage.classList.contains('drop-ready'),'手牌区按拖动不点亮牌河');
@@ -62,6 +67,9 @@ async function until(fn,ms){var start=Date.now();ms=ms||60000;while(!fn()){if(Da
   await wait(250);
   check(g.hand.players[hs].discards.length===before+1,'三维松手后这张牌真正进入牌河');
   check(!stage.classList.contains('drop-ready'),'三维出牌后清除落点高亮');
+  await until(function(){return Number(stage.dataset.tileLandings)>landings;},5000);
+  check(Number(stage.dataset.contactCount)>=14,'出牌落桌后手牌与牌河保留接触阴影');
+  check(Number(stage.dataset.tileLandings)>landings,'牌模触桌时产生一次落定反馈');
   out.ok=true;
 }catch(e){out.errors.push(e.message);}
 document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));})();

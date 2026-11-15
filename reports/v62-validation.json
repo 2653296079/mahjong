@@ -1,0 +1,242 @@
+{
+  "build": "v62",
+  "cache": "zmj-v62",
+  "command": "node tests/run-checks.js --browser",
+  "exitCode": 0,
+  "complete": true,
+  "node": [
+    "# tests 119",
+    "# pass 119",
+    "# fail 0"
+  ],
+  "browserJobs": 25,
+  "browserPassed": 25,
+  "results": [
+    {
+      "ok": true,
+      "checks": 44,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 23,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 30,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 108,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 23,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 10,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 19,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 24,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 24,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 24,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 15,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 35,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 21,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 16,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 18,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 21,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 24,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 11,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 13,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 5,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 82,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 45,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 10,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 13,
+      "errors": []
+    }
+  ],
+  "files": [
+    {
+      "file": "index.html",
+      "bytes": 609817,
+      "modifiedUtc": "2026-11-15T16:54:17.993Z",
+      "sha256": "8f2c25769711609a06903230a4a1f7295e37d7c52b893208c626cb6428ce9824"
+    },
+    {
+      "file": "sw.js",
+      "bytes": 2624,
+      "modifiedUtc": "2026-11-15T16:56:07.638Z",
+      "sha256": "ee3eba5bd6d3af8363bd35be1c1ef5cfa3a26480ac9e13896b016a8a51eabc89"
+    },
+    {
+      "file": "server.js",
+      "bytes": 6993,
+      "modifiedUtc": "2026-11-15T16:43:19.357Z",
+      "sha256": "4ca5ccca29dafe49d1e8aaf8afdf9b690934393276f6acfb90524a73be2e4d67"
+    },
+    {
+      "file": "assets/table3d/table3d.js",
+      "bytes": 55724,
+      "modifiedUtc": "2026-11-15T16:11:25.479Z",
+      "sha256": "475625ca461c71782ed079e461cacb38d4b7c6b4b230a7d36b08999f64374ae2"
+    },
+    {
+      "file": "assets/table3d/companions.js",
+      "bytes": 5683,
+      "modifiedUtc": "2026-11-15T16:38:39.535Z",
+      "sha256": "5ec63bfb2e36811830b049462874182797749f05d4e985caacfbca06f9978963"
+    },
+    {
+      "file": "tests/run-checks.js",
+      "bytes": 7849,
+      "modifiedUtc": "2026-11-07T19:26:35.653Z",
+      "sha256": "485194ec2b7d0e1cbf4f254ecfb1537f481e0061f918453f8a1b315765994c29"
+    },
+    {
+      "file": "assets/mahjong-3d/glb/room/afternoon-room.blend",
+      "bytes": 22154325,
+      "modifiedUtc": "2026-11-15T16:45:23.274Z",
+      "sha256": "ce2530dd6052c956b68ba5524aa7daef8531be009c2553365ca6e4db8c3a3e4d"
+    },
+    {
+      "file": "assets/mahjong-3d/glb/room/afternoon-room.glb",
+      "bytes": 2998536,
+      "modifiedUtc": "2026-11-15T16:45:19.756Z",
+      "sha256": "d22eafb2eed8a584be7f87af136b8e6fd4d7bc13160dfbd2c94a846cb93b66c4"
+    },
+    {
+      "file": "assets/mahjong-3d/glb/companions/cat.glb",
+      "bytes": 613272,
+      "modifiedUtc": "2026-11-15T16:45:12.865Z",
+      "sha256": "60cbed77f3f8cf33567dd174f5f763174ec5f4fb5217fc7a81d97c6d4c24140f"
+    },
+    {
+      "file": "assets/mahjong-3d/glb/companions/portraits/cat.png",
+      "bytes": 36357,
+      "modifiedUtc": "2026-11-15T16:45:13.170Z",
+      "sha256": "454624ed6e2db1d449a8f465965194a1b4c216c695bebf792a4d72c294dd0526"
+    },
+    {
+      "file": "assets/mahjong-3d/glb/companions/fox.glb",
+      "bytes": 546880,
+      "modifiedUtc": "2026-11-15T16:45:13.450Z",
+      "sha256": "9b3138e52bde68890b093b616eb1b1608c06b963320c998c7561fe7f64fb0d1c"
+    },
+    {
+      "file": "assets/mahjong-3d/glb/companions/portraits/fox.png",
+      "bytes": 36113,
+      "modifiedUtc": "2026-11-15T16:45:13.625Z",
+      "sha256": "8668253fae74c3fb0cd38f85d701adac547588db8c30ca3803113db657fea784"
+    },
+    {
+      "file": "assets/mahjong-3d/glb/companions/panda.glb",
+      "bytes": 629152,
+      "modifiedUtc": "2026-11-15T16:45:13.922Z",
+      "sha256": "4f315077398e743a62a1b005bf9980f2b5984b729807f4e7484fcacbac8ccf48"
+    },
+    {
+      "file": "assets/mahjong-3d/glb/companions/portraits/panda.png",
+      "bytes": 35399,
+      "modifiedUtc": "2026-11-15T16:45:14.090Z",
+      "sha256": "1ee93e8a11f81604269db16e2dd0a590a23d0c53d19b7208e9131b92dcbe6a46"
+    },
+    {
+      "file": "assets/mahjong-3d/glb/companions/rabbit.glb",
+      "bytes": 554788,
+      "modifiedUtc": "2026-11-15T16:45:14.367Z",
+      "sha256": "78052ae90769077a4e17c052916cc0f0df43cdf692853c95ed787789d943da41"
+    },
+    {
+      "file": "assets/mahjong-3d/glb/companions/portraits/rabbit.png",
+      "bytes": 26966,
+      "modifiedUtc": "2026-11-15T16:45:14.526Z",
+      "sha256": "14aa1a17992d1dfc3c9dc37ef9a27d8327bc77e767a76b2c752cc0c8508eddcf"
+    }
+  ],
+  "blenderRender": "reports/afternoon-room-blender-v62.png",
+  "manualBrowserReview": false,
+  "manualReviewBlocker": "用户同意查看，但客户端保存的站点权限仍拒绝本地页面访问。",
+  "published": false
+}

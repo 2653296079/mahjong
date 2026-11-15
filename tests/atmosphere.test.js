@@ -59,7 +59,7 @@ test('设置面板有四个新控件，且都带 aria-label', () => {
   assert.match(html, /cfg\.coach = this\.value === 'on' \? 'on' : 'off'/);
 });
 
-test('头像：Canvas 参数绘制，零图片、零随机、无 toDataURL 回写', () => {
+test('二维头像保持程序绘制；三维只加载对应动物的本地头像', () => {
   assert.match(game, /document\.createElement\('canvas'\)/);
   assert.match(avatarSection, /aria-hidden/);
   assert.match(avatarSection, /function avatarParams\(name, isMe\)/);
@@ -72,7 +72,9 @@ test('头像：Canvas 参数绘制，零图片、零随机、无 toDataURL 回�
   assert.doesNotMatch(avatarSection, /data:image/i);
   assert.doesNotMatch(avatarSection, /\.(?:png|jpe?g|gif|webp|svg)\b/i);
   assert.doesNotMatch(html, /<img\b/i);
-  assert.doesNotMatch(html, /new Image\s*\(/);
+  assert.equal((html.match(/new Image\s*\(/g)||[]).length, 1, '图片构造仅用于三维动物头像');
+  assert.match(html, /companions\/portraits\/.*\.png\?build=v62/);
+  assert.match(html, /if\(document\.body\.classList\.contains\('table3d'\)\)/);
   assert.equal((html.match(/<script\b/gi) || []).length, 3, '全页仍 3 个内联 script');
   assert.ok(engine.length > 20000);
 });

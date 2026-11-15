@@ -1,6 +1,7 @@
 import * as THREE from '../vendor/three/three.module.js';
 import { GLTFLoader } from '../vendor/three/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/three/RoomEnvironment.js';
+import { createCompanions } from './companions.js';
 
 const MODEL_ROOT = new URL('../mahjong-3d/glb/', import.meta.url);
 const TOP = 0.759;
@@ -16,6 +17,12 @@ const rotation = (pos, tilt = 0) => new THREE.Quaternion().setFromEuler(new THRE
   .multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(tilt, 0, 0)));
 const HAND_SCALE = 2.25, HAND_STEP = 0.060, HAND_Z = 0.357, HAND_TILT = 1.46;
 const DICE_SCALE = 2.4, DICE_TIME = 2300;
+// 前 80% 完成飞行，触桌后以毫米级回弹收尾。
+function tileMotion(f, landing) {
+  const p = Math.min(1, f / (landing ? 0.8 : 1));
+  return { travel: p * p * (3 - 2 * p),
+    lift: landing && f >= 0.8 ? Math.sin((f - 0.8) / 0.2 * Math.PI) * 0.0025 : 0 };
+}
 function handPose(index, count, drawn, overhead = false) {
   const tilt = overhead ? 0.20 : HAND_TILT, gap = drawn >= 0 ? 0.014 : 0;
   return { position: new THREE.Vector3(index * HAND_STEP - ((count - 1) * HAND_STEP + gap) / 2 + (index === drawn ? gap : 0),
@@ -112,10 +119,14 @@ export async function createTable3D(host, callbacks = {}) {
     } else if (/padded rail/i.test(source.name)) {
       material.color.set('#f1e5d5'); material.map = railWood; material.bumpMap = railBump; material.bumpScale = 0.00012; material.roughness = 0.65;
     } else if (/ink/i.test(source.name)) { material.roughness = 0.58; material.envMapIntensity = 0.25; }
+    if (/linen/i.test(source.name)) { material.bumpMap = feltBump; material.bumpScale = 0.00018; material.roughness = 0.96; }
+    else if (/fur|paw/i.test(source.name)) { material.bumpMap = feltBump; material.bumpScale = 0.00007; material.roughness = 0.88; }
     materialCache.set(source, material); return material;
   }
   const requests = Array.from({ length: 27 }, (_, kind) => [modelId(kind), 'tiles/' + modelId(kind) + '.glb']);
-  requests.push(['mahjong-table', 'mahjong-table.glb'], ['tile-back', 'tile-back.glb'], ['dice', 'dice.glb'], ['glass-dice-cup', 'glass-dice-cup.glb'], ['dealer-marker', 'dealer-marker.glb']);
+  requests.push(['mahjong-table', 'room/afternoon-room.glb'], ['tile-back', 'tile-back.glb'], ['dice', 'dice.glb'], ['glass-dice-cup', 'glass-dice-cup.glb'], ['dealer-marker', 'dealer-marker.glb']);
+  requests.push(['machine-console', 'room/machine-console.glb']);
+  for (const animal of ['cat','fox','panda','rabbit']) requests.push(['companion-'+animal, 'companions/'+animal+'.glb']);
   let loaded = 0;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25000);
@@ -159,7 +170,10 @@ export async function createTable3D(host, callbacks = {}) {
   } finally { clearTimeout(timeout); }
 
   const table = templates.get('mahjong-table').clone(true);
-  scene.add(table);
+  scene.add(table); floor.visible = false;
+  const companions = createCompanions(scene, templates, { reduced: reduceMotion });
+  host.dataset.companions = String(companions.count);
+  host.dataset.cast = companions.cast.join(',');
   // 麻将机中央升降骰盘和四方升牌槽，沿用桌体的真实米制尺寸。
   const machine = new THREE.Group(), lid = new THREE.Group();
   machine.position.y = TOP;
@@ -203,6 +217,9 @@ export async function createTable3D(host, callbacks = {}) {
   const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.007, 0.020, 4), trim);
   arrow.rotation.z = Math.PI; arrow.position.y = 0.064; takeMarker.add(arrow);
   takeMarker.visible = false; scene.add(takeMarker);
+  // The authored Blender console replaces the old procedural coaster.
+  for (const child of lid.children) child.visible = false;
+  lid.add(templates.get('machine-console').clone(true));
   const tiles = new THREE.Group();
   scene.add(tiles);
   const contactCanvas = document.createElement('canvas'); contactCanvas.width = contactCanvas.height = 64;
@@ -211,7 +228,7 @@ export async function createTable3D(host, callbacks = {}) {
   contactContext.fillStyle = contactGradient; contactContext.fillRect(0, 0, 64, 64);
   const contactTexture = new THREE.CanvasTexture(contactCanvas);
   const contact = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({ map: contactTexture, transparent: true, opacity: 0.28, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 }), 14);
+    new THREE.MeshBasicMaterial({ map: contactTexture, transparent: true, opacity: 0.28, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 }), 128);
   contact.count = 0; contact.frustumCulled = false; scene.add(contact);
   const rimGeometry = new THREE.BoxGeometry(1, 1, 1);
   const rimMaterials = INKS.map(color => new THREE.MeshStandardMaterial({ color, roughness: 0.5 }));
@@ -230,13 +247,13 @@ export async function createTable3D(host, callbacks = {}) {
   let machineRun = null, lastBacks = [], recycling = null;
   let snapshot = null, round = null, active = false, disposed = false, overview = false;
   let hovered = null, dirty = true, request = 0, animatedUntil = 0, lastFrame = 0, discardHint = null, dragTile = null, dragInsert = null;
-  let yaw = 0, pitch = 0.67, drag = null, width = 0, height = 0;
+  let yaw = 0, pitch = 1.00, drag = null, width = 0, height = 0;
   const projected = new Map();
   const bounds = new THREE.Box3(), corners = Array.from({ length: 8 }, () => new THREE.Vector3());
 
   function cameraPose(focus = 0) {
     const aspect = width / Math.max(1, height);
-    const normalDistance = aspect < 1 ? 1.48 / Math.max(0.56, aspect) : 1.45;
+    const normalDistance = aspect < 1 ? 1.75 / Math.max(0.56, aspect) : 1.85;
     const distance = THREE.MathUtils.lerp(normalDistance, 0.65 / Math.min(1, Math.max(0.7, aspect)), focus);
     const angle = THREE.MathUtils.lerp(overview ? 1.30 : pitch, 1.08, focus), heading = yaw * (1 - focus);
     camera.position.set(Math.sin(heading) * Math.cos(angle) * distance, TOP + Math.sin(angle) * distance,
@@ -258,14 +275,15 @@ export async function createTable3D(host, callbacks = {}) {
   const observer = new ResizeObserver(resize);
   observer.observe(host);
 
-  function animate(entry, target, quaternion, duration = 180, arc = 0) {
+  function animate(entry, target, quaternion, duration = 180, arc = 0, landing = false) {
     const now = performance.now();
     if (reduceMotion || duration === 0) {
-      entry.object.position.copy(target); entry.object.quaternion.copy(quaternion); entry.tween = null;
+      entry.object.position.copy(target); entry.object.quaternion.copy(quaternion); entry.object.scale.setScalar(entry.scale); entry.tween = null;
     } else {
       entry.tween = { start: now, duration, from: entry.object.position.clone(), to: target.clone(),
-        q0: entry.object.quaternion.clone(), q1: quaternion.clone(), arc };
-      animatedUntil = Math.max(animatedUntil, now + duration + 40);
+        q0: entry.object.quaternion.clone(), q1: quaternion.clone(), arc, landing, landed: false, grab: (entry.type === 'hand' || entry.type === 'river') && arc > 0, lead: arc > 0 ? 180 : 0,
+        scale0: entry.object.scale.x, scale1: entry.scale };
+      animatedUntil = Math.max(animatedUntil, now + duration + (arc > 0 ? 180 : 0) + 40);
     }
     dirty = true;
   }
@@ -280,24 +298,27 @@ export async function createTable3D(host, callbacks = {}) {
       object.position.copy(position);
       object.quaternion.copy(quaternion);
       tiles.add(object);
-      entry = { object, type, ...extra, base: position.clone(), q: quaternion.clone(), liftTarget: position.clone() };
+      entry = { object, type, scale, ...extra, base: position.clone(), q: quaternion.clone(), liftTarget: position.clone() };
       entries.set(key, entry);
       if (!initial && type === 'river') {
         const hint = discardHint && discardHint.kind === extra.kind && extra.pos === 0 && performance.now() - discardHint.time < 2500;
         object.position.copy(hint ? discardHint.position : turn(extra.pos, 0, 0.35, TOP + 0.055));
         object.quaternion.copy(hint ? discardHint.quaternion : rotation(extra.pos, 1.15));
-        animate(entry, position, quaternion, 420, 0.07);
-        if (hint) discardHint = null;
+        object.scale.setScalar(hint ? discardHint.scale : 1.16);
+        animate(entry, position, quaternion, hint ? 360 : 400, hint ? 0.035 : 0.045, true);
+        if (hint) { if(entry.tween) entry.tween.lead=0; discardHint = null; }
       } else if (!initial && type === 'hand') {
         const draws = snapshot?.wallDraws, wall = snapshot ? physicalWall(snapshot) : null;
         const slot = wall && draws ? wall[clamp(snapshot.gangDraw ? 102 - draws.tail : draws.head - 1, 0, 107)] : null;
         object.position.copy(slot ? slot.position : turn(0, 0.17, 0.26, TOP + 0.045));
         object.quaternion.copy(slot ? slot.rotation : rotation(0));
-        animate(entry, position, quaternion, 330, 0.045);
+        object.scale.setScalar(slot ? 0.98 : 1.16);
+        animate(entry, position, quaternion, 380, 0.045);
       }
     } else if (entry.base.distanceToSquared(position) > 1e-10 || entry.q.angleTo(quaternion) > 0.001) {
       animate(entry, position, quaternion);
     }
+    entry.scale = scale;
     entry.base.copy(position); entry.q.copy(quaternion);
     Object.assign(entry, extra);
     return entry;
@@ -324,6 +345,21 @@ export async function createTable3D(host, callbacks = {}) {
       dummy.updateMatrix(); contact.setMatrixAt(i, dummy.matrix);
     });
     contact.instanceMatrix.needsUpdate = true;
+  }
+  function paintLiveContacts() {
+    let i = 0;
+    for (const entry of entries.values()) {
+      if (entry.type === 'prop' || !entry.object.visible || i >= 128) continue;
+      const object = entry.object, elevation = Math.max(0, object.position.y - entry.base.y);
+      const spread = 1 + Math.min(0.8, elevation * 5);
+      const size = object.scale.x;
+      dummy.position.set(object.position.x, TOP + 0.0006, object.position.z);
+      dummy.quaternion.identity();
+      dummy.scale.set(0.026 * size * spread, 1, (entry.type === 'hand' && !overview ? 0.019 : 0.035) * size * spread);
+      dummy.updateMatrix(); contact.setMatrixAt(i++, dummy.matrix);
+    }
+    contact.count = i; contact.instanceMatrix.needsUpdate = true;
+    host.dataset.contactCount = String(i);
   }
   function updateHover() {
     if (machineRun) return;
@@ -749,15 +785,37 @@ export async function createTable3D(host, callbacks = {}) {
   function frame(now) {
     request = 0;
     if (!active || disposed || document.hidden) return;
-    if (now - lastFrame >= 15 && (dirty || machineRun || now < animatedUntil)) {
+    if (now - lastFrame >= (softwareRendering ? 50 : 30) && (dirty || machineRun || now < animatedUntil || !reduceMotion)) {
       frameMachine(now);
+      const holds = [];
       for (const entry of entries.values()) if (entry.tween) {
-        const t = entry.tween, f = clamp((now - t.start) / t.duration, 0, 1), eased = 1 - Math.pow(1 - f, 3);
+        const t = entry.tween, f = clamp((now - t.start - t.lead) / t.duration, 0, 1);
+        const motion = tileMotion(f, t.landing), eased = motion.travel;
         entry.object.position.lerpVectors(t.from, t.to, eased);
-        entry.object.position.y += Math.sin(Math.PI * f) * t.arc;
+        entry.object.position.y += Math.sin(Math.PI * Math.min(1, f / (t.landing ? 0.8 : 1))) * t.arc + motion.lift;
+        entry.object.scale.setScalar(THREE.MathUtils.lerp(t.scale0, t.scale1, eased));
+        if (t.landing && !t.landed && f >= 0.8) {
+          t.landed = true;
+          host.dataset.tileLandings = String(Number(host.dataset.tileLandings || 0) + 1);
+          callbacks.onTileLand?.();
+        }
         entry.object.quaternion.slerpQuaternions(t.q0, t.q1, eased);
+        if (t.grab && f < (t.landing ? 0.8 : 1)) {
+          const grip = clamp((now - t.start) / Math.max(1,t.lead), 0, 1);
+          const point = entry.object.position.clone().add(new THREE.Vector3(0,0.018*entry.object.scale.x+0.016,0));
+          holds.push({pos:entry.type==='hand'?0:entry.pos,point,grip});
+        }
         if (f === 1) entry.tween = null;
       }
+      if (!machineRun) {
+        const held = dragTile ? entries.get('hand:'+dragTile.id) : [...entries.values()].find(e=>e.type==='hand' && e.chosen);
+        if (held) holds.push({pos:0,point:held.object.position.clone().add(new THREE.Vector3(0,0.018*held.object.scale.x+0.016,0)),grip:1});
+        paintLiveContacts();
+      }
+      companions.update(now, machineRun ? [] : holds);
+      const gripState=companions.inspect();
+      host.dataset.gripping = gripState.filter(r=>r.holding&&r.grip>=1).map(r=>r.pos).join(',');
+      host.dataset.gripError = String(Math.max(0,...gripState.filter(r=>r.holding&&r.grip>=1).map(r=>r.error)));
       scene.updateMatrixWorld();
       renderer.render(scene, camera);
       projectHand();
@@ -778,7 +836,7 @@ export async function createTable3D(host, callbacks = {}) {
       host.dataset.triangles = String(renderer.info.render.triangles);
       lastFrame = now; dirty = false;
     }
-    if (dirty || machineRun && (machineRun.phase !== 'await-roll' || machineRun.rolled) || now < animatedUntil) schedule();
+    if (dirty || machineRun && (machineRun.phase !== 'await-roll' || machineRun.rolled) || now < animatedUntil || !reduceMotion) schedule();
   }
   function schedule() { if (active && !disposed && !document.hidden && !request) request = requestAnimationFrame(frame); }
   function setActive(value) {
@@ -787,7 +845,7 @@ export async function createTable3D(host, callbacks = {}) {
     if (active) { resize(); dirty = true; schedule(); }
   }
   function setView(value) {
-    overview = value === 'overhead'; yaw = 0; pitch = 0.67;
+    overview = value === 'overhead'; yaw = 0; pitch = 1.00;
     host.dataset.view = overview ? 'overhead' : 'seated';
     cameraPose();
     if (snapshot) update(snapshot);
@@ -842,7 +900,7 @@ export async function createTable3D(host, callbacks = {}) {
     drag.moved = Math.max(drag.moved, Math.hypot(event.clientX - drag.x, event.clientY - drag.y));
     if (drag.moved < 8 || overview) return;
     yaw = clamp(drag.yaw - (event.clientX - drag.x) * 0.0025, -0.32, 0.32);
-    pitch = clamp(drag.pitch + (event.clientY - drag.y) * 0.002, 0.53, 0.92);
+    pitch = clamp(drag.pitch + (event.clientY - drag.y) * 0.002, 0.80, 1.15);
     cameraPose(); dirty = true; schedule();
   }
   function pointerUp(event) {
@@ -885,9 +943,10 @@ export async function createTable3D(host, callbacks = {}) {
     // 只读槽位查询：index 为可视槽下标 0..107，返回 { physical, seat, pos, column, layer, upper }，不含牌种。
     wallSlotAt(index) { return wallSlotInfo(index, snapshot?.opening); },
     wallSlotCount() { return WALL_SLOTS; },
+    companionState() { return companions.inspect(); },
     noteDiscard(id) {
       const entry = entries.get('hand:' + id);
-      if (entry) discardHint = { kind: entry.kind, position: entry.object.position.clone(), quaternion: entry.object.quaternion.clone(), time: performance.now() };
+      if (entry) discardHint = { kind: entry.kind, position: entry.object.position.clone(), quaternion: entry.object.quaternion.clone(), scale: entry.object.scale.x, time: performance.now() };
     },
     dispose() {
       disposed = true; setActive(false); observer.disconnect();

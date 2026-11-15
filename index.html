@@ -3354,13 +3354,28 @@ window.onerror = function (msg, src, line, col) {
     else ensureTable3D();
     if(game&&game.hand){renderActions();syncTable3D();}
   }
+  var ANIMAL_PORTRAITS = {};
+  function paintAnimalPortrait(canvas, animal) {
+    var img = ANIMAL_PORTRAITS[animal];
+    function paint() {
+      if (!canvas.isConnected || !img.complete || !img.naturalWidth) return;
+      var ctx=canvas.getContext('2d'), n=canvas.width;
+      ctx.clearRect(0,0,n,n);ctx.save();
+      ctx.beginPath();ctx.arc(n/2,n/2,n/2,0,Math.PI*2);ctx.clip();
+      ctx.fillStyle='#eee3cb';ctx.fillRect(0,0,n,n);ctx.drawImage(img,0,0,n,n);ctx.restore();
+      canvas.dataset.animal=animal;
+    }
+    if(!img){img=new Image();ANIMAL_PORTRAITS[animal]=img;img.src='./assets/mahjong-3d/glb/companions/portraits/'+animal+'.png?build=v62';}
+    if(img.complete)requestAnimationFrame(paint);
+    else img.addEventListener('load',paint,{once:true});
+  }
   function ensureTable3D() {
     if(!table3D.wanted||!game||!game.hand)return;
     if(table3D.api){document.body.classList.add('table3d');table3D.api.setActive(!$('app').inert);return;}
     if(table3D.loading)return;
     if(location.protocol==='file:'){failTable3D(Error('3D assets need an HTTP origin'));return;}
     $('table').classList.add('threeLoading');
-    table3D.loading=import('./assets/table3d/table3d.js?build=v59').then(function(module){
+    table3D.loading=import('./assets/table3d/table3d.js?build=v62').then(function(module){
       return module.createTable3D($('threeStage'),{
         onProgress:function(done,total){$('threeLoadStatus').textContent='正在摆好三维牌桌 · '+done+' / '+total;},
         onError:failTable3D,
@@ -3387,6 +3402,7 @@ window.onerror = function (msg, src, line, col) {
           if(settled)sfx('dice');
           
         },
+        onTileLand:function(){ sfx('land'); },
         onPacket:function(pos,jump,slots){
           $('threeMachineTitle').textContent=jump?'庄家跳牌 · 隔一墩取上层':slots.length===4?['你','下家','对家','上家'][pos]+' · 抓四张':pos===seatPos(game.dealer)?'庄家先取当前墩上层一张':['你','下家','对家','上家'][pos]+' · 补一张';
           var now=Date.now();
@@ -5167,6 +5183,12 @@ window.onerror = function (msg, src, line, col) {
     var label = nameEl.querySelector('.seatLabel');
     if (label && label.parentNode === nameEl) nameEl.insertBefore(cv, label);
     else nameEl.insertBefore(cv, nameEl.firstChild);
+    if(document.body.classList.contains('table3d')){
+      requestAnimationFrame(function(){
+        var seat=nameEl.closest('.seat'), pos=seat?Number(seat.id.replace('seat','')):-1;
+        if(pos>=0&&pos<4)paintAnimalPortrait(cv,['cat','fox','panda','rabbit'][pos]);
+      });
+    }
   }
   try {
     window.__zmjAvatar = { version: 1, params: avatarParams, key: avatarKey, hash: avatarHash, debug: AVATAR_DEBUG };
@@ -7719,7 +7741,7 @@ window.onerror = function (msg, src, line, col) {
   }
 
   // 与离线缓存同步，保留远端新增的首页版本标识。
-  var BUILD = 'v59';
+  var BUILD = 'v62';
   // ---------- 主界面：先选单机还是联机 ----------
   function showHome() {
     if (!STATS) loadStats();

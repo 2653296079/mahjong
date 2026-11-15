@@ -54,6 +54,8 @@ function paint(){return new Promise(r=>requestAnimationFrame(()=>requestAnimatio
  // 气质增强：3D 座席胶囊内四个程序化头像，开关即时生效 4→0→4（t7 F1 回归）
  function avatarCount(){return d.querySelectorAll('.seatAvatar').length;}
  check(avatarCount()===4,'3D 牌桌四座胶囊都有程序化头像，实际 '+avatarCount());
+ await until(()=>d.querySelectorAll('.seatAvatar[data-animal]').length===4);
+ check(new Set(Array.from(d.querySelectorAll('.seatAvatar')).map(c=>c.dataset.animal)).size===4,'四座头像使用对应 Blender 动物的渲染图');
  check(Array.prototype.every.call(d.querySelectorAll('.seatAvatar'),function(c){var w2=c.getBoundingClientRect().width;return w2>=17&&w2<=27;}),'3D 头像尺寸在 17–27px 档位');
  d.getElementById('btnSettings').click();
  var avSel=d.getElementById('setAvatar');

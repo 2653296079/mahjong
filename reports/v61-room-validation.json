@@ -1,0 +1,206 @@
+{
+  "build": "v61",
+  "cache": "zmj-v61",
+  "command": "node tests/run-checks.js --browser",
+  "exitCode": 0,
+  "complete": true,
+  "browserJobs": 25,
+  "browserPass": 25,
+  "results": [
+    {
+      "ok": true,
+      "checks": 43,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 23,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 30,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 108,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 23,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 10,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 19,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 24,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 24,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 24,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 15,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 35,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 21,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 16,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 18,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 21,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 24,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 11,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 13,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 5,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 82,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 45,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 10,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "checks": 13,
+      "errors": []
+    }
+  ],
+  "files": [
+    {
+      "file": "index.html",
+      "bytes": 608764,
+      "modifiedUtc": "2026-11-15T15:47:35.338Z",
+      "sha256": "f79edfea25ff8e96f493aa923fe5a8defb188d7de3c109fc40c699f39be82c69"
+    },
+    {
+      "file": "assets/table3d/table3d.js",
+      "bytes": 55724,
+      "modifiedUtc": "2026-11-15T16:11:25.479Z",
+      "sha256": "475625ca461c71782ed079e461cacb38d4b7c6b4b230a7d36b08999f64374ae2"
+    },
+    {
+      "file": "assets/table3d/companions.js",
+      "bytes": 4688,
+      "modifiedUtc": "2026-11-15T16:11:25.034Z",
+      "sha256": "269cc36170f6d44ac4bf77545a960c6b9ca26f1747b87ab189350f8e503936a3"
+    },
+    {
+      "file": "tests/run-checks.js",
+      "bytes": 7849,
+      "modifiedUtc": "2026-11-07T19:26:35.653Z",
+      "sha256": "485194ec2b7d0e1cbf4f254ecfb1537f481e0061f918453f8a1b315765994c29"
+    },
+    {
+      "file": "assets/mahjong-3d/glb/room/afternoon-room.blend",
+      "bytes": 15539515,
+      "modifiedUtc": "2026-11-15T16:13:04.108Z",
+      "sha256": "8fce53a5b2c5640744658078f027abe01bb089d7acbdabb84b1b4fb43b265015"
+    },
+    {
+      "file": "assets/mahjong-3d/glb/room/afternoon-room.glb",
+      "bytes": 992248,
+      "modifiedUtc": "2026-11-15T16:13:02.360Z",
+      "sha256": "1b7266273019ba764bd07018e3bd749c9f83f15d234fc8999acc504a20dc3d9f"
+    },
+    {
+      "file": "assets/mahjong-3d/glb/room/machine-console.glb",
+      "bytes": 171100,
+      "modifiedUtc": "2026-11-15T16:13:02.617Z",
+      "sha256": "0d9846ba4c89014cf3dd0047ba977463d720dab3e6b5b7d3897d7ebffb8b33c9"
+    },
+    {
+      "file": "assets/mahjong-3d/glb/companions/cat.glb",
+      "bytes": 593572,
+      "modifiedUtc": "2026-11-15T15:42:25.223Z",
+      "sha256": "2288a922dd9b04adf398d27308ff1fecabd001ed8a9892226033068cb49669ac"
+    },
+    {
+      "file": "assets/mahjong-3d/glb/companions/fox.glb",
+      "bytes": 540536,
+      "modifiedUtc": "2026-11-15T15:42:25.470Z",
+      "sha256": "94bf7496ac3d825d087fec4f45c7ddbcfd788ee5db2e5f15462f7363dcde18b3"
+    },
+    {
+      "file": "assets/mahjong-3d/glb/companions/panda.glb",
+      "bytes": 482760,
+      "modifiedUtc": "2026-11-15T15:42:25.723Z",
+      "sha256": "9213c7e5db146ce8e29e36b5c118f763f0bce889dfd0fa13964e60ea98888ba4"
+    },
+    {
+      "file": "assets/mahjong-3d/glb/companions/rabbit.glb",
+      "bytes": 515108,
+      "modifiedUtc": "2026-11-15T15:42:25.975Z",
+      "sha256": "353ad2e8d1c374b6643ea20940e4defff3f48ebeab929148ea81ade0f6d6dfa1"
+    }
+  ],
+  "manualBrowserReview": false,
+  "blenderRender": "reports/afternoon-room-blender-v61.png",
+  "published": false
+}
