@@ -8,7 +8,7 @@ async function until(fn,label){for(var i=0;i<160;i++){if(fn())return;await pause
 async function paint(){await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));}
 (async function(){try{
  localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:20261017,sound:false,analyze:false,turnTime:0,aiThink:5,discardSource:true,learningMode:'guided'}));localStorage.setItem('zmj_noRotate','1');
- await new Promise(r=>{f.onload=r;f.src='/index.html';});var w=f.contentWindow,d=w.document;d.getElementById('homeSolo').click();var g=w.__zmjGame;
+ await new Promise(r=>{f.onload=r;f.src='/index.html?view=2d';});var w=f.contentWindow,d=w.document;d.getElementById('homeSolo').click();var g=w.__zmjGame;
  for(var i=0;i<220&&!g.hand.over;i++){
   if(g.hasPendingResolve())g.resolvePending();else if(g.pendingAwaits().length)g.autoPlaySeat(g.pendingAwaits()[0].seat);else g.aiStep();
   if(g.hand.record.events.filter(e=>e.t==='x').length>=12&&g.awaiting&&g.awaiting.type==='turn')break;

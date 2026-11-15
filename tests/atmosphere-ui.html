@@ -8,7 +8,7 @@ function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
 function paint(){return new Promise(function(r){requestAnimationFrame(function(){requestAnimationFrame(r);});});}
 function pageError(s){var b=s.d.getElementById('boot');return !!(b&&b.textContent.indexOf('运行出错')>=0);}
 async function reload(){
-  await new Promise(function(res){f.onload=res;f.src='/index.html?t='+Date.now();});
+  await new Promise(function(res){f.onload=res;f.src='/index.html?view=2d&t='+Date.now();});
   return {w:f.contentWindow,d:f.contentWindow.document};
 }
 async function enterGame(cfg){
@@ -29,7 +29,7 @@ async function enterGame(cfg){
 async function bootFrame(cfg){
   localStorage.setItem('zmj_cfg_v2',JSON.stringify(cfg));
   localStorage.setItem('zmj_noRotate','1');
-  await new Promise(function(res){f.onload=res;f.src='/index.html?t='+Date.now();});
+  await new Promise(function(res){f.onload=res;f.src='/index.html?view=2d&t='+Date.now();});
   var w=f.contentWindow,d=w.document;
   var hva=!!d.getElementById('homeAvatar');
   d.getElementById('homeSolo').click();

@@ -46,7 +46,7 @@ function makeStub(w,opt){
 async function boot(cfg,setup){
   localStorage.setItem('zmj_cfg_v2',JSON.stringify(cfg));
   localStorage.setItem('zmj_noRotate','1');
-  await new Promise(function(res){f.onload=res;f.src='/index.html?t='+Date.now();});
+  await new Promise(function(res){f.onload=res;f.src='/index.html?view=2d&t='+Date.now();});
   var w=f.contentWindow,d=w.document;
   var env=setup?setup(w):makeStub(w,{});
   d.getElementById('homeSolo').click();
@@ -237,7 +237,7 @@ function speakIndex(list,re,from){
   check(saved.sfxVolume===0,'音量即时写入 localStorage：'+JSON.stringify(saved.sfxVolume));
   check(s.env.gains.length>0&&s.env.gains[0].gain.value===0,'音量滑杆即时作用到音效总线');
   s.d.getElementById('btnCancel').click();
-  await new Promise(function(res){f.onload=res;f.src='/index.html?t='+Date.now();});
+  await new Promise(function(res){f.onload=res;f.src='/index.html?view=2d&t='+Date.now();});
   var w=f.contentWindow,d=w.document;
   d.getElementById('homeSolo').click();
   var t0=Date.now();while(!(w.__zmjGame&&w.__zmjGame.hand)&&Date.now()-t0<8000)await sleep(50);

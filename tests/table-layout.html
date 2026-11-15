@@ -7,7 +7,7 @@ var f=document.getElementById('game');
 function paint(){return new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));}
 (async function(){try{
  localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:20261016,sound:false,analyze:false,turnTime:0}));localStorage.setItem('zmj_noRotate','1');
- await new Promise(r=>{f.onload=r;f.src='/index.html';});var w=f.contentWindow,d=w.document;d.getElementById('homeSolo').click();var g=w.__zmjGame;
+ await new Promise(r=>{f.onload=r;f.src='/index.html?view=2d';});var w=f.contentWindow,d=w.document;d.getElementById('homeSolo').click();var g=w.__zmjGame;
  // 走过若干轮实际摸打，让牌河和中央最新出牌都出现。
  for(var i=0;i<8&&!g.hand.over;i++){if(g.hasPendingResolve())g.resolvePending();else if(g.pendingAwaits().length)g.autoPlaySeat(g.pendingAwaits()[0].seat);else g.aiStep();}
  check(g.hand.lastDiscard!=null&&!g.hand.over,'实际出牌后存在最新出牌和牌河');

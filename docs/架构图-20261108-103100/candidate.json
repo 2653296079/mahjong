@@ -1,0 +1,385 @@
+{
+    "schema_version":  1,
+    "diagram_type":  "architecture",
+    "meta":  {
+                 "title":  "转转麻将 · 系统架构",
+                 "subtitle":  "v58 已提交（HEAD 419c5bc）· 单文件前端 + 按需拉起的联机子进程",
+                 "locale":  "zh-CN",
+                 "output":  "架构图-20261108-103100/zmj-architecture.html",
+                 "quality_profile":  "showcase",
+                 "repository":  {
+                                    "url":  "https://github.com/2653296079/mahjong",
+                                    "provider":  "github",
+                                    "revision":  "419c5bcdc80144f3652f30c0056f2e15be7715b1"
+                                }
+             },
+    "components":  [
+                       {
+                           "id":  "player",
+                           "type":  "external",
+                           "label":  "玩家浏览器",
+                           "sublabel":  "桌面 / 手机",
+                           "pos":  [
+                                       40,
+                                       300
+                                   ],
+                           "size":  [
+                                        130,
+                                        62
+                                    ],
+                           "sources":  [
+                                           {
+                                               "path":  "index.html",
+                                               "line":  1,
+                                               "end_line":  20
+                                           }
+                                       ]
+                       },
+                       {
+                           "id":  "entry",
+                           "type":  "backend",
+                           "label":  "server.js",
+                           "sublabel":  "HTTP 入口 :8080",
+                           "pos":  [
+                                       250,
+                                       300
+                                   ],
+                           "size":  [
+                                        150,
+                                        62
+                                    ],
+                           "tag":  "零依赖",
+                           "sources":  [
+                                           {
+                                               "path":  "server.js",
+                                               "line":  46,
+                                               "end_line":  87
+                                           }
+                                       ]
+                       },
+                       {
+                           "id":  "pages",
+                           "type":  "frontend",
+                           "label":  "index.html",
+                           "sublabel":  "单文件页面 608KB",
+                           "pos":  [
+                                       480,
+                                       150
+                                   ],
+                           "size":  [
+                                        160,
+                                        62
+                                    ],
+                           "tag":  "零构建 / 可离线",
+                           "sources":  [
+                                           {
+                                               "path":  "server.js",
+                                               "line":  20,
+                                               "end_line":  24
+                                           }
+                                       ]
+                       },
+                       {
+                           "id":  "engine",
+                           "type":  "backend",
+                           "label":  "内联引擎 mahjongCore",
+                           "sublabel":  "规则 / 向听 / AI / 牌局状态机",
+                           "pos":  [
+                                       470,
+                                       320
+                                   ],
+                           "size":  [
+                                        160,
+                                        62
+                                    ],
+                           "tag":  "服务端同源",
+                           "sources":  [
+                                           {
+                                               "path":  "server/rooms.js",
+                                               "line":  19,
+                                               "end_line":  30
+                                           }
+                                       ]
+                       },
+                       {
+                           "id":  "three",
+                           "type":  "frontend",
+                           "label":  "assets/table3d/table3d.js",
+                           "sublabel":  "Three.js r180 三维牌桌",
+                           "pos":  [
+                                       250,
+                                       470
+                                   ],
+                           "size":  [
+                                        160,
+                                        62
+                                    ],
+                           "tag":  "ESM + GLB 资源",
+                           "sources":  [
+                                           {
+                                               "path":  "assets/table3d/table3d.js",
+                                               "line":  1,
+                                               "end_line":  3
+                                           }
+                                       ]
+                       },
+                       {
+                           "id":  "accounts",
+                           "type":  "database",
+                           "label":  "AccountStore",
+                           "sublabel":  "data/mahjong.sqlite",
+                           "pos":  [
+                                       40,
+                                       470
+                                   ],
+                           "size":  [
+                                        150,
+                                        62
+                                    ],
+                           "sources":  [
+                                           {
+                                               "path":  "server.js",
+                                               "line":  11,
+                                               "end_line":  14
+                                           }
+                                       ]
+                       },
+                       {
+                           "id":  "svc",
+                           "type":  "cloud",
+                           "label":  "OnlineService",
+                           "sublabel":  "门面 · 按需拉起子进程",
+                           "pos":  [
+                                       760,
+                                       300
+                                   ],
+                           "size":  [
+                                        150,
+                                        62
+                                    ],
+                           "tag":  "/ws → 127.0.0.1 随机端口",
+                           "sources":  [
+                                           {
+                                               "path":  "server/online-service.js",
+                                               "line":  6,
+                                               "end_line":  30
+                                           }
+                                       ]
+                       },
+                       {
+                           "id":  "gsvc",
+                           "type":  "backend",
+                           "label":  "game-service.js",
+                           "sublabel":  "fork 出的私有联机进程",
+                           "pos":  [
+                                       1030,
+                                       300
+                                   ],
+                           "size":  [
+                                        160,
+                                        62
+                                    ],
+                           "tag":  "不对外开端口",
+                           "sources":  [
+                                           {
+                                               "path":  "server/game-service.js",
+                                               "line":  1,
+                                               "end_line":  12
+                                           }
+                                       ]
+                       },
+                       {
+                           "id":  "hub",
+                           "type":  "messagebus",
+                           "label":  "mjs-server attach",
+                           "sublabel":  "WebSocket 网关 / 限流 / 心跳",
+                           "pos":  [
+                                       1030,
+                                       140
+                                   ],
+                           "size":  [
+                                        160,
+                                        62
+                                    ],
+                           "sources":  [
+                                           {
+                                               "path":  "server/mjs-server.js",
+                                               "line":  37,
+                                               "end_line":  114
+                                           }
+                                       ]
+                       },
+                       {
+                           "id":  "rooms",
+                           "type":  "backend",
+                           "label":  "RoomStore",
+                           "sublabel":  "服务端权威牌局",
+                           "pos":  [
+                                       1030,
+                                       470
+                                   ],
+                           "size":  [
+                                        160,
+                                        62
+                                    ],
+                           "tag":  "托管 / 掉线代打",
+                           "sources":  [
+                                           {
+                                               "path":  "server/rooms.js",
+                                               "line":  1,
+                                               "end_line":  31
+                                           }
+                                       ]
+                       }
+                   ],
+    "boundaries":  [
+                       {
+                           "kind":  "security-group",
+                           "label":  "公开入口进程（只监听 8080）",
+                           "wraps":  [
+                                         "entry",
+                                         "pages",
+                                         "engine",
+                                         "three",
+                                         "accounts"
+                                     ]
+                       },
+                       {
+                           "kind":  "region",
+                           "label":  "联机子进程（127.0.0.1 随机端口，仅 /ws 可达）",
+                           "wraps":  [
+                                         "svc",
+                                         "gsvc",
+                                         "hub",
+                                         "rooms"
+                                     ]
+                       }
+                   ],
+    "connections":  [
+                        {
+                            "id":  "player-entry",
+                            "from":  "player",
+                            "to":  "entry",
+                            "label":  "浏览器 HTTP",
+                            "variant":  "emphasis"
+                        },
+                        {
+                            "id":  "entry-pages",
+                            "from":  "entry",
+                            "to":  "pages",
+                            "label":  "静态白名单",
+                            "fromSide":  "right",
+                            "toSide":  "left"
+                        },
+                        {
+                            "id":  "page-loads-engine",
+                            "from":  "pages",
+                            "to":  "engine",
+                            "label":  "内联即用",
+                            "fromSide":  "bottom",
+                            "toSide":  "top"
+                        },
+                        {
+                            "id":  "page-loads-3d",
+                            "from":  "pages",
+                            "to":  "three",
+                            "label":  "按需加载",
+                            "variant":  "dashed",
+                            "fromSide":  "bottom",
+                            "toSide":  "top"
+                        },
+                        {
+                            "id":  "entry-accounts",
+                            "from":  "entry",
+                            "to":  "accounts",
+                            "label":  "/api/ 账号接口",
+                            "fromSide":  "bottom",
+                            "toSide":  "top"
+                        },
+                        {
+                            "id":  "entry-svc",
+                            "from":  "entry",
+                            "to":  "svc",
+                            "label":  "upgrade /ws",
+                            "variant":  "security",
+                            "fromSide":  "bottom",
+                            "toSide":  "left"
+                        },
+                        {
+                            "id":  "svc-fork",
+                            "from":  "svc",
+                            "to":  "gsvc",
+                            "label":  "首次连接时 fork",
+                            "variant":  "dashed",
+                            "fromSide":  "top",
+                            "toSide":  "left"
+                        },
+                        {
+                            "id":  "svc-proxy",
+                            "from":  "svc",
+                            "to":  "gsvc",
+                            "label":  "TCP 反向代理",
+                            "fromSide":  "right",
+                            "toSide":  "left"
+                        },
+                        {
+                            "id":  "gsvc-hub",
+                            "from":  "gsvc",
+                            "to":  "hub",
+                            "label":  "attach(server)",
+                            "fromSide":  "top",
+                            "toSide":  "bottom"
+                        },
+                        {
+                            "id":  "hub-rooms",
+                            "from":  "hub",
+                            "to":  "rooms",
+                            "label":  "房间/座位指令",
+                            "fromSide":  "bottom",
+                            "toSide":  "top"
+                        },
+                        {
+                            "id":  "rooms-engine",
+                            "from":  "rooms",
+                            "to":  "engine",
+                            "label":  "同一个引擎",
+                            "variant":  "security",
+                            "fromSide":  "left",
+                            "toSide":  "bottom"
+                        }
+                    ],
+    "cards":  [
+                  {
+                      "dot":  "cyan",
+                      "title":  "一处赢：单文件前端",
+                      "items":  [
+                                    "页面、样式、引擎全在 index.html，无构建、无外链",
+                                    "离线可跑；服务端从同一份文件取引擎，不会两份走偏"
+                                ]
+                  },
+                  {
+                      "dot":  "emerald",
+                      "title":  "联机按需起",
+                      "items":  [
+                                    "玩家不来不占资源；首次连接才 fork 私有进程",
+                                    "只绑 127.0.0.1 随机端口，外部唯一入口仍是 8080"
+                                ]
+                  },
+                  {
+                      "dot":  "rose",
+                      "title":  "服务端权威",
+                      "items":  [
+                                    "牌局状态只在服务端跑，客户端只能提交操作",
+                                    "掉线 / 超时由服务器代打到下一手，重连无缝接回"
+                                ]
+                  },
+                  {
+                      "dot":  "amber",
+                      "title":  "请注意的边界",
+                      "items":  [
+                                    "服务端与测试都按「取第一个 script」切引擎，改结构会同时坏 5 处",
+                                    "v59（真抽 + 默认三维）目前仍在工作区，尚未提交"
+                                ]
+                  }
+              ]
+}

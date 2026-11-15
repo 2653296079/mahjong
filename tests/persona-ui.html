@@ -9,7 +9,7 @@ function paint(){return new Promise(function(r){requestAnimationFrame(function()
 async function boot(cfg){
   localStorage.setItem('zmj_cfg_v2',JSON.stringify(cfg));
   localStorage.setItem('zmj_noRotate','1');
-  await new Promise(function(res){f.onload=res;f.src='/index.html?t='+Date.now();});
+  await new Promise(function(res){f.onload=res;f.src='/index.html?view=2d&t='+Date.now();});
   var w=f.contentWindow,d=w.document;
   var boot=d.getElementById('boot');
   check(!boot||boot.classList.contains('hidden')||boot.textContent.indexOf('运行出错')<0,'页面无启动错误');

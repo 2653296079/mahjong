@@ -93,11 +93,15 @@ function paint(){return new Promise(r=>requestAnimationFrame(()=>requestAnimatio
  check(d.getElementById('tileAnalysis').classList.contains('hidden'),'出牌后清除旧牌分析浮层');
  d.getElementById('threeOverhead').click();await wait(300);
  check(stage.dataset.view==='overhead','可切换俯视，手牌同步平放以保持可读');
+ // v59：产品取消「切回二维」入口（setTable3D(false) 调用点归零），threeBack 改为回首页。
+ // 旧断言「切回二维保留同一局，不重开或丢失牌局」「切回二维清除三维点击区的定位样式」所测能力已不存在，
+ // 改为验证替代行为：点返回后回到首页、牌局不丢。注意 showHome() 只显示首页、不移除 body.table3d
+ // （回首页是切界面而非切视图），故此处不再判断 table3d 类。
  d.getElementById('threeBack').click();await paint();
- check(!d.body.classList.contains('table3d')&&w.__zmjGame===g,'切回二维保留同一局，不重开或丢失牌局');
- check(Array.from(d.querySelectorAll('.handRow [data-tile-id]')).every(t=>!t.hasAttribute('data-three-projected')&&!t.style.width),'切回二维清除三维点击区的定位样式');
- d.getElementById('btn3D').click();await until(()=>d.body.classList.contains('table3d')&&d.querySelectorAll('[data-three-projected]').length>0);
- check(w.__zmjGame===g,'再次启用三维复用模型，继续当前牌局');
+ check(d.getElementById('home')&&!d.getElementById('home').classList.contains('hidden')&&w.__zmjGame===g,'点返回后回到首页，牌局不重开也不丢失');
+ d.getElementById('homeSolo').click();
+ await until(()=>d.body.classList.contains('table3d')&&d.querySelectorAll('[data-three-projected]').length>0);
+ check(w.__zmjGame===g,'重新进入三维复用同一局，继续当前牌局');
  g.fastForward=true;
  for(var drive=0;!g.hand.over&&drive<2000;drive++){
   if(g.hasPendingResolve())g.resolvePending();

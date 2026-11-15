@@ -5,7 +5,7 @@ var out={ok:false,steps:[],errors:[]};
 function check(ok,msg){if(!ok)throw new Error(msg);out.steps.push(msg);}
 (async function(){try{
   localStorage.removeItem('zmj_practice_v1');
-  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html';});
+  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html?view=2d';});
   var w=f.contentWindow,d=w.document;
   d.getElementById('homePractice').click();
   function topic(name){var s=d.getElementById('practiceTopic');s.value=name;s.onchange();}

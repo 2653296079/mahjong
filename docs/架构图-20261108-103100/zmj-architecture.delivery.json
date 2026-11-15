@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "2a7740d5-c566-4784-b239-d6624c57542f",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "D:\\mahjong\\repo\\docs\\架构图-20261108-103100\\candidate.json",
+  "output": "D:\\mahjong\\repo\\docs\\架构图-20261108-103100\\zmj-architecture.html",
+  "specification": {
+    "sha256": "85cb25ec1a717831ec4c0525e36898495cd2bf0d87b41e00ed5ad695e14c3403",
+    "bytes": 17936
+  },
+  "artifact": {
+    "sha256": "66aa719fe277582ec5dbcbf2dd01e2a1a876ba5a30692a380d41ebf2ef3991e6",
+    "bytes": 772726
+  }
+}

@@ -13,7 +13,7 @@ async function load(frame, url) { await new Promise(function (r) { frame.onload 
   try {
     sessionStorage.removeItem('zmj_seat_v1');
     localStorage.setItem('zmj_cfg_v2', JSON.stringify({ sound: false, analyze: false, learningMode: 'guided' }));
-    var first = document.getElementById('first'), url = '/index.html?room=2025&server=' + encodeURIComponent(location.origin);
+    var first = document.getElementById('first'), url = '/index.html?view=2d&room=2025&server=' + encodeURIComponent(location.origin);
     await load(first, url);
     await until(function () { return first.contentDocument.getElementById('netEnter'); });
     first.contentDocument.getElementById('netName').value = '重连验收';

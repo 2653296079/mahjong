@@ -6,7 +6,7 @@ function check(ok,msg){if(!ok)throw new Error(msg);out.steps.push(msg);}
 (async function(){try{
   localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:20261016,sound:false,analyze:false,turnTime:0}));
   localStorage.setItem('zmj_noRotate','1');
-  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html';});
+  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html?view=2d';});
   var w=f.contentWindow,d=w.document;d.getElementById('homeSolo').click();var g=w.__zmjGame;
   check('ontouchstart' in w || w.navigator.maxTouchPoints>0,'测试浏览器启用了真实触屏确认路径');
   var H=w.ZMJ.practiceHand('pairs-1');g.hand.players=H.players;g.hand.lastDraw=0;

@@ -3,8 +3,8 @@
 <title>联机浏览器测试</title>
 <body style="margin:0;font:13px/1.5 monospace;background:#111;color:#ddd">
 <pre id="log" style="margin:0;padding:8px;height:180px;overflow:auto"></pre>
-<iframe id="fa" src="/index.html" style="width:430px;height:640px;border:1px solid #444"></iframe>
-<iframe id="fb" src="/index.html" style="width:430px;height:640px;border:1px solid #444"></iframe>
+<iframe id="fa" src="/index.html?view=2d" style="width:430px;height:640px;border:1px solid #444"></iframe>
+<iframe id="fb" src="/index.html?view=2d" style="width:430px;height:640px;border:1px solid #444"></iframe>
 <script>
 var out = { ok: false, steps: [], errors: [] };
 function say(s) { out.steps.push(s); document.getElementById('log').textContent = out.steps.join('\n'); }

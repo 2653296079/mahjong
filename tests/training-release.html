@@ -7,7 +7,7 @@ function pause(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 async function load(mode) {
   localStorage.setItem('zmj_cfg_v2', JSON.stringify({ sound: false, analyze: false, seed: 20261016, turnTime: 0, learningMode: mode }));
   var f = document.getElementById('game');
-  await new Promise(function (r) { f.onload = r; f.src = '/index.html?mode=' + mode; });
+  await new Promise(function (r) { f.onload = r; f.src = '/index.html?view=2d&mode=' + mode; });
   var w = f.contentWindow, d = w.document; d.getElementById('homeSolo').click();
   return { w: w, d: d, g: w.__zmjGame };
 }

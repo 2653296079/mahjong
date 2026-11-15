@@ -6,7 +6,7 @@ function check(ok,msg){if(!ok)throw new Error(msg);out.steps.push(msg);}
 function pause(ms){return new Promise(function(r){setTimeout(r,ms);});}
 (async function(){try{
   localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:71,sound:false,analyze:false,turnTime:0,aiStyle:'v1',rotate:false}));
-  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html';});
+  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html?view=2d';});
   var w=f.contentWindow,d=w.document;d.getElementById('homeSolo').click();var g=w.__zmjGame,Z=w.ZMJ;
   function counts(kinds){var c=Z.newCounts();kinds.forEach(function(k){c[k]++;});return c;}
   function drawEnded(){

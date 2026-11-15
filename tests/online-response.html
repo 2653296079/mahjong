@@ -8,7 +8,7 @@ async function until(fn,label){for(var i=0;i<300;i++){if(fn())return;await pause
 (async function(){try{
   localStorage.setItem('zmj_cfg_v2',JSON.stringify({sound:false,analyze:true,turnTime:0}));
   localStorage.setItem('zmj_noRotate','1');sessionStorage.removeItem('zmj_seat_v1');
-  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html';});
+  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html?view=2d';});
   var w=f.contentWindow,d=w.document,Native=w.WebSocket,sent=0,inState=false,analysisInState=0,lastState=null,states=[],analysisCalls=0,clicking=false,analysisDuringClick=0;
   var originalAnalysis=w.ZMJ.analyzeSituation;
   w.ZMJ.analyzeSituation=function(){analysisCalls++;if(inState)analysisInState++;if(clicking)analysisDuringClick++;return originalAnalysis.apply(this,arguments);};

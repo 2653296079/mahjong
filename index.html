@@ -652,6 +652,15 @@ body.table3d #miniHint{display:none!important}
 body.table3d #actionbar{background:#0e2924;border-top:1px solid #a6aa7340;min-height:60px}
 body.table3d #actionBtns>div{color:#c2d0bd!important}
 .homeAccountControls #home3D{border-color:#b4a56d;color:#ead89d;background:#23493a}
+/* v59：三维成为唯一形态，两处"切换/试打"入口不再对玩家露出；元素与 onclick 保留，
+   因为门禁测试组靠 btn3D.click() 进三维。 */
+#btn3D,.homeAccountControls #home3D{display:none!important}
+/* v59 阻断层：三维起不来时的全屏遮挡，挡牌桌、禁输入，只留「重试 3D 牌桌」 */
+#threeBlock{position:fixed;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;background:rgba(8,16,13,.94);padding:24px}
+#threeBlock.hidden{display:none}
+#threeBlock .threeBlockBox{max-width:420px;text-align:center;background:rgba(20,36,30,.96);border:1px solid rgba(242,193,78,.45);border-radius:14px;padding:22px 20px}
+#threeBlock .threeBlockText{margin:0 0 16px;font-size:13.5px;line-height:1.85;color:#ffcf7a}
+body.threeBlocked{overflow:hidden}
 @media(max-width:680px){body.table3d #centerTop{top:48px;max-width:95%;gap:3px}body.table3d #centerTop .pill{font-size:10px;padding:2px 7px}body.table3d #threeControls{top:9px;right:9px}body.table3d #threeControls .mini{font-size:11px;padding:4px 9px}body.table3d #riverArea{top:82px;left:8px}body.table3d #seat2{top:116px}body.table3d #seat1{right:6px;top:43%}body.table3d #seat3{left:6px;top:43%}body.table3d .seatName{padding:4px 6px;font-size:9px;max-width:120px}body.table3d .seatName .seatScore,body.table3d .seatName .seatPosition{display:none}body.table3d #seat0>.seatName{bottom:8px;left:8px}.homeAccountControls #home3D{font-size:11px;padding:4px 8px}}
 @media(max-width:680px){body.table3d.machineBusy #seat2{top:82px;left:auto;right:8px;transform:none}body.table3d #threeDiceReadout svg{width:30px;height:30px}body.table3d #threeMachineInfo.diceClose #threeDiceReadout svg{width:40px;height:40px}}
 /* 气质增强：程序化牌友头像 + 教练短句（零图片、零外链、零字体） */
@@ -3284,7 +3293,13 @@ window.onerror = function (msg, src, line, col) {
     var s = $('threeStage'); if (s) s.classList.remove('drop-ready');
   }
   var table3D = { wanted:false, api:null, loading:null, lastGame:null, round:0, busy:false, lastDealSfx:0 };
-  try { var initial3D=new URLSearchParams(location.search).get('view'); table3D.wanted=initial3D==='3d'||initial3D!=='2d'&&localStorage.getItem('zmj_table3d_v1')==='1'; } catch(e) {}
+  // v59：三维是唯一形态，默认即三维。
+  // ?view=2d 是【测试专用后门】，只给门禁与排查用，产品界面上不暴露。
+  // 不再读 localStorage 记忆值——玩家自己选过二维，也不该把默认拽回二维。
+  function want3D(search) {
+    try { return new URLSearchParams(search || '').get('view') !== '2d'; } catch (e) { return true; }
+  }
+  try { table3D.wanted = want3D(location.search); } catch(e) {}
   function clear3DHitboxes() {
     document.querySelectorAll('.handRow [data-tile-id]').forEach(function(t){t.removeAttribute('data-three-projected');t.removeAttribute('data-three-world-x');t.removeAttribute('data-three-world-z');t.style.left='';t.style.top='';t.style.width='';t.style.height='';});
   }
@@ -3295,13 +3310,46 @@ window.onerror = function (msg, src, line, col) {
     if(table3D.api){table3D.api.dispose();table3D.api=null;}
     document.body.classList.remove('table3d');$('table').classList.remove('threeLoading');clear3DHitboxes();
     $('btn3D').textContent='重试 3D 牌桌';$('btn3D').setAttribute('aria-pressed','false');
-    netToast('三维牌桌暂时无法显示，已回到二维牌桌，可稍后重试。');
+    // v59（B 方案）：三维是唯一形态，加载失败不再落回二维可玩——那样等于偷偷保留兜底。
+    // 改成整页阻断层：挡住牌桌、禁掉输入，只给「重试 3D 牌桌」一个出口。
+    var isFile=location.protocol==='file:';
+    show3DBlock(isFile
+      ? '本游戏需要三维牌桌，请用本地服务器打开：在仓库目录执行 node server.js 8080，再访问 http://127.0.0.1:8080/'
+      : '这台设备的浏览器暂时无法显示三维牌桌（需要支持 WebGL）。可以点下面的按钮重试。');
+  }
+  // v59 阻断层：全屏遮罩 + 文本 + 重试按钮；重试会重新走 ensureTable3D()
+  function show3DBlock(message) {
+    var el=$('threeBlock');
+    if(!el){
+      el=document.createElement('div');el.id='threeBlock';
+      document.body.appendChild(el);
+    }
+    el.innerHTML='';
+    var box=document.createElement('div');box.className='threeBlockBox';
+    var t=document.createElement('p');t.className='threeBlockText';t.textContent=message;box.appendChild(t);
+    var b=document.createElement('button');b.className='act';b.id='threeBlockRetry';b.textContent='重试 3D 牌桌';
+    b.onclick=function(){
+      el.classList.add('hidden');
+      document.body.classList.remove('threeBlocked');
+      // 解禁交给现成的 syncLayers()（它按「弹窗/首页是否打开」统一设 app.inert）
+      if(typeof syncLayers==='function')syncLayers();else $('app').inert=false;
+      if($('btn3D'))$('btn3D').textContent='3D 牌桌体验';
+      table3D.wanted=true;
+      ensureTable3D();
+      if(game&&game.hand){renderActions();syncTable3D();}
+    };
+    box.appendChild(b);el.appendChild(box);
+    el.classList.remove('hidden');
+    document.body.classList.add('threeBlocked');
+    // 视觉遮挡不等于不能玩：把整个 app 设为 inert，键盘/读屏/脚本都操作不到下面的牌桌。
+    $('app').inert = true;
   }
   function setTable3D(wanted) {
     table3D.wanted=!!wanted;
     try{localStorage.setItem('zmj_table3d_v1',wanted?'1':'0');}catch(e){}
     $('moreTools').open=false;hideTileAnalysis();
-    $('btn3D').textContent=wanted?'切回二维牌桌':'3D 牌桌体验';$('btn3D').setAttribute('aria-pressed',String(!!wanted));
+    // v59（B）：按钮已不对玩家显示，「切回二维牌桌」这个概念也从产品里摘掉，文案固定为「3D 牌桌体验」。
+    $('btn3D').textContent='3D 牌桌体验';$('btn3D').setAttribute('aria-pressed',String(!!wanted));
     if(!wanted){document.body.classList.remove('table3d');$('table').classList.remove('threeLoading');if(table3D.api){table3D.api.skipOpening(true);table3D.api.setActive(false);}clear3DHitboxes();}
     else ensureTable3D();
     if(game&&game.hand){renderActions();syncTable3D();}
@@ -3312,7 +3360,7 @@ window.onerror = function (msg, src, line, col) {
     if(table3D.loading)return;
     if(location.protocol==='file:'){failTable3D(Error('3D assets need an HTTP origin'));return;}
     $('table').classList.add('threeLoading');
-    table3D.loading=import('./assets/table3d/table3d.js?build=v58').then(function(module){
+    table3D.loading=import('./assets/table3d/table3d.js?build=v59').then(function(module){
       return module.createTable3D($('threeStage'),{
         onProgress:function(done,total){$('threeLoadStatus').textContent='正在摆好三维牌桌 · '+done+' / '+total;},
         onError:failTable3D,
@@ -3449,8 +3497,11 @@ window.onerror = function (msg, src, line, col) {
     var patterns={1:[[26,26]],2:[[15,15],[37,37]],3:[[15,15],[26,26],[37,37]],4:[[15,15],[37,15],[15,37],[37,37]],5:[[15,15],[37,15],[26,26],[15,37],[37,37]],6:[[15,14],[37,14],[15,26],[37,26],[15,38],[37,38]]};
     return '<svg viewBox="0 0 52 52" role="img" aria-label="'+value+' 点"><rect x="1" y="1" width="50" height="50" rx="9" fill="#f5edda" stroke="#c7b992" stroke-width="2"/>'+patterns[value].map(function(p){return '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="'+(value===1?5:3.6)+'" fill="'+(value===1||value===4?'#af3038':'#26332d')+'"/>';}).join('')+'</svg>';
   }
-  $('btn3D').onclick=function(){setTable3D(!table3D.wanted);};
-  $('threeBack').onclick=function(){setTable3D(false);};
+  // v59（B）：这颗按钮已对玩家隐藏（CSS），只留元素给门禁用 click() 进三维。
+  // 永远只往三维切——传 false 会走 setTable3D 里的 remove('table3d')，等于给一条偷偷回二维的后门。
+  $('btn3D').onclick=function(){setTable3D(true);};
+  // v59（B）：三维是唯一形态，返回键不再把玩家送回二维（那会绕过阻断层、等于留兜底），改为回主界面。
+  $('threeBack').onclick=function(){showHome();};
   function rollDice(){
     if(!game||!game.hand||!game.hand.dicePending||game.humanSeat()!==game.dealer)return;
     if(game.online){if(netSend({t:'act',act:'roll'}))$('threeRoll').disabled=true;return;}
@@ -7668,7 +7719,7 @@ window.onerror = function (msg, src, line, col) {
   }
 
   // 与离线缓存同步，保留远端新增的首页版本标识。
-  var BUILD = 'v58';
+  var BUILD = 'v59';
   // ---------- 主界面：先选单机还是联机 ----------
   function showHome() {
     if (!STATS) loadStats();

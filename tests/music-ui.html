@@ -84,7 +84,7 @@ function rampsOn(s,node){
 async function boot(cfg){
   localStorage.setItem('zmj_cfg_v2',JSON.stringify(cfg));
   localStorage.setItem('zmj_noRotate','1');
-  await new Promise(function(res){f.onload=res;f.src='/index.html?t='+Date.now();});
+  await new Promise(function(res){f.onload=res;f.src='/index.html?view=2d&t='+Date.now();});
   var w=f.contentWindow,d=w.document;
   var env=makeStub(w);
   d.getElementById('homeSolo').click();

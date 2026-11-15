@@ -8,7 +8,7 @@ async function until(fn,label){for(var i=0;i<400;i++){if(fn())return;await pause
 (async function(){try{
   localStorage.setItem('zmj_cfg_v2',JSON.stringify({sound:false,analyze:true,turnTime:0,worlds:150}));
   localStorage.setItem('zmj_noRotate','1');sessionStorage.removeItem('zmj_seat_v1');
-  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html';});
+  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html?view=2d';});
   var w=f.contentWindow,d=w.document,Native=w.Worker,worker=null,jobs=[],results=[],delayed=[],hold=false,mainCalls=0;
   var original=w.ZMJ.analyzeSituation;
   w.ZMJ.analyzeSituation=function(){mainCalls++;throw new Error('联机风险采样不能回到主线程');};

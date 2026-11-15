@@ -1,0 +1,129 @@
+{
+  "build": "v59",
+  "cache": "zmj-v59",
+  "command": "node tests/run-checks.js --browser",
+  "exitCode": 0,
+  "complete": true,
+  "browserResults": [
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    },
+    {
+      "ok": true,
+      "errors": []
+    }
+  ],
+  "files": [
+    {
+      "file": "index.html",
+      "bytes": 608717,
+      "modifiedUtc": "2026-11-08T02:11:44.9932714Z",
+      "sha256": "8C9882264E4581A09931460B3DF2BF4E8E80834845707CABE479C92E15BFFDC5"
+    },
+    {
+      "file": "assets/table3d/table3d.js",
+      "bytes": 51760,
+      "modifiedUtc": "2026-11-07T19:57:16.6798302Z",
+      "sha256": "DE04C30DB5FA8AFED363988953B7209383074FAF2ED0592F0E69D2E6928EA18A"
+    },
+    {
+      "file": "tests/run-checks.js",
+      "bytes": 7849,
+      "modifiedUtc": "2026-11-07T19:26:35.6530962Z",
+      "sha256": "485194EC2B7D0E1CBF4F254ECFB1537F481E0061F918453F8A1B315765994C29"
+    }
+  ]
+}

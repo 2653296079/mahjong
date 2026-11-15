@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "转转麻将 · 系统架构",
+    "subtitle": "单文件前端 + Node 联机服务 + 三维渲染 + 门禁体系（v59，HEAD 419c5bc）",
+    "output": "docs/架构图/zhuanzhuan-architecture.html",
+    "quality_profile": "showcase",
+    "locale": "zh-CN",
+    "repository": {
+      "url": "https://github.com/2653296079/mahjong",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "419c5bcdc80144f3652f30c0056f2e15be7715b1"
+    }
+  },
+  "components": [
+    { "id": "player", "type": "external", "label": "玩家", "sublabel": "浏览器 · 手机", "pos": [40, 380], "size": [140, 64], "sources": [{ "path": "README.md", "line": 1 }] },
+
+    { "id": "index", "type": "frontend", "label": "index.html", "sublabel": "单文件应用 594KB", "pos": [250, 380], "size": [170, 64], "tag": "零依赖 · 无构建", "sources": [{ "path": "index.html", "line": 918 }] },
+
+    { "id": "ui", "type": "frontend", "label": "二维界面层", "sublabel": "手牌 · 牌河 · 操作栏", "pos": [500, 220], "size": [170, 64], "sources": [{ "path": "index.html", "line": 3071 }] },
+    { "id": "table3d", "type": "frontend", "label": "table3d.js", "sublabel": "ES Module · 51KB", "pos": [760, 220], "size": [170, 64], "tag": "按需动态 import", "sources": [{ "path": "index.html", "line": 3315 }] },
+    { "id": "three", "type": "frontend", "label": "Three.js r180", "sublabel": "本地 vendor · 无 CDN", "pos": [760, 80], "size": [170, 56], "sources": [{ "path": "assets/table3d/table3d.js", "line": 1 }] },
+    { "id": "glb", "type": "database", "label": "三维资源", "sublabel": "90 文件 · 18.4MB", "pos": [1020, 80], "size": [170, 56], "sources": [{ "path": "assets/table3d/table3d.js", "line": 92 }] },
+
+    { "id": "engine", "type": "backend", "label": "内联规则引擎", "sublabel": "UMD 模块 · 第一个 script", "pos": [500, 380], "size": [170, 64], "tag": "测试直接读它", "sources": [{ "path": "index.html", "line": 1 }] },
+    { "id": "sw", "type": "cloud", "label": "sw.js", "sublabel": "Service Worker 缓存", "pos": [740, 380], "size": [170, 64], "tag": "zmj-v59", "sources": [{ "path": "sw.js", "line": 3 }] },
+    { "id": "server", "type": "backend", "label": "server.js", "sublabel": "静态服务 + 路由", "pos": [1060, 380], "size": [170, 64], "sources": [{ "path": "server.js", "line": 4 }] },
+
+    { "id": "online", "type": "backend", "label": "联机房间", "sublabel": "WebSocket · 服务器权威", "pos": [1060, 520], "size": [170, 64], "sources": [{ "path": "server.js", "line": 7 }] },
+    { "id": "accounts", "type": "backend", "label": "账号与存档", "sublabel": "AccountStore", "pos": [1320, 520], "size": [170, 64], "sources": [{ "path": "server.js", "line": 11 }] },
+    { "id": "sqlite", "type": "database", "label": "SQLite", "sublabel": "data/ 持久化", "pos": [1320, 660], "size": [170, 56], "sources": [{ "path": "server.js", "line": 13 }] },
+
+    { "id": "pages", "type": "security", "label": "pages-compat", "sublabel": "25 个浏览器测试页", "pos": [250, 660], "size": [170, 64], "sources": [{ "path": "tests/run-checks.js", "line": 127 }] },
+    { "id": "checks", "type": "security", "label": "run-checks.js", "sublabel": "31 组门禁", "pos": [500, 660], "size": [170, 64], "sources": [{ "path": "tests/run-checks.js", "line": 121 }] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "浏览器（玩家设备）", "wraps": ["index", "engine", "ui", "table3d", "three", "glb", "sw"] },
+    { "kind": "region", "label": "Node 服务（本地 node server.js）", "wraps": ["server", "online", "accounts", "sqlite"] },
+    { "kind": "region", "label": "开发期门禁（不随产品发布）", "wraps": ["checks", "pages"] }
+  ],
+  "connections": [
+    { "id": "player-open", "from": "player", "to": "index", "label": "打开页面", "variant": "emphasis" },
+    { "id": "index-drives-ui", "from": "index", "to": "ui", "label": "渲染界面", "fromSide": "top", "toSide": "left" },
+    { "id": "ui-drives-engine", "from": "ui", "to": "engine", "label": "调规则", "fromSide": "bottom", "toSide": "top" },
+    { "id": "engine-serves-ui", "from": "engine", "to": "ui", "label": "返回局面", "variant": "dashed", "fromSide": "left", "toSide": "bottom" },
+    { "id": "ui-hands-3d", "from": "ui", "to": "table3d", "label": "有对局时加载" },
+    { "id": "table3d-uses-three", "from": "table3d", "to": "three", "label": "渲染", "fromSide": "top", "toSide": "bottom" },
+    { "id": "three-loads-glb", "from": "three", "to": "glb", "label": "加载 GLB" },
+    { "id": "table3d-notifies", "from": "table3d", "to": "ui", "label": "拾取回传槽位", "variant": "dashed", "labelDy": 34 },
+    { "id": "index-registers-sw", "from": "index", "to": "sw", "label": "注册 SW", "fromSide": "bottom", "toSide": "left" },
+    { "id": "sw-fetches", "from": "sw", "to": "server", "label": "缓存未命中取静态页" },
+    { "id": "server-mounts-online", "from": "server", "to": "online", "label": "挂载", "fromSide": "bottom", "toSide": "top" },
+    { "id": "online-uses-accounts", "from": "online", "to": "accounts", "label": "查询玩家" },
+    { "id": "accounts-persist", "from": "accounts", "to": "sqlite", "label": "读写", "fromSide": "bottom", "toSide": "top" },
+    { "id": "checks-runs-pages", "from": "checks", "to": "pages", "label": "逐个启动" },
+    { "id": "pages-loads-index", "from": "pages", "to": "index", "label": "加载真实页面", "variant": "dashed", "fromSide": "left", "toSide": "bottom" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "玩家实际接触的只有一层", "items": ["打开 index.html 就是全部：规则、界面、三维都在同一个文件里", "三维桌按需动态 import，加载失败会整页阻断并提示需要支持 WebGL 的浏览器"] },
+    { "dot": "emerald", "title": "服务端的职责很窄", "items": ["server.js 只做静态分发、联机房间（WebSocket）与账号存档", "规则引擎由服务端直接读 index.html 里的第一个 script，前后端共用同一份规则"] },
+    { "dot": "amber", "title": "门禁与产品分离", "items": ["run-checks.js 串联 31 组检查，浏览器组会真实加载 index.html", "v59 起未指定 ?view=2d 的测试页会进三维，这是近期多数红灯的来源"] }
+  ]
+}

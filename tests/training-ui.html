@@ -9,7 +9,7 @@ function load(frame, url) { return new Promise(function (resolve) { frame.onload
     localStorage.removeItem('zmj_practice_v1');
     localStorage.setItem('zmj_cfg_v2', JSON.stringify({ sound: false, analyze: false, seed: 2026, turnTime: 0 }));
     var frame = document.getElementById('game');
-    await load(frame, '/index.html');
+    await load(frame, '/index.html?view=2d');
     var w = frame.contentWindow, d = w.document;
     check(d.getElementById('app').inert, '首页覆盖时，牌桌不能被键盘误操作');
     d.getElementById('homePractice').click();
@@ -26,7 +26,7 @@ function load(frame, url) { return new Promise(function (resolve) { frame.onload
     check(d.getElementById('modal').contains(d.activeElement) && d.activeElement.id !== 'modalDismiss', 'Tab 在弹窗中循环');
     d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     check(d.getElementById('modal').classList.contains('hidden') && !d.getElementById('home').classList.contains('hidden'), 'Escape 关闭训练并返回首页');
-    await load(frame, '/index.html?reload=1'); w = frame.contentWindow; d = w.document;
+    await load(frame, '/index.html?view=2d&reload=1'); w = frame.contentWindow; d = w.document;
     d.getElementById('homePractice').click(); d.getElementById('practiceReview').click();
     check(d.querySelector('.practiceHand'), '刷新后错题仍可复习');
     d.querySelector('[aria-label="选择九筒"]').click();

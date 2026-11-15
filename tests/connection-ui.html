@@ -8,7 +8,7 @@ async function until(fn,label){for(var i=0;i<300;i++){if(fn())return;await new P
  sessionStorage.removeItem('zmj_seat_v1');localStorage.setItem('zmj_noRotate','1');
  localStorage.setItem('zmj_net_v1',JSON.stringify({name:'连接验收',server:'http://127.0.0.1:65534'}));
  localStorage.setItem('zmj_cfg_v2',JSON.stringify({sound:false,analyze:false,turnTime:0,learningMode:'guided'}));
- var f=document.getElementById('game');await new Promise(r=>{f.onload=r;f.src='/index.html';});var w=f.contentWindow,d=w.document;
+ var f=document.getElementById('game');await new Promise(r=>{f.onload=r;f.src='/index.html?view=2d';});var w=f.contentWindow,d=w.document;
  await new Promise(r=>setTimeout(r,100));d.getElementById('homeOnline').click();
  await until(()=>d.getElementById('netEnter'),'自动连接当前联机大厅');
  check(JSON.parse(localStorage.getItem('zmj_net_v1')).server==='','自动清理失效旧地址并连接当前服务');

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "0fd4c2e4-ea09-4c20-810f-0e8a85b97a4b",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "D:\\mahjong\\repo\\docs\\架构图\\candidate.json",
+  "output": "D:\\mahjong\\repo\\docs\\架构图\\zhuanzhuan-architecture.html",
+  "specification": {
+    "sha256": "021a778fcdc5c8d0d9914bdfdd7f37b835fd998152640a9d2e503efb1a412861",
+    "bytes": 6395
+  },
+  "artifact": {
+    "sha256": "624611680dcbefb40bc251905aed996ca167452cb5775547ac8b49853f0e90db",
+    "bytes": 780668
+  }
+}

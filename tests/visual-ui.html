@@ -8,7 +8,7 @@ async function size(w,h){frame.style.width=w+'px';frame.style.height=h+'px';awai
 (async function(){try{
   localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:20261016,sound:false,analyze:false,turnTime:0}));
   localStorage.setItem('zmj_noRotate','1');
-  await new Promise(function(r){frame.onload=r;frame.src='/index.html';});
+  await new Promise(function(r){frame.onload=r;frame.src='/index.html?view=2d';});
   var w=frame.contentWindow,d=w.document;
   for(var width of [360,390,430,844,1366]){
     await size(width,width===844?390:900);

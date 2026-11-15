@@ -8,7 +8,7 @@ async function paint(){await new Promise(r=>requestAnimationFrame(()=>requestAni
 (async function(){try{
   localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:20261016,sound:false,analyze:false,turnTime:0,discardSource:false}));
   localStorage.setItem('zmj_noRotate','1');
-  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html';});
+  var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html?view=2d';});
   var w=f.contentWindow,d=w.document;d.getElementById('homeSolo').click();var g=w.__zmjGame;
   var H=w.ZMJ.practiceHand('wide-1');g.hand.players=H.players;g.hand.lastDraw=0;
   g.hand.turn=0;g.awaiting={type:'turn',seat:0,options:{canZimo:false,anGang:[],buGang:[]}};
