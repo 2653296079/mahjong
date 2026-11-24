@@ -119,7 +119,7 @@ if (problems.length) {
 process.stdout.write('环境检查通过（C 盘可用、%TEMP%\\zmj-* 无残留）\n');
 
 const jobs = [
-  ['--test', 'tests/online-service.test.js', 'tests/accounts.test.js', 'tests/river.test.js', 'tests/core.test.js', 'tests/multi.test.js', 'tests/training.test.js', 'tests/decision.test.js', 'tests/progress.test.js', 'tests/lessons.test.js', 'tests/settlement.test.js', 'tests/server-limits.test.js', 'tests/evaluation.test.js', 'tests/connection-check.test.js', 'tests/offline.test.js', 'tests/personas.test.js', 'tests/audio.test.js', 'tests/atmosphere.test.js', 'tests/wall-slot-map.test.js', 'tests/draw-nth.test.js'],
+  ['--test', 'tests/online-service.test.js', 'tests/accounts.test.js', 'tests/river.test.js', 'tests/core.test.js', 'tests/multi.test.js', 'tests/training.test.js', 'tests/decision.test.js', 'tests/progress.test.js', 'tests/lessons.test.js', 'tests/settlement.test.js', 'tests/server-limits.test.js', 'tests/evaluation.test.js', 'tests/connection-check.test.js', 'tests/offline.test.js', 'tests/personas.test.js', 'tests/audio.test.js', 'tests/atmosphere.test.js', 'tests/wall-slot-map.test.js', 'tests/draw-nth.test.js', 'tests/companions-v64.test.js'],
   ['server/test-ws.js'], ['server/test-rooms.js'], ['server/test-online.js'],
   ['tests/no-build-check.js'], ['tests/smoke-server.js']
 ];

@@ -4,26 +4,48 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-function worker(fetch) {
-  const handlers = {}, deleted = [], written = [], cached = { offline: true }, staticAssets = new Map();
-  const cache = { put: async (key, value) => { written.push(key); staticAssets.set(key.url || key, value); }, match: async key => key === './index.html' ? cached : undefined };
+const base = 'https://example.com/mahjong/';
+
+function worker(fetch, initial = {}) {
+  const handlers = {}, written = [], cached = { offline: true };
+  const stores = new Map(['zmj-v32b', 'zmj-v61', 'zmj-v62', 'zmj-v63', 'another-project-v1', 'zmj-v64'].map(name => [name, new Map()]));
+  stores.get('zmj-v64').set(base + 'index.html', cached);
+  for (const [name, assets] of Object.entries(initial)) {
+    for (const [url, value] of Object.entries(assets)) stores.get(name).set(new URL(url, base).href, value);
+  }
+  const keyOf = request => new URL(request.url || request, base).href;
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8'), {
     URL, fetch,
-    self: { location: { href: 'https://example.com/mahjong/sw.js' }, clients: { claim: async () => {} }, addEventListener: (name, fn) => handlers[name] = fn },
-    caches: { keys: async () => ['zmj-v15', 'zmj-v16', 'zmj-v17', 'zmj-v18', 'zmj-v19', 'zmj-v20', 'zmj-v21', 'zmj-v22', 'zmj-v23', 'zmj-v24', 'zmj-v25', 'zmj-v26', 'zmj-v27', 'zmj-v28', 'zmj-v29', 'zmj-v30', 'zmj-v31', 'zmj-v32', 'zmj-v32b', 'zmj-v33', 'zmj-v34', 'zmj-v35', 'zmj-v36', 'zmj-v37', 'zmj-v38', 'zmj-v39', 'zmj-v40', 'zmj-v41', 'zmj-v42', 'zmj-v43', 'zmj-v44', 'zmj-v45', 'zmj-v46', 'zmj-v47', 'zmj-v48', 'zmj-v49', 'zmj-v50', 'zmj-v51', 'zmj-v59', 'zmj-v60', 'zmj-v61', 'another-project-v1'], delete: async key => deleted.push(key), open: async () => cache, match: async request => staticAssets.get(request.url) }
+    self: { location: { href: base + 'sw.js' }, clients: { claim: async () => {} }, addEventListener: (name, fn) => handlers[name] = fn },
+    caches: {
+      keys: async () => [...stores.keys()],
+      delete: async name => stores.delete(name),
+      open: async name => {
+        if (!stores.has(name)) stores.set(name, new Map());
+        const entries = stores.get(name);
+        return {
+          put: async (key, value) => { written.push(key); entries.set(keyOf(key), value); },
+          match: async key => entries.get(keyOf(key))
+        };
+      },
+      match: async (request, { cacheName } = {}) => {
+        if (cacheName) return stores.get(cacheName)?.get(keyOf(request));
+        for (const entries of stores.values()) if (entries.has(keyOf(request))) return entries.get(keyOf(request));
+      }
+    }
   });
   async function request(url = 'https://example.com/mahjong/?room=1234', mode = 'navigate') {
     let response, pending = [];
     handlers.fetch({ request: { url, method: 'GET', mode, headers: { get: () => mode === 'navigate' ? 'text/html' : '' } }, respondWith: x => response = x, waitUntil: x => pending.push(x) });
     const result = await response; await Promise.all(pending); return result;
   }
-  return { handlers, deleted, written, cached, request };
+  return { handlers, stores, written, cached, request };
 }
 
-test('offline upgrade removes only this game old caches', async () => {
+test('offline upgrade retains only bounded current caches and preserves other projects', async () => {
   const w = worker(); let done;
   w.handlers.activate({ waitUntil: x => done = x }); await done;
-  assert.deepEqual(w.deleted, ['zmj-v15', 'zmj-v16', 'zmj-v17', 'zmj-v18', 'zmj-v19', 'zmj-v20', 'zmj-v21', 'zmj-v22', 'zmj-v23', 'zmj-v24', 'zmj-v25', 'zmj-v26', 'zmj-v27', 'zmj-v28', 'zmj-v29', 'zmj-v30', 'zmj-v31', 'zmj-v32', 'zmj-v32b', 'zmj-v33', 'zmj-v34', 'zmj-v35', 'zmj-v36', 'zmj-v37', 'zmj-v38', 'zmj-v39', 'zmj-v40', 'zmj-v41', 'zmj-v42', 'zmj-v43', 'zmj-v44', 'zmj-v45', 'zmj-v46', 'zmj-v47', 'zmj-v48', 'zmj-v49', 'zmj-v50', 'zmj-v51', 'zmj-v59', 'zmj-v60', 'zmj-v61']);
+  assert.deepEqual([...w.stores.keys()].sort(), ['another-project-v1', 'zmj-v62', 'zmj-v64']);
 });
 test('failed HTTP responses are not cached; room links share one offline page', async () => {
   const error = worker(async () => ({ ok: false, status: 503 }));
@@ -40,6 +62,52 @@ test('offline navigation finds the canonical page; unrelated requests are not in
   assert.equal(await w.request('https://other.example.com/mahjong/'), undefined);
 });
 
+test('new worker serves exact model URLs cached by the previous release after the origin is offline', async () => {
+  const roomUrl = base + 'assets/mahjong-3d/glb/room/afternoon-room.glb?build=v62';
+  const companionUrl = base + 'assets/mahjong-3d/glb/companions/cat.glb';
+  const room = new Response('previous room');
+  const companion = new Response('previous cat');
+  const upgraded = worker(async () => { throw Error('offline'); }, {
+    'zmj-v62': { [roomUrl]: room, [companionUrl]: companion }
+  });
+  let activated;
+  upgraded.handlers.activate({ waitUntil: promise => activated = promise });
+  await activated;
+  assert.equal(await (await upgraded.request(roomUrl, 'cors')).text(), 'previous room');
+  assert.equal(await (await upgraded.request(companionUrl, 'cors')).text(), 'previous cat');
+  assert.deepEqual(upgraded.written, [], 'legacy model data is not copied into the current cache');
+});
+
+test('the current worker recovers versioned v64 requests warmed before activation', async () => {
+  const room = base + 'assets/mahjong-3d/glb/room/afternoon-room.glb?build=v64';
+  const companion = base + 'assets/mahjong-3d/glb/companions/cat.glb?build=v64';
+  const module = base + 'assets/table3d/table3d.js?build=v64';
+  const upgraded = worker(async () => { throw Error('offline'); }, {
+    'zmj-v62': { [room]: new Response('warmed v64 room'), [companion]: new Response('warmed v64 cat'), [module]: new Response('previous response') },
+    'zmj-v64': { [module]: new Response('current response') },
+    'another-project-v1': { [room]: new Response('unrelated response') }
+  });
+  let activated;
+  upgraded.handlers.activate({ waitUntil: promise => activated = promise });
+  await activated;
+  assert.equal(await (await upgraded.request(room, 'cors')).text(), 'warmed v64 room');
+  assert.equal(await (await upgraded.request(companion, 'cors')).text(), 'warmed v64 cat');
+  assert.equal(await (await upgraded.request(module, 'cors')).text(), 'current response');
+});
+
+test('older model entries cannot satisfy requests with a new build query', async () => {
+  const roomUrl = base + 'assets/mahjong-3d/glb/room/afternoon-room.glb';
+  const companionUrl = base + 'assets/mahjong-3d/glb/companions/cat.glb';
+  const upgraded = worker(async () => new Response('current model'), {
+    'zmj-v62': { [roomUrl + '?build=v62']: new Response('previous room') },
+    'zmj-v63': { [companionUrl]: new Response('previous cat') }
+  });
+  for (const url of [roomUrl, companionUrl]) {
+    const request = url + '?build=v64';
+    assert.equal(await (await upgraded.request(request, 'cors')).text(), 'current model');
+    assert.ok(upgraded.stores.get('zmj-v64').has(request));
+  }
+});
 test('visited Blender room, companions and portraits remain available offline', async () => {
   let online = true;
   const w = worker(async () => { if(!online) throw Error('offline'); return {ok:true,clone:()=>({ok:true,fromCache:true})}; });
