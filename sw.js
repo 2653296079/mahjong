@@ -1,13 +1,15 @@
 ﻿/* 转转麻将 · Service Worker：离线可用 + 自动更新
  * 策略：页面走 network-first（保证更新及时），静态资源走 cache-first（保证离线）。 */
-var CACHE = 'zmj-v62';
+var CACHE = 'zmj-v64';
+// An older worker can already have cached the new page's 3D requests before activation.
+var PREVIOUS_CACHES = ['zmj-v62'];
 var ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-512.png'];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ASSETS); }).then(function () { return self.skipWaiting(); }));
 });
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (ks) {
-    return Promise.all(ks.filter(function (k) { return k.indexOf('zmj-') === 0 && k !== CACHE; }).map(function (k) { return caches.delete(k); }));
+    return Promise.all(ks.filter(function (k) { return k.indexOf('zmj-') === 0 && k !== CACHE && PREVIOUS_CACHES.indexOf(k) < 0; }).map(function (k) { return caches.delete(k); }));
   }).then(function () { return self.clients.claim(); }));
 });
 self.addEventListener('fetch', function (e) {
@@ -31,13 +33,27 @@ self.addEventListener('fetch', function (e) {
     }).catch(function () { return caches.open(CACHE).then(function (c) { return c.match('./index.html'); }); }));
     return;
   }
-  e.respondWith(caches.match(req).then(function (hit) {
-    return hit || fetch(req).then(function (res) {
-      if (res.ok) {
+  var script = threeAsset && relative.endsWith('.js');
+  function canUse(res) {
+    return res && res.ok && (!script || /^(?:text|application)\/(?:x-)?(?:javascript|ecmascript)(?:\s*;|$)/i.test(res.headers.get('Content-Type') || ''));
+  }
+  e.respondWith(caches.open(CACHE).then(function (current) {
+    return current.match(req).then(function (hit) {
+      if (canUse(hit)) return hit;
+      return fallback(current, threeAsset ? 0 : PREVIOUS_CACHES.length);
+    });
+  }));
+  function fallback(current, index) {
+    if (index >= PREVIOUS_CACHES.length) return fetch(req).then(function (res) {
+      if (canUse(res)) {
         var copy = res.clone();
-        e.waitUntil(caches.open(CACHE).then(function (c) { return c.put(req, copy); }).catch(function () {}));
+        e.waitUntil(current.put(req, copy).catch(function () {}));
       }
       return res;
     });
-  }));
+    // Do not strip query strings here: old and updated models share a pathname.
+    return caches.match(req, { cacheName: PREVIOUS_CACHES[index] }).then(function (hit) {
+      return canUse(hit) ? hit : fallback(current, index + 1);
+    });
+  }
 });

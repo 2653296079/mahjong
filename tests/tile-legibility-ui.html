@@ -10,8 +10,8 @@ async function paint(){await new Promise(r=>requestAnimationFrame(()=>requestAni
   localStorage.setItem('zmj_noRotate','1');
   var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html?view=2d';});
   var w=f.contentWindow,d=w.document;d.getElementById('homeSolo').click();
-  for(var i=0;i<40&&!d.getElementById('btnDrawTile');i++)await pause(50);
-  var db=d.getElementById('btnDrawTile');if(db)db.click();await paint();
+  for(var i=0;i<40&&!d.getElementById('wallDrawTile');i++)await pause(50);
+  var db=d.getElementById('wallDrawTile');if(db)db.click();await paint();
   function tiles(){return Array.from(d.querySelectorAll('#seat0 .handRow [data-tile-id]'));}
 
   // 360：牌更宽更高、图形更大，14 张仍全部可见

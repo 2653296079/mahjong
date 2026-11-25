@@ -595,7 +595,7 @@ main{background:#102c28;gap:0}
 @media(max-width:680px){.tileAnalysisScroll{padding:12px 14px}.tileAnalysisHead h3{font-size:16px}.tileAnalysisStats b{font-size:18px}}
 /* 可选三维牌桌：保留原生手牌按钮作为与模型对齐的交互和无障碍层。 */
 #threeStage,#threeControls,#threeLoadStatus{display:none}
-#threeStage{position:absolute;inset:0;z-index:0;overflow:hidden;background:#102722;border-radius:0}
+#threeStage{position:absolute;inset:0;overflow:hidden;background:#102722;border-radius:0}
 #threeStage canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
 #threeStage canvas:active{cursor:grabbing}
 #threeLoadStatus{position:absolute;top:12px;left:12px;z-index:8;padding:7px 12px;border-radius:20px;background:#143b31ef;border:1px solid #b5ab7566;color:#e9dfbc;font-size:12px;pointer-events:none}
@@ -859,14 +859,9 @@ body.table3d #threeStage.drop-ready::after{top:38%}
   body:not(.table3d) #center.drop-ready::after{bottom:8px}
   body.table3d #threeStage.drop-ready::after{top:34%}}
 /* ---------- v42 二维手动摸牌 ---------- */
-#wallInfo.drawable{cursor:pointer;border:1px solid #f2c14e99;color:#f2c14e;background:#f2c14e1a;animation:drawPulse 1.8s ease-in-out infinite}
-#wallInfo.drawable:hover{background:#f2c14e2e}
-#wallInfo.drawable:focus-visible{outline:2px solid #f2c14e;outline-offset:2px}
-#wallInfo .drawBack{display:inline-block;width:9px;height:13px;border-radius:2px;background:linear-gradient(135deg,#2a8a5f,#0d4630);border:1px solid #0a3a26;box-shadow:inset 0 1px 0 #ffffff55;vertical-align:-2px;margin-right:4px}
 @keyframes drawPulse{0%,100%{box-shadow:0 0 0 0 #f2c14e00}50%{box-shadow:0 0 0 3px #f2c14e2e}}
 .nudge{animation:drawNudge .32s ease-in-out}
 @keyframes drawNudge{0%,100%{transform:none}25%{transform:translateX(-2px)}50%{transform:translateX(2px)}75%{transform:translateX(-1px)}}
-.act.draw{background:linear-gradient(135deg,#f7e7b8,#e7c67e);box-shadow:0 3px 0 #9c7b3b}
 /* v43 牌墙拖拽摸牌 */
 #wallInfo.dragging{cursor:grabbing;opacity:.75}
 #seat0 .handRow.draw-target{box-shadow:0 0 0 2px #f2c14ecc,0 0 18px #f2c14e55;border-color:#f2c14e}
@@ -878,9 +873,7 @@ body.table3d #threeStage.drop-ready::after{top:38%}
 @media(max-width:680px){
   .tools>.mini,.toolsMenu summary{min-height:44px;padding:8px 10px;display:inline-flex;align-items:center;justify-content:center}
   .toolsPopover .mini{min-height:44px}
-  .act,#btnDrawTile,#btnReceiveTile{min-height:44px;padding:10px 16px}
-  #wallInfo.drawable{position:relative;min-height:32px;padding:6px 12px;display:inline-flex;align-items:center;gap:4px}
-  #wallInfo.drawable::after{content:"";position:absolute;inset:-7px -9px;border-radius:14px}
+  .act{min-height:44px;padding:10px 16px}
   #topbar{padding-top:max(7px,env(safe-area-inset-top));padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
   #actionbar{padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
   #side{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
@@ -889,9 +882,7 @@ body.table3d #threeStage.drop-ready::after{top:38%}
 /* v50 矮横屏（手机横放/分屏）：高度优先分支原本把按钮压到 28px，这里在矮视口统一抬回 44px */
 @media(max-height:500px){
   .tools>.mini,.toolsMenu summary,.toolsPopover .mini{min-height:44px;padding:8px 10px;display:inline-flex;align-items:center;justify-content:center}
-  .act,#btnDrawTile,#btnReceiveTile{min-height:44px;padding:8px 15px}
-  #wallInfo.drawable{position:relative;min-height:32px;padding:5px 11px;display:inline-flex;align-items:center;gap:4px}
-  #wallInfo.drawable::after{content:"";position:absolute;inset:-7px -9px;border-radius:14px}
+  .act{min-height:44px;padding:8px 15px}
   #actionbar{min-height:56px;padding-top:6px;padding-bottom:6px}
 }
 /* v51 窄屏牌面可读性：≤400px 去掉牌间空隙、把牌加高、选中牌放大预览（不引入横向滚动，避免与拖拽抢手势） */
@@ -904,6 +895,15 @@ body.table3d #threeStage.drop-ready::after{top:38%}
   /* v53 选中预览改为宽度直接放大 16%（不再走 transform 过渡，避免读数落在动画中途） */
   body:not(.table3d) #seat0 .handRow .tile.chosen{width:calc((100cqw - 8px)/14*1.16);height:clamp(48.72px,15.08vw,58px);transform:translateY(-5px) !important;transform-origin:50% 100%;z-index:6;margin-left:calc((100cqw - 8px)/14*-0.16/2 - 0px);margin-right:calc((100cqw - 8px)/14*-0.16/2)}
 }
+.wallTileFocus{position:absolute;z-index:5;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border:0;background:transparent;pointer-events:auto;cursor:pointer;touch-action:manipulation}.wallTileFocus:focus-visible{outline:2px solid #ffdf99}
+#drawWall2D:empty,body.table3d #drawWall2D{display:none}
+#drawWall2D:not(:empty){display:flex;align-items:center;justify-content:center;gap:2px;min-height:52px}
+body.table3d #drawWall2D:not(:empty){display:none}
+#center:has(#drawWall2D:not(:empty)) #coach{display:none}
+@media(max-height:500px){body:not(.table3d) #table:has(#drawWall2D:not(:empty)){grid-template-rows:minmax(0,1fr) minmax(54px,2fr) auto}#center:has(#drawWall2D:not(:empty)){padding-block:0}}
+.wallBack{display:block;width:24px;height:36px;border-radius:4px;border:1px solid #133e37;background:linear-gradient(135deg,#488778,#236455 52%,#255448);box-shadow:inset 0 0 0 2px #ffffff24,0 4px #ede5cc,0 6px #958a70}
+#wallDrawTile{height:44px;width:36px;cursor:grab;touch-action:none;outline:2px solid #e7c779;outline-offset:1px;transform:translateY(-3px)}
+#wallDrawTile:focus-visible{outline:3px solid white}
 </style>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-512.png">
@@ -935,13 +935,14 @@ body.table3d #threeStage.drop-ready::after{top:38%}
   <main>
     <section id="table">
       <div id="threeStage"></div>
-      <div id="threeControls" aria-label="三维牌桌视角"><button id="threeSkip" class="mini hidden">跳过动画</button><button id="threeSeated" class="mini" aria-pressed="true">坐席</button><button id="threeOverhead" class="mini" aria-pressed="false">俯视</button><button id="threeBack" class="mini">二维牌桌</button></div>
+      <div id="threeControls" aria-label="三维牌桌视角"><button id="threeSkip" class="mini hidden">跳过动画</button><button id="threeSeated" class="mini" aria-pressed="true" title="拖动桌面环顾四周，点击回到自己的坐席">回到坐席</button><button id="threeOverhead" class="mini" aria-pressed="false">俯视</button><button id="threeBack" class="mini">二维牌桌</button></div>
       <div id="threeMachineInfo" role="status" aria-live="polite"><details id="threeOpeningDetails" open><summary><b id="threeMachineTitle">自动麻将机</b><span id="threeDiceReadout" class="hidden"></span></summary><span id="threeMachineDetail"></span></details></div><div id="diceCup" class="hidden"><button id="threeRoll" class="hidden" aria-label="按住拖动摇骰，松手掷出；也可以点击掷骰">按住摇骰 · 松手掷出</button><span id="cupCaption">拖动玻璃盅摇一摇</span></div>
       <div id="threeLoadStatus" role="status" aria-live="polite">正在摆好三维牌桌…</div>
       <div class="seat" id="seat2" data-seat="2"></div>
       <div class="seat" id="seat1" data-seat="1"></div>
 
       <div id="center">
+        <div id="drawWall2D" aria-label="牌墙取牌处"></div>
         <div id="centerTop">
           <div class="pill" id="wallInfo">牌墙 --</div>
           <div class="pill" id="dealerInfo">庄 --</div>
@@ -3010,7 +3011,7 @@ window.onerror = function (msg, src, line, col) {
   function syncLayers() {
     var modalOpen = !$('modal').classList.contains('hidden');
     var homeOpen = $('home') && !$('home').classList.contains('hidden');
-    $('app').inert = !!(modalOpen || homeOpen);
+    $('app').inert = !!(modalOpen || homeOpen || document.body.classList.contains('threeBlocked'));
     if ($('home')) $('home').inert = modalOpen;
     if (modalOpen || homeOpen) hideTileAnalysis();
     if (table3D && table3D.api) table3D.api.setActive(table3D.wanted && !modalOpen && !homeOpen && !!(game && game.hand));
@@ -3058,7 +3059,12 @@ window.onerror = function (msg, src, line, col) {
   var selectedTile = null;                      // 按实际牌的位置选择，同种牌分别确认
   var handArrange = { hand: null, seat: -1, turn: '', order: [], received: false, revealed: false, drawn: null };
   function handArrangeState(hand, seat, concealed, drawnKind) {
-    if (handArrange.hand !== hand || handArrange.seat !== seat) handArrange = { hand: hand, seat: seat, turn: '', order: [], received: false, revealed: false, drawn: null };
+    // Online snapshots replace the hand object even when nothing in this draw changed.
+    var owner = game.online ? game : hand;
+    var handNo = game.online ? game.handNo : null;
+    if (handArrange.hand !== owner || handArrange.handNo !== handNo || handArrange.seat !== seat) {
+      handArrange = { hand: owner, handNo: handNo, seat: seat, turn: '', order: [], received: false, revealed: false, drawn: null };
+    }
     var ids = [];
     for (var kind = 0; kind < ZMJ.KINDS; kind++) {
       var count = concealed[kind];
@@ -3089,18 +3095,23 @@ window.onerror = function (msg, src, line, col) {
     return !!H && !H.over && !document.body.classList.contains('table3d') &&
       !!H.pendingDraw && H.pendingDraw.seat === game.humanSeat();
   }
+  function wallReceipt3D() {
+    return document.body.classList.contains('table3d') && game.hand.turnCount > 1 &&
+      game.awaiting && game.awaiting.type === 'turn' && game.awaiting.seat === game.humanSeat() &&
+      !!handArrange.drawn && !handArrange.received;
+  }
   function wallDrawable2D() { return drawPending2D() || pendingDraw2D(); }
   function acceptWallDraw() {
-    if (manualDrawNow()) return true;          // 待抽：真从墙里摸
+    if (manualDrawNow()) { acceptDrawnTile(); return true; }          // 待抽：真从墙里摸
     return acceptDrawnTile();                  // 已摸未接：翻开
   }
-  function nudgeDraw() {    ['wallInfo', 'btnDrawTile'].forEach(function (id) {
+  function nudgeDraw() {    ['wallDrawTile'].forEach(function (id) {
       var el = $(id); if (!el) return;
       el.classList.remove('nudge'); void el.offsetWidth; el.classList.add('nudge');
     });
     sfx('select');
   }
-  // v58 真抽的出手点：玩家亲手点到墙上那张合法牌（或按摸牌按钮兜底）后，让引擎把那一摸抽完。
+  // v58 真抽的出手点：玩家亲手点到墙上那张合法牌后，让引擎把那一摸抽完。
   // 抽哪张仍由 drawFor 内原有的 shift/pop 决定；这里只负责放行，不参与选牌。
   function manualDrawNow() {
     if (!game || !game.hand) return false;
@@ -3170,10 +3181,7 @@ window.onerror = function (msg, src, line, col) {
   }
   // ---------- v41 仿真拖拽：手牌拖到中央牌河即出牌 ----------
   function riverDropZone(x, y) {
-    if (document.body.classList.contains('table3d')) {
-      var w = window.innerWidth || 1, h = window.innerHeight || 1;
-      return x >= w * 0.24 && x <= w * 0.76 && y >= h * 0.16 && y <= h * 0.70;
-    }
+    if (document.body.classList.contains('table3d')) return !!(table3D.api && table3D.api.tileDragInRiver());
     var c = $('center');
     if (!c) return false;
     var row = handRowEl();
@@ -3292,7 +3300,7 @@ window.onerror = function (msg, src, line, col) {
     var c = $('center'); if (c) c.classList.remove('drop-ready');
     var s = $('threeStage'); if (s) s.classList.remove('drop-ready');
   }
-  var table3D = { wanted:false, api:null, loading:null, lastGame:null, round:0, busy:false, lastDealSfx:0 };
+  var table3D = { wanted:false, api:null, loading:null, module:null, moduleFailed:false, lastGame:null, round:0, busy:false, lastDealSfx:0 };
   // v59：三维是唯一形态，默认即三维。
   // ?view=2d 是【测试专用后门】，只给门禁与排查用，产品界面上不暴露。
   // 不再读 localStorage 记忆值——玩家自己选过二维，也不该把默认拽回二维。
@@ -3315,7 +3323,9 @@ window.onerror = function (msg, src, line, col) {
     var isFile=location.protocol==='file:';
     show3DBlock(isFile
       ? '本游戏需要三维牌桌，请用本地服务器打开：在仓库目录执行 node server.js 8080，再访问 http://127.0.0.1:8080/'
-      : '这台设备的浏览器暂时无法显示三维牌桌（需要支持 WebGL）。可以点下面的按钮重试。');
+      : error && error.code === 'MODEL_TIMEOUT'
+        ? '三维模型下载停滞，请检查网络后重试。'
+        : '暂时无法打开三维牌桌。请确认浏览器支持 WebGL，或点下面的按钮重试。');
   }
   // v59 阻断层：全屏遮罩 + 文本 + 重试按钮；重试会重新走 ensureTable3D()
   function show3DBlock(message) {
@@ -3365,9 +3375,38 @@ window.onerror = function (msg, src, line, col) {
       ctx.fillStyle='#eee3cb';ctx.fillRect(0,0,n,n);ctx.drawImage(img,0,0,n,n);ctx.restore();
       canvas.dataset.animal=animal;
     }
-    if(!img){img=new Image();ANIMAL_PORTRAITS[animal]=img;img.src='./assets/mahjong-3d/glb/companions/portraits/'+animal+'.png?build=v62';}
+    if(!img){img=new Image();ANIMAL_PORTRAITS[animal]=img;img.src='./assets/mahjong-3d/glb/companions/portraits/'+animal+'.png?build=v64';}
     if(img.complete)requestAnimationFrame(paint);
     else img.addEventListener('load',paint,{once:true});
+  }
+  function loadTable3DModule() {
+    if (table3D.module) return Promise.resolve(table3D.module);
+    var pending;
+    if (!table3D.moduleFailed) {
+      pending=import('./assets/table3d/table3d.js?build=v64');
+    } else {
+      // A failed dependency stays in this document's module map. A same-origin
+      // iframe gives Retry a fresh map while the current game stays in place.
+      // Keep the successful iframe alive because the module uses its globals.
+      var loader=document.createElement('iframe');
+      loader.hidden=true;
+      // Escape the tag so the host HTML source only contains its own script tags.
+      loader.srcdoc='\x3cscript>window.importTable3D=function(){return import("./assets/table3d/table3d.js?build=v64");}\x3c/script>';
+      pending=new Promise(function(resolve){
+        loader.addEventListener('load',resolve,{once:true});
+        document.body.appendChild(loader);
+      }).then(function(){return loader.contentWindow.importTable3D();}).catch(function(error){
+        loader.remove();
+        throw error;
+      });
+    }
+    return pending.then(function(module){
+      table3D.module=module;
+      return module;
+    },function(error){
+      table3D.moduleFailed=true;
+      throw error;
+    });
   }
   function ensureTable3D() {
     if(!table3D.wanted||!game||!game.hand)return;
@@ -3375,7 +3414,7 @@ window.onerror = function (msg, src, line, col) {
     if(table3D.loading)return;
     if(location.protocol==='file:'){failTable3D(Error('3D assets need an HTTP origin'));return;}
     $('table').classList.add('threeLoading');
-    table3D.loading=import('./assets/table3d/table3d.js?build=v62').then(function(module){
+    table3D.loading=loadTable3DModule().then(function(module){
       return module.createTable3D($('threeStage'),{
         onProgress:function(done,total){$('threeLoadStatus').textContent='正在摆好三维牌桌 · '+done+' / '+total;},
         onError:failTable3D,
@@ -3385,8 +3424,8 @@ window.onerror = function (msg, src, line, col) {
           if(!pick||!pick.legal)return false;           // 点错位置：牌不动、也不给任何提示
           // v58 真抽：点中合法槽 → 真从墙里摸（manualDrawNow 自带 pendingDraw 与座位判定）。
           // 已摸未接的旧情形（drawPending2D）才走「翻开」。
-          if(manualDrawNow())return true;
-          if(document.body.classList.contains('table3d')&&drawPending2D()){acceptDrawnTile();return true;}
+          if(manualDrawNow()){acceptDrawnTile();return true;}
+          if(wallReceipt3D()){acceptDrawnTile();return true;}
           return false;
         },
         onDice:function(active,settled,values){
@@ -3465,7 +3504,14 @@ window.onerror = function (msg, src, line, col) {
       });
     }).then(function(api){
       table3D.api=api;$('table').classList.remove('threeLoading');
-      if(table3D.wanted){document.body.classList.add('table3d');syncTable3D();api.setActive(!$('app').inert);renderActions();}
+      if (table3D.wanted && game && game.hand) {
+        document.body.classList.add('table3d');
+        for(var pos=0;pos<4;pos++)renderSeat(pos);
+        renderCenter(!!game.online);
+        syncTable3D();
+        api.setActive(!$('app').inert);
+        renderActions();
+      }
     }).catch(failTable3D).finally(function(){table3D.loading=null;});
   }
   // v55 牌墙槽位映射：把 H.wall[i] 解成三维可视槽位（含墩/层），供亲手抓牌定位。
@@ -3505,6 +3551,8 @@ window.onerror = function (msg, src, line, col) {
     var dealPlan=opening&&opening.rule!=='single-roll-packets-v1'?ZMJ.openingPackets(game.dealer).map(function(p){return{pos:seatPos(p.seat),slots:p.slots,jump:p.jump};}):null;
     var slotMap=wallSlotMapFor(H,opening);
     try{table3D.api.update({round:table3D.round+':'+game.handNo+':'+hs,seats:seats,river:shown,sources:cfg.discardSource,
+      wallPick:!!(H.pendingDraw && H.pendingDraw.seat===hs || wallReceipt3D()),wallReceipt:!!wallReceipt3D(),
+      fromTail:H.pendingDraw ? !!H.pendingDraw.fromTail : !!H.gangDraw,
       wallCount:H.wall.length,dealer:seatPos(game.dealer==null?0:game.dealer),opening:opening,wallDraws:H.wallDraws,
       turnCount:H.turnCount,openingAgeMs:H.openingAgeMs,over:!!H.over,gangDraw:!!H.gangDraw,
       dealtKinds:dealtKinds.slice(),dealPlan:dealPlan,waitForRoll:!!H.dicePending,wallSlotMap:slotMap});}catch(e){failTable3D(e);}
@@ -3763,7 +3811,7 @@ window.onerror = function (msg, src, line, col) {
   function tick() {
     clearTimeout(timer);
     if (!game) return;
-    if((table3D.busy||game.hand&&game.hand.dicePending)&&!game.online){if(!pauseStarted)pauseStarted=Date.now();timer=setTimeout(tick,150);return;}
+    if((table3D.busy||table3D.loading||document.body.classList.contains('threeBlocked')||game.hand&&game.hand.dicePending)&&!game.online){if(!pauseStarted)pauseStarted=Date.now();timer=setTimeout(tick,150);return;}
     if (!game.online && (($('home') && !$('home').classList.contains('hidden')) || !$('modal').classList.contains('hidden'))) { if (!pauseStarted) pauseStarted = Date.now(); timer = setTimeout(tick, 250); return; }
     if (game.online) {
       // 联机：牌局在服务器上跑，这里只把收到的状态画出来
@@ -5292,7 +5340,17 @@ window.onerror = function (msg, src, line, col) {
           t.setAttribute('aria-label', isDrawn && !arrangement.received && document.body.classList.contains('table3d') ? '接入' + ZMJ.tileName(kk) : '打出' + ZMJ.tileName(kk));
           t.setAttribute('aria-pressed', chosen ? 'true' : 'false');
           if (game.online && (NET.pendingAction || NET.status !== 'on')) t.setAttribute('aria-disabled', 'true');
-          t.onclick = function () { if(t.dataset.suppressClick==='1'){t.dataset.suppressClick='';return;} onDiscardClick(kk, id); };
+          t.onclick = function (e) {
+            if(e.detail&&document.body.classList.contains('table3d')){
+              var seat=document.getElementById('seat0');
+              if(seat.dataset.suppressHandClick==='1'){seat.dataset.suppressHandClick='';return;}
+              var picked=table3D.api&&table3D.api.pickHandTile(e.clientX,e.clientY);
+              if(!picked)return;
+              var pieces=picked.split(':');onDiscardClick(Number(pieces[0]),picked);return;
+            }
+            if(t.dataset.suppressClick==='1'){t.dataset.suppressClick='';return;}
+            onDiscardClick(kk, id);
+          };
           t.onpointerenter = function(e) { if (e.pointerType !== 'touch') showTileAnalysis(kk, id, t, false); };
           t.onpointerleave = leaveTileAnalysis;
           t.onfocus = function() { showTileAnalysis(kk, id, t, true); };
@@ -5317,7 +5375,7 @@ window.onerror = function (msg, src, line, col) {
         if(id === arrangement.drawn && (keepDrawnAtEnd || !arrangement.received))return;
         var parts=id.split(':');addTile(Number(parts[0]),Number(parts[1]),false);
       });
-      if (keepDrawnAtEnd) {
+      if (keepDrawnAtEnd && !wallReceipt3D()) {
         var gap = document.createElement('div'); gap.className = 'gap';
         row.appendChild(gap);
         addTile(drawnKind, hp.concealed[drawnKind] - 1, true);
@@ -5325,6 +5383,12 @@ window.onerror = function (msg, src, line, col) {
       if(canDiscard){
         row.addEventListener('pointerdown',function(e){
           var tile=e.target.closest('[data-tile-id]');
+          var in3D=document.body.classList.contains('table3d');
+          if(in3D){
+            $('seat0').dataset.suppressHandClick='';
+            var picked=table3D.api&&table3D.api.pickHandTile(e.clientX,e.clientY);
+            tile=picked?row.querySelector('[data-tile-id="'+picked+'"]'):null;
+          }
           if(!tile||e.button!==0)return;
           if(drawPending2D()){nudgeDraw();return;}
           if (game.online && (NET.pendingAction || NET.status !== 'on')) return;
@@ -5341,12 +5405,16 @@ window.onerror = function (msg, src, line, col) {
         row.addEventListener('pointerup',function(e){
           var drag=row._reorder;row._reorder=null;
           if(!drag)return;
-          var moved=drag.moved,over=drag.over,sort=drag.sortTarget;
-          var t3d=(document.body.classList.contains('table3d')&&table3D.api&&table3D.api.tileDragTarget)?table3D.api.tileDragTarget():null;
+          var moved=drag.moved,sort=drag.sortTarget,api=table3D.api;
+          var in3D=document.body.classList.contains('table3d');
+          if(in3D&&api&&moved)api.setTileDrag(drag.id,e.clientX,e.clientY);
+          var t3d=in3D&&api?api.tileDragTarget():null;
+          var over=riverDropZone(e.clientX,e.clientY);
           handDragEnd(drag);
           if(!moved)return;
           var source=row.querySelector('[data-tile-id="'+drag.id+'"]')||drag.tile;
           if(source)source.dataset.suppressClick='1';
+          if(moved&&in3D)$('seat0').dataset.suppressHandClick='1';
           if(over){
             commitDiscard(Number(drag.id.split(':')[0]),drag.id);
             return;
@@ -5570,31 +5638,25 @@ window.onerror = function (msg, src, line, col) {
     renderCenterTile(fast);
     if (!fast || game.hand.over) renderCoach();
     var H = game.hand;
-    var wallEl = $('wallInfo'), drawable = wallDrawable2D();
-    wallEl.classList.toggle('drawable', drawable);
-    if (drawable) {
-      var wkey = 'draw:' + H.wall.length;
-      if (wallEl.getAttribute('data-key') !== wkey) {
-        wallEl.setAttribute('data-key', wkey);
-        // v56：这一摸是「从该端数的第几摸」，口径由 ZMJ.drawNthOf 统一定义（并有 node 断言兜底）。
-        // 取哪张始终由 hand.wall 的 shift/pop 决定，提示只描述"摸的是第几摸"，不构成选牌。
-        var tailTaken = !!(H.wallDraws && H.wallDraws.tail > 0 && H.gangDraw);
-        var nth = ZMJ.drawNthOf(H);
-        wallEl.innerHTML = '<i class="drawBack" aria-hidden="true"></i>牌墙 ' + H.wall.length + ' 张 · <b>摸牌</b>'
-          + (tailTaken ? '（杠补·从尾部取）' : '')
-          + '<small style="opacity:.72;margin-left:2px">本次第 ' + nth + ' 次摸牌</small>';
+    var wallEl = $('wallInfo'), strip = $('drawWall2D');
+    wallEl.textContent = '牌墙 ' + H.wall.length + ' 张（约 ' + game.drawsLeft() + ' 巡）';
+    var tail = H.pendingDraw ? H.pendingDraw.fromTail : H.gangDraw;
+    var count = Math.min(5, H.wall.length + (drawPending2D() ? 1 : 0));
+    var key = wallDrawable2D() ? [H.wall.length, count, tail].join(':') : '';
+    if (strip.dataset.key !== key) {
+      strip.dataset.key = key;
+      strip.replaceChildren();
+      if (key) for (var i=0; i<count; i++) {
+        var tile = document.createElement('span');
+        tile.className = 'wallBack';
+        if (i === (tail ? count-1 : 0)) {
+          tile.id = 'wallDrawTile';
+          tile.tabIndex = 0;
+          tile.setAttribute('role','button');
+          tile.setAttribute('aria-label',tail ? '取墙尾补牌' : '摸牌墙开口的牌');
+        } else tile.setAttribute('aria-hidden','true');
+        strip.appendChild(tile);
       }
-      wallEl.setAttribute('role', 'button');
-      wallEl.setAttribute('tabindex', '0');
-      wallEl.setAttribute('aria-label', '从牌墙摸牌，剩余 ' + H.wall.length + ' 张，本次第 ' + nth + ' 次摸牌');
-    } else {
-      if (wallEl.getAttribute('data-key') !== 'wall:' + H.wall.length) {
-        wallEl.setAttribute('data-key', 'wall:' + H.wall.length);
-        wallEl.textContent = '牌墙 ' + H.wall.length + ' 张（约 ' + game.drawsLeft() + ' 巡）';
-      }
-      wallEl.removeAttribute('role');
-      wallEl.removeAttribute('tabindex');
-      wallEl.removeAttribute('aria-label');
     }
     $('dealerInfo').textContent = '庄 ' + game.nameOf(game.dealer);
     var t = $('turnInfo');
@@ -5808,7 +5870,7 @@ window.onerror = function (msg, src, line, col) {
       if (a.type === 'draw' || (a.type === 'turn' && drawPending2D())) {
         eyebrow.textContent = '轮到你摸牌';
         main.textContent = '先从牌墙摸一张';
-        detail.textContent = '点中央「牌墙」或下方「从牌墙摸牌」；摸入张翻开后再看出牌建议。';
+        detail.textContent = '点牌墙上金边的那张牌；摸入张翻开后再看出牌建议。';
         return;
       }
       if (!liveHints()) {
@@ -5894,31 +5956,13 @@ window.onerror = function (msg, src, line, col) {
     wb.classList.add('hidden');
     var a = game.awaiting;
     if (!a) return;
-    // v58 真抽：待抽态（type==='draw'）在 2D/3D 都给出「从牌墙摸牌」兜底入口。
-    // 处理器必须是 manualDrawNow（真从墙里 shift/pop），不是 acceptDrawnTile（那只翻开已摸的牌）。
-    if (a.type === 'draw') {
-      var ddBtn = btn('从牌墙摸牌', 'draw', manualDrawNow);
-      ddBtn.id = 'btnDrawTile';
-      bar.appendChild(ddBtn);
-      var ddTip = document.createElement('div');
-      ddTip.style.cssText = 'font-size:13px;color:#9fb3a8';
-      ddTip.textContent = '点中央牌墙或这里摸一张；摸入张翻开后才能出牌';
-      bar.appendChild(ddTip);
+    if (a.type === 'draw' || drawPending2D() || wallReceipt3D()) {
+      bar.textContent = '点牌墙上金边的那张牌' + ((game.hand.pendingDraw || {}).fromTail || game.hand.gangDraw ? ' · 杠后补牌' : '');
       return;
     }
     var seat = a.seat;
-    if (a.type === 'turn' && document.body.classList.contains('table3d') && handArrange.drawn && !handArrange.received && !handArrange.revealed && a.seat===game.humanSeat()) {
-      var receive=btn('接牌 · '+ZMJ.tileName(Number(handArrange.drawn.split(':')[0])),'act',acceptDrawnTile);
-      receive.id='btnReceiveTile';bar.appendChild(receive);
-      return;
-    }
-    if (a.type === 'turn' && drawPending2D()) {
-      var drawBtn=btn('从牌墙摸牌','draw',acceptDrawnTile);
-      drawBtn.id='btnDrawTile';bar.appendChild(drawBtn);
-      var drawTip=document.createElement('div');
-      drawTip.style.cssText='font-size:13px;color:#9fb3a8';
-      drawTip.textContent='点中央牌墙或这里摸一张；摸入张翻开后才能出牌';
-      bar.appendChild(drawTip);
+    if (a.type === 'turn' && document.body.classList.contains('table3d') && handArrange.drawn && !handArrange.received && a.seat===game.humanSeat()) {
+      bar.textContent='点手牌末端单独的那张，接入起手牌';
       return;
     }
     if (a.type === 'turn') {
@@ -6080,7 +6124,7 @@ window.onerror = function (msg, src, line, col) {
     if (hs < 0) { el.innerHTML = '<span style="color:#9fb3a8">你在等待区，先看看别人怎么打。</span>'; return; }
     var H = game.hand, p = H.players[hs], a = game.awaiting;
     var rows = [];
-    if (drawPending2D()) { el.innerHTML = '<b>先从牌墙摸牌</b><br>点中央「牌墙」或下方「从牌墙摸牌」；摸入张翻开后再看出牌建议。'; return; }
+    if (drawPending2D()) { el.innerHTML = '<b>先从牌墙摸牌</b><br>点牌墙上金边的那张牌；摸入张翻开后再看出牌建议。'; return; }
     // 胡牌抉择提示
     if (a && a.type === 'claim' && a.options.hu) {
       var outs = game.ukeireFor(hs).total;
@@ -7741,7 +7785,7 @@ window.onerror = function (msg, src, line, col) {
   }
 
   // 与离线缓存同步，保留远端新增的首页版本标识。
-  var BUILD = 'v62';
+  var BUILD = 'v64';
   // ---------- 主界面：先选单机还是联机 ----------
   function showHome() {
     if (!STATS) loadStats();
@@ -7830,19 +7874,26 @@ window.onerror = function (msg, src, line, col) {
   $('btnRules').onclick = showRules;
   $('btnSettings').onclick = showSettings;
   (function(){
-    var wi=$('wallInfo'),drag=null,ghost=null;
+    var wi=$('drawWall2D'),drag=null,ghost=null;
     function rowEl(){return document.querySelector('#seat0 .handRow');}
     function overRow(x,y){var row=rowEl();if(!row)return false;var r=row.getBoundingClientRect();return x>=r.left-10&&x<=r.right+10&&y>=r.top-18&&y<=r.bottom+18;}
     function cleanup(){if(ghost&&ghost.parentNode)ghost.parentNode.removeChild(ghost);ghost=null;wi.classList.remove('dragging');var row=rowEl();if(row)row.classList.remove('draw-target');}
+    function finish(e,cancel){
+      if(!drag||e.pointerId!==drag.id)return;
+      var moved=drag.moved,over=!cancel&&overRow(e.clientX,e.clientY);
+      drag=null;cleanup();
+      if(moved){wi.dataset.suppressClick='1';if(over&&wallDrawable2D())acceptWallDraw();}
+    }
     wi.addEventListener('pointerdown',function(e){
-      if(!wallDrawable2D()||e.button!==0)return;
-      drag={x:e.clientX,y:e.clientY,moved:false};
-      try{wi.setPointerCapture(e.pointerId);}catch(_e){}
+      if(drag||e.target.id!=='wallDrawTile'||!wallDrawable2D()||e.button!==0)return;
+      wi.dataset.suppressClick='';
+      drag={id:e.pointerId,x:e.clientX,y:e.clientY,moved:false};
     });
     wi.addEventListener('pointermove',function(e){
-      if(!drag)return;
+      if(!drag||e.pointerId!==drag.id)return;
       if(!drag.moved&&Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>8){
         drag.moved=true;
+        try{wi.setPointerCapture(e.pointerId);}catch(_e){}
         var r=wi.getBoundingClientRect();ghost=backEl('small','draw-ghost');
         ghost.style.left=(r.left+r.width/2-12)+'px';ghost.style.top=(r.top+r.height/2-16)+'px';
         ghost.style.width='24px';ghost.style.height='32px';document.body.appendChild(ghost);wi.classList.add('dragging');
@@ -7853,14 +7904,11 @@ window.onerror = function (msg, src, line, col) {
       ghost.style.transform='translate('+(e.clientX-drag.x)+'px,'+(e.clientY-drag.y-lift)+'px) scale(1.15) rotate(-4deg)';
       var row=rowEl();if(row)row.classList.toggle('draw-target',overRow(e.clientX,e.clientY));
     });
-    wi.addEventListener('pointerup',function(e){
-      if(!drag)return;
-      var moved=drag.moved,over=overRow(e.clientX,e.clientY);drag=null;cleanup();
-      if(moved){wi.dataset.suppressClick='1';if(over)acceptWallDraw();}
-    });
-    wi.addEventListener('pointercancel',function(){drag=null;cleanup();});
-    wi.addEventListener('click',function(){if(wi.dataset.suppressClick==='1'){wi.dataset.suppressClick='';return;}if(wallDrawable2D())acceptWallDraw();});
-    wi.addEventListener('keydown',function(e){if((e.key==='Enter'||e.key===' ')&&wallDrawable2D()){e.preventDefault();acceptWallDraw();}});
+    wi.addEventListener('pointerup',function(e){finish(e,false);});
+    wi.addEventListener('pointercancel',function(e){finish(e,true);});
+    wi.addEventListener('lostpointercapture',function(e){finish(e,true);});
+    wi.addEventListener('click',function(e){if(e.target.id!=='wallDrawTile')return;if(wi.dataset.suppressClick==='1'){wi.dataset.suppressClick='';return;}if(wallDrawable2D())acceptWallDraw();});
+    wi.addEventListener('keydown',function(e){if(e.target.id==='wallDrawTile'&&(e.key==='Enter'||e.key===' ')&&wallDrawable2D()){e.preventDefault();acceptWallDraw();}});
   })();
   $('btnTileArt').onclick = showTileArt;
   $('moreTools').addEventListener('click', function (e) { if (e.target.closest('button')) this.open = false; });

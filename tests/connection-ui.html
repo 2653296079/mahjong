@@ -24,7 +24,7 @@ async function until(fn,label){for(var i=0;i<300;i++){if(fn())return;await new P
  await until(()=>d.getElementById('netStart'),'进房间');d.getElementById('netStart').click();await until(()=>w.__zmjGame&&w.__zmjGame.awaiting,'轮到自己');
  var g=w.__zmjGame;check(g.online&&Array.isArray(g.hand.river),'真实联机开局收到服务端公开牌河');
  check(g.seats[g.humanSeat()].name===visitor,'手动伪造昵称无效，牌桌继续显示真实访客身份');
- var drawBtn=d.getElementById('btnDrawTile');if(drawBtn)drawBtn.click();await new Promise(function(r){setTimeout(r,150);});
+ var drawBtn=d.getElementById('wallDrawTile');if(drawBtn)drawBtn.click();await new Promise(function(r){setTimeout(r,150);});
  var count=g.hand.players[g.humanSeat()].discards.length,tile=d.querySelector('.handRow .clickable');tile.click();if(!d.getElementById('netPendingAction'))tile.click();
  await until(()=>g.hand.players[g.humanSeat()].discards.length>count,'服务端确认弃牌');
  var visible=g.hand.river.filter(e=>e.claimedBy==null),dom=Array.from(d.querySelectorAll('.riverEntry'));

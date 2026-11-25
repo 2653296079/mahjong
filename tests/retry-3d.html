@@ -1,0 +1,27 @@
+<!doctype html><meta charset="utf-8"><title>三维模块重试验收</title>
+<pre id="log"></pre><iframe id="game" style="width:1366px;height:850px;border:0"></iframe>
+<script>
+var out={ok:false,steps:[],errors:[]},frame=document.getElementById('game');
+function check(ok,message){if(!ok)throw Error(message);out.steps.push(message);}
+function wait(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+async function until(fn,timeout=30000){var start=Date.now();while(!fn()){if(Date.now()-start>timeout)throw Error('等待超时');await wait(50);}}
+(async function(){try{
+ localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:20261018,sound:false,analyze:false,turnTime:0,aiThink:5,aiStyle:'v1',rotate:false}));localStorage.setItem('zmj_noRotate','1');
+ await new Promise(resolve=>{frame.onload=resolve;frame.src='/index.html?view=3d&play=1';});
+ var win=frame.contentWindow,doc=win.document;
+ await until(()=>doc.getElementById('threeBlock')&&!doc.getElementById('threeBlock').classList.contains('hidden'));
+ var first=await (await fetch('/__module-attempts')).json();
+ check(first.count===1,first.module+' 的首次请求收到临时 503');
+ var game=win.__zmjGame, block=doc.getElementById('threeBlock');
+ block.querySelector('#threeBlockRetry').click();
+ await until(()=>!block.classList.contains('hidden')||doc.body.classList.contains('table3d'),60000);
+ var retried=await (await fetch('/__module-attempts')).json();
+ check(retried.count===2,'重试应重新请求 '+first.module+'（实际 '+retried.count+' 次）');
+ check(doc.body.classList.contains('table3d')&&doc.querySelector('#threeStage canvas'),'重试后挂载牌桌');
+ check(frame.contentWindow.__zmjGame===game,'重试保留原有牌局');
+ await until(()=>!doc.getElementById('threeSkip').classList.contains('hidden'));
+ doc.getElementById('threeSkip').click();
+ await until(()=>doc.querySelector('#seat0 [data-three-projected]'));
+ out.ok=true;
+}catch(error){out.errors.push(error.message);}document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));})();
+</script>

@@ -18,7 +18,7 @@ async function load(mode) {
     check(/整局测验/.test(d.getElementById('situation').textContent + d.getElementById('myStat').textContent), '测验的侧栏也不泄漏进张与采样答案');
     for (var i = 0; i < 1000 && !g.hand.over; i++) {
       if (g.awaiting) {
-        var drawBtn = d.getElementById('btnDrawTile');
+        var drawBtn = d.getElementById('wallDrawTile');
         if (drawBtn) { drawBtn.click(); w.dispatchEvent(new w.Event('resize')); continue; }
         var a = g.awaiting, buttons = Array.from(d.querySelectorAll('#actionBtns button'));
         if (a.type === 'claim') buttons.find(function (b) { return /过/.test(b.textContent); }).click();
@@ -36,7 +36,7 @@ async function load(mode) {
     check(/关键弃牌回顾/.test(d.getElementById('modalBox').textContent), '结算后展示当时信息生成的关键弃牌回顾');
     x = await load('feedback'); w = x.w; d = x.d; g = x.g;
     check(/先判断后反馈/.test(d.getElementById('hint').textContent), '先判断模式出牌前隐藏讲解');
-    var drawBtn2=d.getElementById('btnDrawTile');if(drawBtn2)drawBtn2.click();
+    var drawBtn2=d.getElementById('wallDrawTile');if(drawBtn2)drawBtn2.click();
     var tile = d.querySelector('[aria-label^="打出"]'); tile.click();
     if (d.getElementById('coachEyebrow').textContent !== '上一手复盘') tile.click();
     check(/上一手复盘/.test(d.getElementById('coachEyebrow').textContent), '先判断模式出牌后显示比较');

@@ -8,18 +8,21 @@ async function until(fn,ms){var start=Date.now();ms=ms||60000;while(!fn()){if(Da
 (async function(){try{
   localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:20261016,sound:false,analyze:false,turnTime:0,aiThink:5,aiStyle:'v1',rotate:false}));
   localStorage.setItem('zmj_noRotate','1');
-  await new Promise(function(r){f.onload=r;f.src='/index.html';});
+  await new Promise(function(r){f.onload=r;f.src='/index.html?view=2d';});
   var w=f.contentWindow,d=w.document;
   await until(function(){return d.getElementById('homeSolo');},15000);
   d.getElementById('homeSolo').click();
-  await until(function(){return !d.getElementById('btnDrawTile').classList.contains('hidden');},20000);
-  d.getElementById('btnDrawTile').click();await wait(200);
+  await until(function(){return !d.getElementById('wallDrawTile').classList.contains('hidden');},20000);
+  d.getElementById('wallDrawTile').click();await wait(200);
   check(d.querySelectorAll('.handRow [data-tile-id]').length===14,'二维摸牌后手牌 14 张');
   var g=w.__zmjGame;
   g.hand._diceGateInitialized=true;g.hand.dicePending=false;
   d.getElementById('btn3D').click();
   await until(function(){return d.body.classList.contains('table3d')&&d.getElementById('threeStage').dataset.machineBusy==='0'&&d.querySelectorAll('[data-three-projected]').length>0;},60000);
-  check(d.querySelectorAll('[data-three-projected]').length>=13,'二维摸牌后切三维，同一手牌层可操作');
+  await until(()=>d.querySelectorAll('[data-three-projected]').length===14);
+  // The deal animation hands off meshes that still tween to the resting hitboxes.
+  await wait(450);
+  check(d.querySelectorAll('[data-three-projected]').length===14,'二维摸牌后切三维，同一手牌层可操作');
   var hs=g.humanSeat(),cards=Array.prototype.slice.call(d.querySelectorAll('[data-three-projected]'));
   var tile=cards.find(function(t){var r=t.getBoundingClientRect();return r.width>0&&r.height>0;})||cards[0];
   check(!!tile,'三维点击层拿到可拖拽手牌');
@@ -29,6 +32,20 @@ async function until(fn,ms){var start=Date.now();ms=ms||60000;while(!fn()){if(Da
   var row=d.querySelector('#seat0 .handRow');
   function order(){return Array.prototype.map.call(d.querySelectorAll('#seat0 .handRow [data-tile-id]'),function(t){return t.dataset.tileId;});}
   var orderBefore=order(),stage=d.getElementById('threeStage');
+  // The authored pendant crosses the hand when the overhead camera orbits.
+  d.getElementById('threeOverhead').click();
+  var orbitCanvas=stage.querySelector('canvas'),sr=stage.getBoundingClientRect();
+  var orbitX=sr.left+sr.width*0.7,orbitY=sr.top+100;
+  orbitCanvas.dispatchEvent(pe('pointerdown',orbitX,orbitY));
+  orbitCanvas.dispatchEvent(pe('pointermove',orbitX-sr.width*140/360,orbitY));
+  orbitCanvas.dispatchEvent(pe('pointerup',orbitX-sr.width*140/360,orbitY));
+  await wait(550);
+  var underLamp=row.querySelectorAll('[data-tile-id]')[7],lampCard=underLamp.getBoundingClientRect();
+  underLamp.dispatchEvent(new w.MouseEvent('click',{detail:1,clientX:lampCard.left+lampCard.width/2,clientY:lampCard.top+lampCard.height/2}));
+  check(row.querySelector('.chosen')?.dataset.tileId===underLamp.dataset.tileId,'俯视绕桌 140° 时吊灯不会挡住手牌的点击');
+  d.getElementById('threeSeated').click();await wait(550);
+  row=d.querySelector('#seat0 .handRow');
+  tile=row.querySelector('[data-tile-id]');tr=tile.getBoundingClientRect();
   check(Number(stage.dataset.contactCount)>=14,'真实手牌有接触阴影');
   check(stage.dataset.companions==='4'&&stage.dataset.cast==='cat,fox,panda,rabbit','四位 Blender 动物模型已载入');
   var landings=Number(stage.dataset.tileLandings||0);
@@ -37,8 +54,9 @@ async function until(fn,ms){var start=Date.now();ms=ms||60000;while(!fn()){if(Da
   var ar=anchor.getBoundingClientRect();
   tile.dispatchEvent(pe('pointerdown',tr.left+tr.width/2,tr.top+tr.height/2));
   row.dispatchEvent(pe('pointermove',ar.left+ar.width*0.85,ar.top+ar.height/2));
-  await wait(120);
-  check(stage.dataset.tileDrag===tile.dataset.tileId,'三维拖动时由场景里的真实牌模跟手（tileDrag='+stage.dataset.tileDrag+'）');
+  await wait(260);
+  var draggedId=stage.dataset.tileDrag;
+  check(orderBefore.includes(draggedId),'三维拖动时由场景里的真实牌模跟手（tileDrag='+draggedId+'）');
   check(!!stage.dataset.tileInsert,'拖到手牌上方时出现插入槽（tileInsert='+stage.dataset.tileInsert+'）');
   check(stage.dataset.gripping.split(',').includes('0'),'拖牌时玩家爪子进入抓握状态');
   check(Number(stage.dataset.gripError)<0.001,'爪子与牌共享位置，抓握误差小于 1 毫米');
@@ -49,9 +67,30 @@ async function until(fn,ms){var start=Date.now();ms=ms||60000;while(!fn()){if(Da
   await wait(250);
   var orderAfter=order();
   check(orderAfter.length===14&&orderAfter.join()!==orderBefore.join(),'三维松手后手牌顺序按插入槽重排');
-  check(orderAfter.indexOf(tile.dataset.tileId)===orderAfter.indexOf(insId)+(insBefore?-1:1),'被拖的牌按插入槽落在目标牌 '+(insBefore?'左':'右')+'侧');
+  check(orderAfter.indexOf(draggedId)===orderAfter.indexOf(insId)+(insBefore?-1:1),'被拖的牌按插入槽落在目标牌 '+(insBefore?'左':'右')+'侧');
   check(g.hand.players[hs].discards.length===before,'理牌松手不出牌');
   check(!stage.dataset.tileDrag&&!stage.dataset.tileInsert,'松手后清空插入槽状态');
+  // 绕到对面后，落在本家牌列仍然是理牌，不是牌河。
+  var orbitCanvas=stage.querySelector('canvas'),sr=stage.getBoundingClientRect();
+  orbitCanvas.dispatchEvent(pe('pointerdown',sr.left+sr.width*0.75,sr.top+290));
+  orbitCanvas.dispatchEvent(pe('pointermove',sr.left+sr.width*0.25,sr.top+65));
+  orbitCanvas.dispatchEvent(pe('pointerup',sr.left+sr.width*0.25,sr.top+65));
+  await wait(550);
+  row=d.querySelector('#seat0 .handRow');
+  tile=row.querySelector('[data-tile-id]');
+  tr=tile.getBoundingClientRect();
+  var middle=row.querySelectorAll('[data-tile-id]');
+  ar=middle[6].getBoundingClientRect();
+  var adjacent=middle[7].getBoundingClientRect();
+  var gapX=(ar.left+ar.right+adjacent.left+adjacent.right)/4;
+  var gapY=(ar.top+ar.bottom+adjacent.top+adjacent.bottom)/4;
+  var oppositeOrder=order().join();
+  tile.dispatchEvent(pe('pointerdown',tr.left+tr.width/2,tr.top+tr.height/2));
+  row.dispatchEvent(pe('pointermove',gapX,gapY));
+  check(!!stage.dataset.tileInsert&&!stage.classList.contains('drop-ready'),'低视角绕到对面时，手牌间隙预览为理牌而不是牌河');
+  row.dispatchEvent(pe('pointerup',gapX,gapY));
+  check(g.hand.players[hs].discards.length===before&&order().join()!==oppositeOrder,'在对面的手牌间隙松手只理牌，不误出牌');
+  d.getElementById('threeSeated').click();await wait(350);
   // 2. 拖到中央牌河：舞台亮起、真实牌模跟手，松手进牌河
   row=d.querySelector('#seat0 .handRow');
   tile=row.querySelector('[data-tile-id]');
@@ -63,6 +102,14 @@ async function until(fn,ms){var start=Date.now();ms=ms||60000;while(!fn()){if(Da
   check(stage.dataset.tileDrag===tile.dataset.tileId,'三维拖向牌河时仍是场景牌模跟手');
   check(!stage.dataset.tileInsert,'离开手牌后插入槽收起');
   check(!d.querySelector('.drag-ghost'),'三维拖向牌河也不生成二维牌图片');
+  // Releasing outside the stage must cancel a river preview even if the browser
+  // coalesces the final move and sends only a pointerup at the new coordinates.
+  row.dispatchEvent(pe('pointerup',stage.getBoundingClientRect().right+20,cy));
+  check(g.hand.players[hs].discards.length===before,'在桌外松手取消上一次牌河预览');
+  await wait(350); // Let the cancelled tile return from the river to the hand.
+  tr=tile.getBoundingClientRect();
+  tile.dispatchEvent(pe('pointerdown',tr.left+tr.width/2,tr.top+tr.height/2));
+  row.dispatchEvent(pe('pointermove',cx,cy));
   row.dispatchEvent(pe('pointerup',cx,cy));
   await wait(250);
   check(g.hand.players[hs].discards.length===before+1,'三维松手后这张牌真正进入牌河');
@@ -70,6 +117,89 @@ async function until(fn,ms){var start=Date.now();ms=ms||60000;while(!fn()){if(Da
   await until(function(){return Number(stage.dataset.tileLandings)>landings;},5000);
   check(Number(stage.dataset.contactCount)>=14,'出牌落桌后手牌与牌河保留接触阴影');
   check(Number(stage.dataset.tileLandings)>landings,'牌模触桌时产生一次落定反馈');
+  // Let the other seats play, then pick the actual instance at its projected coordinates.
+  await until(function(){
+    var pass=d.querySelector('#actionBtns .pass');if(pass)pass.click();
+    return g.hand.pendingDraw && !stage.querySelector('.wallTileFocus').hidden;
+  },20000);
+  var beforeWall=g.hand.wall.length,canvas=stage.querySelector('canvas'),focus=stage.querySelector('.wallTileFocus');
+  function tapTarget(cancel){
+    var r=focus.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;
+    canvas.dispatchEvent(pe('pointerdown',x,y));
+    canvas.dispatchEvent(pe(cancel?'pointercancel':'pointerup',x,y));
+  }
+  tapTarget(true);
+  check(g.hand.wall.length===beforeWall,'取消触摸不摸牌');
+  var r0=focus.getBoundingClientRect();
+  canvas.dispatchEvent(pe('pointerdown',150,150));canvas.dispatchEvent(pe('pointermove',520,175));canvas.dispatchEvent(pe('pointerup',520,175));
+  await wait(350);
+  check(g.hand.wall.length===beforeWall && Math.hypot(focus.getBoundingClientRect().left-r0.left,focus.getBoundingClientRect().top-r0.top)>25,'绕桌拖动改变视角且不摸牌');
+  d.getElementById('threeOverhead').click();await wait(350);
+  check(!d.querySelector('#actionBtns button'),'待摸时操作栏没有摸牌按钮');
+  check(focus.tagName==='BUTTON','金边取牌目标是原生按钮，支持辅助输入');
+  focus.click();await wait(300);
+  check(g.hand.wall.length===beforeWall-1 && !g.hand.pendingDraw && stage.dataset.handCount==='14','辅助输入激活金边牌，只摸一张并直接入手');
+
+  // Seed 1714 puts the first replacement tile on the lower layer of the wall.
+  localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:1714,sound:false,analyze:false,turnTime:0,aiThink:5,rotate:false}));
+  await new Promise(resolve=>{f.onload=resolve;f.src='/index.html?view=3d&play=1';});
+  w=f.contentWindow;d=w.document;stage=d.getElementById('threeStage');
+  await until(()=>d.body.classList.contains('table3d')&&!d.getElementById('threeSkip').classList.contains('hidden'));
+  g=w.__zmjGame;
+  d.getElementById('threeSkip').click();
+  var roll=d.getElementById('btnRollDice');if(roll)roll.click();
+  await until(()=>d.querySelector('.handRow .drawn'));
+  d.querySelector('.handRow .drawn').click();
+  var kong=d.querySelector('#actionBtns button.gang');
+  check(kong&&kong.textContent.startsWith('暗杠'),'固定牌局首巡可以暗杠');
+  kong.click();
+  focus=stage.querySelector('.wallTileFocus');canvas=stage.querySelector('canvas');
+  await until(()=>g.hand.pendingDraw?.fromTail&&!focus.hidden);
+  var tailBefore=g.hand.wallDraws.tail,tailTile=g.hand.wall.at(-1),rect=focus.getBoundingClientRect();
+  var x=rect.left+rect.width/2,y=rect.top+rect.height/2;
+  for(var type of ['pointerdown','pointerup'])canvas.dispatchEvent(new w.PointerEvent(type,{clientX:x,clientY:y,button:0,pointerId:10,pointerType:'mouse'}));
+  check(g.hand.wallDraws.tail===tailBefore+1&&g.hand.lastDraw===tailTile,'坐席视角点金框可从墙尾补一张牌');
+
+  // Use the topmost DOM hit, not a direct dispatch to the canvas, in the
+  // portrait-width case where the wall marker overlaps the hand hitboxes.
+  f.style.width='390px';f.style.height='844px';
+  localStorage.setItem('zmj_cfg_v2',JSON.stringify({seed:177,sound:false,analyze:false,turnTime:0,aiThink:5,aiStyle:'v1',rotate:false}));
+  await new Promise(resolve=>{f.onload=resolve;f.src='/index.html?view=3d&play=1';});
+  w=f.contentWindow;d=w.document;stage=d.getElementById('threeStage');
+  await until(()=>d.body.classList.contains('table3d')&&!d.getElementById('threeSkip').classList.contains('hidden'));
+  g=w.__zmjGame;
+  d.getElementById('threeSkip').click();
+  d.getElementById('btnRollDice')?.click();
+  await until(()=>!g.hand.dicePending&&stage.dataset.machineBusy==='0'&&d.querySelector('.handRow .drawn'));
+  d.querySelector('.handRow .drawn').click();
+  kong=d.querySelector('#actionBtns button.gang');
+  check(!!kong,'竖屏固定牌局首巡可以暗杠（seed='+g.seed+'）');
+  kong.click();
+  focus=stage.querySelector('.wallTileFocus');canvas=stage.querySelector('canvas');
+  await until(()=>g.hand.pendingDraw?.fromTail&&!focus.hidden);
+  sr=canvas.getBoundingClientRect();
+  function phoneOrbit(dx,dy){
+    var px=sr.left+sr.width*.85,py=sr.top+290;
+    canvas.dispatchEvent(pe('pointerdown',px,py));
+    canvas.dispatchEvent(pe('pointermove',px-dx,py+dy));
+    canvas.dispatchEvent(pe('pointerup',px-dx,py+dy));
+  }
+  function focusCenter(){var r=focus.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2];}
+  function tapAt(x,y){
+    var target=d.elementFromPoint(x,y);
+    target.dispatchEvent(pe('pointerdown',x,y));
+    target.dispatchEvent(pe('pointerup',x,y));
+    target.dispatchEvent(new w.PointerEvent('click',{bubbles:true,detail:1,clientX:x,clientY:y,pointerType:'touch'}));
+    return target;
+  }
+  tailBefore=g.hand.wallDraws.tail;tailTile=g.hand.wall.at(-1);
+  phoneOrbit(125,-225);await wait(350);
+  // The face-up kong tile is inside the 44 px wall button but is not the wall tile.
+  var [fx,fy]=focusCenter();
+  check(tapAt(fx+9,fy-11)===focus&&g.hand.wallDraws.tail===tailBefore,'竖屏金边热区内的杠牌不会误触摸牌');
+  phoneOrbit(125,0);await wait(350);
+  [fx,fy]=focusCenter();
+  check(tapAt(fx,fy)===focus&&g.hand.wallDraws.tail===tailBefore+1&&g.hand.lastDraw===tailTile,'竖屏绕桌后点击金边仍能从墙尾补牌');
   out.ok=true;
 }catch(e){out.errors.push(e.message);}
 document.getElementById('log').textContent=JSON.stringify(out,null,2);fetch('/__result?d='+encodeURIComponent(JSON.stringify(out)));})();

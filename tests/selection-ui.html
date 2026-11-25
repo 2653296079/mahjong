@@ -12,12 +12,12 @@ function check(ok,msg){if(!ok)throw new Error(msg);out.steps.push(msg);}
   var H=w.ZMJ.practiceHand('pairs-1');g.hand.players=H.players;g.hand.lastDraw=0;
   g.awaiting={type:'turn',seat:0,options:{canZimo:false,anGang:[],buGang:[]}};
   w.dispatchEvent(new w.Event('resize'));
-  var drawBtn=d.getElementById('btnDrawTile');
-  check(!!drawBtn,'二维轮到自己时先出现摸牌按钮');
+  var drawBtn=d.getElementById('wallDrawTile');
+  check(!!drawBtn,'二维轮到自己时先出现摸牌牌背');
   check(d.querySelectorAll('.handRow [data-tile-id]').length===13,'摸牌前手牌仍是 13 张');
   drawBtn.click();
   check(d.querySelectorAll('.handRow [data-tile-id]').length===14,'摸牌后翻开第 14 张');
-  check(!d.getElementById('btnDrawTile'),'摸牌后按钮收起');
+  check(!d.getElementById('wallDrawTile'),'摸牌后金边提示收起');
   var before=JSON.stringify(g.hand),tiles=Array.from(d.querySelectorAll('.handRow [aria-label="打出一万"]'));
   check(tiles.length>=2,'同种牌有多个可独立选择的位置');
   var ids=tiles.map(function(t){return t.dataset.tileId;});check(new Set(ids).size===ids.length,'相同牌的位置标识互不相同');
@@ -39,16 +39,16 @@ function check(ok,msg){if(!ok)throw new Error(msg);out.steps.push(msg);}
   g.hand.players=H2.players;g.hand.lastDraw=0;
   g.awaiting={type:'turn',seat:0,options:{canZimo:false,anGang:[],buGang:[]}};
   w.dispatchEvent(new w.Event('resize'));
-  var drawBtn2=d.getElementById('btnDrawTile');
+  var drawBtn2=d.getElementById('wallDrawTile');
   if(drawBtn2){
-    var wall=d.getElementById('wallInfo'),row2=d.querySelector('#seat0 .handRow');
+    var wall=drawBtn2,row2=d.querySelector('#seat0 .handRow');
     var wr=wall.getBoundingClientRect(),rr=row2.getBoundingClientRect();
     function pe2(type,x,y){return new w.PointerEvent(type,{bubbles:true,cancelable:true,clientX:x,clientY:y,button:0,pointerId:8,pointerType:'touch'});}
     wall.dispatchEvent(pe2('pointerdown',wr.left+wr.width/2,wr.top+wr.height/2));
     wall.dispatchEvent(pe2('pointermove',rr.left+rr.width/2,rr.top-4));
     check(!!d.querySelector('.draw-ghost'),'把牌墙拖向手牌时出现牌背跟随');
     wall.dispatchEvent(pe2('pointerup',rr.left+rr.width/2,rr.top-4));
-    check(!d.getElementById('btnDrawTile'),'把牌墙拖到手牌完成摸牌');
+    check(!d.getElementById('wallDrawTile'),'把牌墙拖到手牌完成摸牌');
   }
   var row=d.querySelector('#seat0 .handRow');
   var dragTile=row&&row.querySelector('[data-tile-id]');

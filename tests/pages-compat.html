@@ -60,7 +60,7 @@ function report() { fetch('/__result?d=' + encodeURIComponent(JSON.stringify(out
     var before = w.document.querySelectorAll('.handRow .tile').length;
     var t2 = Date.now(), played = false;
     while (Date.now() - t2 < 20000 && !played) {
-      var draw = w.document.getElementById('btnDrawTile');
+      var draw = w.document.getElementById('wallDrawTile');
       if (draw) { draw.click(); await sleep(200); continue; }
       var tile = w.document.querySelector('.handRow .clickable');
       if (tile) { tile.click(); played = true; break; }

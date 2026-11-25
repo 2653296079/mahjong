@@ -73,7 +73,7 @@ test('二维头像保持程序绘制；三维只加载对应动物的本地头�
   assert.doesNotMatch(avatarSection, /\.(?:png|jpe?g|gif|webp|svg)\b/i);
   assert.doesNotMatch(html, /<img\b/i);
   assert.equal((html.match(/new Image\s*\(/g)||[]).length, 1, '图片构造仅用于三维动物头像');
-  assert.match(html, /companions\/portraits\/.*\.png\?build=v62/);
+  assert.match(html, /companions\/portraits\/.*\.png\?build=v64/);
   assert.match(html, /if\(document\.body\.classList\.contains\('table3d'\)\)/);
   assert.equal((html.match(/<script\b/gi) || []).length, 3, '全页仍 3 个内联 script');
   assert.ok(engine.length > 20000);

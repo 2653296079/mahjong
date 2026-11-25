@@ -13,7 +13,7 @@ async function paint(){await new Promise(r=>requestAnimationFrame(()=>requestAni
   var H=w.ZMJ.practiceHand('wide-1');g.hand.players=H.players;g.hand.lastDraw=0;
   g.hand.turn=0;g.awaiting={type:'turn',seat:0,options:{canZimo:false,anGang:[],buGang:[]}};
   w.dispatchEvent(new w.Event('resize'));await paint();
-  var drawBtn=d.getElementById('btnDrawTile');
+  var drawBtn=d.getElementById('wallDrawTile');
   check(!!drawBtn,'二维轮到自己时先出现摸牌按钮');
   drawBtn.click();await paint();
   check(d.querySelectorAll('#seat0 .handRow [data-tile-id]').length===14,'摸牌后手牌 14 张');

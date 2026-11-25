@@ -16,8 +16,8 @@ async function size(w,h){frame.style.width=w+'px';frame.style.height=h+'px';awai
     check(Array.from(d.querySelectorAll('.homeCard')).every(function(el){var b=el.getBoundingClientRect();return b.left>=0&&b.right<=width+1&&b.width>150;}),width+' 宽三个入口均完整可用');
   }
   d.getElementById('homeSolo').click();
-  for(var k=0;k<40&&!d.getElementById('btnDrawTile');k++)await new Promise(function(r){setTimeout(r,50);});
-  var drawBtn=d.getElementById('btnDrawTile');if(drawBtn)drawBtn.click();
+  for(var k=0;k<40&&!d.getElementById('wallDrawTile');k++)await new Promise(function(r){setTimeout(r,50);});
+  var drawBtn=d.getElementById('wallDrawTile');if(drawBtn)drawBtn.click();
   for(var dims of [[360,844],[390,844],[430,844],[844,390],[1366,900]]){
     await size(dims[0],dims[1]);
     var tiles=Array.from(d.querySelectorAll('#seat0 .handRow .tile'));

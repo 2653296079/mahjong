@@ -1,7 +1,7 @@
 import * as THREE from '../vendor/three/three.module.js';
 import { GLTFLoader } from '../vendor/three/GLTFLoader.js';
 import { RoomEnvironment } from '../vendor/three/RoomEnvironment.js';
-import { createCompanions } from './companions.js';
+import { createCompanions } from './companions.js?build=v64';
 
 const MODEL_ROOT = new URL('../mahjong-3d/glb/', import.meta.url);
 const TOP = 0.759;
@@ -17,6 +17,11 @@ const rotation = (pos, tilt = 0) => new THREE.Quaternion().setFromEuler(new THRE
   .multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(tilt, 0, 0)));
 const HAND_SCALE = 2.25, HAND_STEP = 0.060, HAND_Z = 0.357, HAND_TILT = 1.46;
 const DICE_SCALE = 2.4, DICE_TIME = 2300;
+function isRiverDragTarget(drag, insert) {
+  if (!drag || insert) return false;
+  const { x, z } = drag.hit;
+  return Math.abs(x) <= 0.24 && z >= -0.22 && z < 0.25;
+}
 // 前 80% 完成飞行，触桌后以毫米级回弹收尾。
 function tileMotion(f, landing) {
   const p = Math.min(1, f / (landing ? 0.8 : 1));
@@ -28,7 +33,7 @@ function handPose(index, count, drawn, overhead = false) {
   return { position: new THREE.Vector3(index * HAND_STEP - ((count - 1) * HAND_STEP + gap) / 2 + (index === drawn ? gap : 0),
     TOP + 0.017 * HAND_SCALE * Math.sin(tilt), HAND_Z), rotation: rotation(0, tilt), scale: HAND_SCALE };
 }
-function surfaceTexture(type) {
+function surfaceTexture(document, type) {
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256;
   const context = canvas.getContext('2d'), pixels = context.createImageData(256, 256);
   let seed = 618033;
@@ -51,13 +56,132 @@ function surfaceTexture(type) {
   return texture;
 }
 
+async function downloadModel(url, id, controller) {
+  const { signal } = controller;
+  let timer;
+  function expectProgress() {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const error = Error('三维模型下载停滞：' + id);
+      error.code = 'MODEL_TIMEOUT';
+      controller.abort(error);
+    }, 25000);
+  }
+  try {
+    expectProgress();
+    const response = await fetch(url, { signal });
+    if (!response.ok) throw Error('模型读取失败：' + id + ' (HTTP ' + response.status + ')');
+    expectProgress();
+    if (!response.body) return await response.arrayBuffer();
+    const reader = response.body.getReader();
+    const chunks = [];
+    let size = 0;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value.byteLength) continue;
+        expectProgress();
+        chunks.push(value);
+        size += value.byteLength;
+      }
+    } finally { reader.releaseLock(); }
+    const data = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { data.set(chunk, offset); offset += chunk.byteLength; }
+    return data.buffer;
+  } catch (error) {
+    throw signal.aborted ? signal.reason : error;
+  } finally { clearTimeout(timer); }
+}
+
+function collectSceneResources(root, resources) {
+  root.traverse(obj => {
+    if (obj.geometry) resources.add(obj.geometry);
+    if (obj.material) for (const material of [obj.material].flat()) resources.add(material);
+    if (obj.isInstancedMesh) resources.add(obj);
+    if (obj.skeleton) resources.add(obj.skeleton);
+    if (obj.shadow) resources.add(obj.shadow);
+  });
+}
+
+function safelyDispose(dispose) {
+  try { dispose(); } catch (error) { console.warn('三维资源清理失败', error); }
+}
+function disposeSceneResources(roots, resources) {
+  const materials = new Set(), images = new Set();
+  for (const root of roots) collectSceneResources(root, resources);
+  for (const resource of resources) if (resource.isMaterial) materials.add(resource);
+  for (const material of materials) {
+    for (const value of Object.values(material)) if (value?.isTexture) resources.add(value);
+    resources.add(material);
+  }
+  for (const resource of resources) {
+    if (resource.isTexture && resource.image?.close) images.add(resource.image);
+    if (typeof resource.dispose === 'function') safelyDispose(() => resource.dispose());
+  }
+  for (const image of images) safelyDispose(() => image.close());
+}
+
 export async function createTable3D(host, callbacks = {}) {
-  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
+  const controller = new AbortController();
+  const cleanup = [];
+  const roots = new Set(), resources = new Set();
+  let disposed = false;
+  const originalState = ['companions', 'cast', 'phase', 'view'].map(key => [key, host.dataset[key]]);
+  function release(restoreState = false) {
+    if (disposed) return;
+    disposed = true;
+    controller.abort();
+    while (cleanup.length) safelyDispose(cleanup.pop());
+    if (restoreState) for (const [key, value] of originalState) {
+      if (value === undefined) delete host.dataset[key];
+      else host.dataset[key] = value;
+    }
+  }
+  try {
+    const api = await initializeTable3D(host, callbacks, { controller, roots, resources, cleanup, release });
+    if (disposed || controller.signal.aborted) throw controller.signal.reason || Error('3D startup was cancelled');
+    return api;
+  } catch (error) {
+    release(true);
+    throw error;
+  }
+}
+
+async function initializeTable3D(host, callbacks, { controller, roots, resources, cleanup, release }) {
+  const document = host.ownerDocument, viewport = document.defaultView;
+  const reduceMotion = viewport.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const canvas = document.createElement('canvas');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
+  cleanup.push(() => {
+    renderer.domElement.remove();
+    safelyDispose(() => renderer.dispose());
+    safelyDispose(() => renderer.forceContextLoss());
+  });
+  cleanup.push(() => disposeSceneResources(roots, resources));
+  let mounted = false;
+  function failStage(error) {
+    if (disposed) return;
+    if (request) { viewport.cancelAnimationFrame(request); request = 0; }
+    disposed = true;
+    setActive(false);
+    release();
+    callbacks.onError?.(error);
+  }
+  function onContextLost(event) {
+    event.preventDefault();
+    if (controller.signal.aborted) return;
+    const error = Error('图形上下文已中断');
+    if (!mounted) controller.abort(error);
+    else failStage(error);
+  }
+  renderer.domElement.addEventListener('webglcontextlost', onContextLost);
+  cleanup.push(() => renderer.domElement.removeEventListener('webglcontextlost', onContextLost));
   const gl = renderer.getContext();
   const rendererInfo = gl.getExtension('WEBGL_debug_renderer_info');
   const softwareRendering = rendererInfo && /swiftshader|llvmpipe|software rasterizer/i.test(gl.getParameter(rendererInfo.UNMASKED_RENDERER_WEBGL));
-  renderer.setPixelRatio(softwareRendering ? 0.55 : Math.min(devicePixelRatio || 1, innerWidth < 700 ? 1.25 : 1.75));
+  renderer.setPixelRatio(softwareRendering ? 0.55 : Math.min(viewport.devicePixelRatio || 1, viewport.innerWidth < 700 ? 1.25 : 1.75));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
@@ -65,29 +189,35 @@ export async function createTable3D(host, callbacks = {}) {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.domElement.setAttribute('role', 'img');
   renderer.domElement.setAttribute('aria-label', '可交互的三维麻将牌桌');
-  host.appendChild(renderer.domElement);
   const scene = new THREE.Scene();
+  roots.add(scene);
   scene.background = new THREE.Color('#102722');
   scene.fog = new THREE.Fog('#102722', 3, 8);
   const camera = new THREE.PerspectiveCamera(38, 1, 0.04, 12);
   const generator = new THREE.PMREMGenerator(renderer);
-  const room = new RoomEnvironment();
-  const env = generator.fromScene(room, 0.035);
-  scene.environment = env.texture;
-  scene.environmentIntensity = 0.38;
-  room.dispose();
-  generator.dispose();
+  try {
+    const room = new RoomEnvironment();
+    try {
+      const env = generator.fromScene(room, 0.035);
+      resources.add(env);
+      scene.environment = env.texture;
+      scene.environmentIntensity = 0.38;
+    } finally { safelyDispose(() => room.dispose()); }
+  } finally { safelyDispose(() => generator.dispose()); }
+  const oldEnvironment = renderer.environment;
+  scene.environment = scene.environment || oldEnvironment;
+  cleanup.push(() => { scene.environment = null; renderer.environment = oldEnvironment; });
   scene.add(new THREE.HemisphereLight(0xffeed7, 0x28372c, 0.42));
   const keyLight = new THREE.DirectionalLight(0xffe7c6, 2.55);
   keyLight.position.set(-0.85, 2.2, 0.65);
   keyLight.castShadow = true;
-  keyLight.shadow.mapSize.setScalar(innerWidth < 700 ? 512 : 1024);
+  keyLight.shadow.mapSize.setScalar(viewport.innerWidth < 700 ? 512 : 1024);
   Object.assign(keyLight.shadow.camera, { left: -0.8, right: 0.8, top: 0.8, bottom: -0.8, near: 0.1, far: 4 });
   keyLight.shadow.bias = -0.00008;
   keyLight.shadow.normalBias = 0.00035;
   scene.add(keyLight);
   const fillLight = new THREE.DirectionalLight(0xd9dfce, 0.56); fillLight.position.set(1.3, 1.2, -0.9); scene.add(fillLight);
-  const floorWood = surfaceTexture('walnut');
+  const floorWood = surfaceTexture(document, 'walnut');
   floorWood.colorSpace = THREE.SRGBColorSpace;
   floorWood.repeat.set(140, 140);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: '#807c6f', map: floorWood, roughness: 0.89 }));
@@ -96,13 +226,43 @@ export async function createTable3D(host, callbacks = {}) {
   floor.receiveShadow = true;
   scene.add(floor);
 
-  const loader = new GLTFLoader(), templates = new Map(), materialCache = new Map();
-  const feltBump = surfaceTexture('felt'), railBump = surfaceTexture('rail');
+  const templates = new Map(), materialCache = new Map();
+  const stageWatchdog = new Promise((_, reject) => {
+    controller.signal.addEventListener('abort', () => reject(controller.signal.reason), { once: true });
+  });
+  const loader = new GLTFLoader();
+  function awaitResource(promise, label, disposeLate) {
+    const { signal } = controller;
+    let timer, abort;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        const error = Error('三维资源处理停滞：' + label);
+        error.code = 'MODEL_TIMEOUT';
+        controller.abort(error);
+        reject(error);
+      }, 25000);
+      abort = () => reject(signal.reason);
+      if (signal.aborted) abort();
+      else signal.addEventListener('abort', abort, { once: true });
+    });
+    return Promise.race([Promise.resolve(promise), timeout]).finally(() => {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', abort);
+    }).catch(error => {
+      Promise.resolve(promise).then(value => safelyDispose(() => disposeLate(value)), () => {});
+      throw error;
+    });
+  }
+  const feltBump = surfaceTexture(document, 'felt'), railBump = surfaceTexture(document, 'rail');
   feltBump.anisotropy = railBump.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-  const clothUrl = getComputedStyle(host).getPropertyValue('--room-table').trim().match(/^url\(["']?(data:image\/webp;base64,[A-Za-z0-9+/=]+)["']?\)$/);
-  const clothMap = clothUrl ? await new THREE.TextureLoader().loadAsync(clothUrl[1]) : null;
-  if (clothMap) clothMap.colorSpace = THREE.SRGBColorSpace;
-  const railWood = surfaceTexture('walnut');
+  const clothUrl = viewport.getComputedStyle(host).getPropertyValue('--room-table').trim().match(/^url\(["']?(data:image\/webp;base64,[A-Za-z0-9+/=]+)["']?\)$/);
+    const clothMap = clothUrl ? await Promise.race([
+      awaitResource(new THREE.TextureLoader().loadAsync(clothUrl[1]), '桌布解码', texture => texture.dispose()),
+      stageWatchdog
+    ]) : null;
+  if (clothMap) { resources.add(clothMap); clothMap.colorSpace = THREE.SRGBColorSpace; }
+  const railWood = surfaceTexture(document, 'walnut');
+  resources.add(feltBump); resources.add(railBump); resources.add(railWood);
   railWood.colorSpace = THREE.SRGBColorSpace;
   railWood.repeat.set(2, 2);
   function finishMaterial(source) {
@@ -126,21 +286,31 @@ export async function createTable3D(host, callbacks = {}) {
   const requests = Array.from({ length: 27 }, (_, kind) => [modelId(kind), 'tiles/' + modelId(kind) + '.glb']);
   requests.push(['mahjong-table', 'room/afternoon-room.glb'], ['tile-back', 'tile-back.glb'], ['dice', 'dice.glb'], ['glass-dice-cup', 'glass-dice-cup.glb'], ['dealer-marker', 'dealer-marker.glb']);
   requests.push(['machine-console', 'room/machine-console.glb']);
-  for (const animal of ['cat','fox','panda','rabbit']) requests.push(['companion-'+animal, 'companions/'+animal+'.glb']);
-  let loaded = 0;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000);
-  try {
-    await Promise.all(requests.map(async ([id, file]) => {
-      const response = await fetch(new URL(file, MODEL_ROOT), { signal: controller.signal });
-      if (!response.ok) throw Error('模型读取失败：' + id);
-      const gltf = await loader.parseAsync(await response.arrayBuffer(), MODEL_ROOT.href);
+  const companionRequests = ['cat', 'fox', 'panda', 'rabbit'].map(animal => ['companion-' + animal, 'companions/' + animal + '.glb']);
+  const essentialRequests = requests.map(([id, file]) => [id, file, new URL(file, MODEL_ROOT)]);
+  essentialRequests.find(([id]) => id === 'mahjong-table')[2].searchParams.set('build', 'v64');
+  const completed = new Set();
+  async function load([id, file, url]) {
+      const data = await downloadModel(url, id, controller);
+      if (controller.signal.aborted) throw controller.signal.reason;
+      const parsing = loader.parseAsync(data, MODEL_ROOT.href);
+    const gltf = await awaitResource(parsing, id + ' GLB 解析', result => {
+      disposeSceneResources(new Set(result.scenes || [result.scene]), new Set());
+    });
+    if (controller.signal.aborted) {
+      disposeSceneResources(new Set(gltf.scenes || [gltf.scene]), new Set());
+      throw controller.signal.reason;
+    }
+    for (const root of gltf.scenes || [gltf.scene]) {
+      roots.add(root);
+      collectSceneResources(root, resources);
+    }
+    try {
       gltf.scene.updateMatrixWorld(true);
       gltf.scene.traverse(obj => {
         if (obj.isMesh) {
           obj.material = Array.isArray(obj.material) ? obj.material.map(finishMaterial) : finishMaterial(obj.material);
           if ((clothMap && obj.material.map === clothMap) || obj.material.map === railWood) {
-            // Project across the two broad axes for continuous cloth and rail textures.
             const geometry = obj.geometry;
             geometry.computeBoundingBox();
             const bounds = geometry.boundingBox, size = bounds.getSize(new THREE.Vector3());
@@ -158,20 +328,49 @@ export async function createTable3D(host, callbacks = {}) {
           obj.receiveShadow = true;
         }
       });
+      gltf.scene.animations = gltf.animations;
       templates.set(id, gltf.scene);
-      callbacks.onProgress?.(++loaded, requests.length);
-    }));
-  } catch (error) {
-    controller.abort();
-    renderer.dispose();
-    env.dispose();
-    renderer.domElement.remove();
-    throw error;
-  } finally { clearTimeout(timeout); }
-
+      completed.add(id);
+      callbacks.onProgress?.(completed.size, essentialRequests.length + companionRequests.length);
+    } catch (error) {
+      for (const root of gltf.scenes || [gltf.scene]) roots.delete(root);
+      disposeSceneResources(new Set(gltf.scenes || [gltf.scene]), resources);
+      throw error;
+    }
+  }
+  await Promise.race([Promise.all(essentialRequests.map(load)), stageWatchdog]);
+  await Promise.race([Promise.all(companionRequests.map(([id, file]) => {
+    const url = new URL(file, MODEL_ROOT);
+    url.searchParams.set('build', 'v64');
+    return load([id, file, url]);
+  })) , stageWatchdog]);
   const table = templates.get('mahjong-table').clone(true);
+  // The export batches the lamp with other furniture by material. Clip only
+  // the ceiling-height parts of those batches so shelves and trim remain visible.
+  const ceilingCut = [new THREE.Plane(new THREE.Vector3(0, -1, 0), 1.76)];
+  const ceilingMaterials = [];
+  const roomMeshes = [], roomMaterials = new Set();
+  const foregroundCut = new THREE.Plane(new THREE.Vector3(), 1.72);
+  const roomCut = [foregroundCut], roomAndCeilingCut = [foregroundCut, ...ceilingCut];
+  renderer.localClippingEnabled = true;
+  table.traverse(object => {
+    if (!object.isMesh) return;
+    roomMeshes.push(object);
+    if (/^(Paper[ _]pendant|Pendant[ _]cord)$/.test(object.name)) {
+      const clipped = material => {
+        const copy = material.clone();
+        copy.clipShadows = true;
+        ceilingMaterials.push(copy);
+        resources.add(copy);
+        return copy;
+      };
+      object.material = Array.isArray(object.material) ? object.material.map(clipped) : clipped(object.material);
+    }
+    for (const material of [object.material].flat()) roomMaterials.add(material);
+  });
   scene.add(table); floor.visible = false;
   const companions = createCompanions(scene, templates, { reduced: reduceMotion });
+  const companionModels = companionRequests.map(([id]) => templates.get(id));
   host.dataset.companions = String(companions.count);
   host.dataset.cast = companions.cast.join(',');
   // 麻将机中央升降骰盘和四方升牌槽，沿用桌体的真实米制尺寸。
@@ -210,6 +409,18 @@ export async function createTable3D(host, callbacks = {}) {
   glassCup.traverse(obj => { obj.castShadow = false; });
   scene.add(glassCup);
   let cupShake = { x: 0, z: 0, spin: 0 };
+  const wallFocus = document.createElement('button');
+  wallFocus.type = 'button';
+  wallFocus.className = 'wallTileFocus';
+  wallFocus.hidden = true;
+  wallFocus.setAttribute('aria-label','摸金边标出的牌墙牌');
+  wallFocus.onclick = event => {
+    if (!canPickWall()) return;
+    const pick = event.detail === 0 ? { instanceId: drawInstance, legal: true }
+      : pickWallSlot(event.clientX, event.clientY, event.pointerType === 'touch');
+    if (pick?.legal) callbacks.onWallPick?.(pick);
+  };
+  cleanup.push(() => wallFocus.remove());
   const takeMarker = new THREE.Group();
   const markerBorder = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.033, 0.044, 0.041)),
     new THREE.LineBasicMaterial({ color: '#edcd77' }));
@@ -244,21 +455,40 @@ export async function createTable3D(host, callbacks = {}) {
     backParts.push({ batch, base: obj.matrixWorld.clone() });
   });
   const entries = new Map(), dummy = new THREE.Object3D(), matrix = new THREE.Matrix4();
+  let drawInstance = -1;
   let machineRun = null, lastBacks = [], recycling = null;
   let snapshot = null, round = null, active = false, disposed = false, overview = false;
   let hovered = null, dirty = true, request = 0, animatedUntil = 0, lastFrame = 0, discardHint = null, dragTile = null, dragInsert = null;
   let yaw = 0, pitch = 1.00, drag = null, width = 0, height = 0;
-  const projected = new Map();
   const bounds = new THREE.Box3(), corners = Array.from({ length: 8 }, () => new THREE.Vector3());
+  const aim = new THREE.Vector3(), outward = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vector3();
+  const fitPoint = new THREE.Vector3();
+  // Envelope for a 14-tile hand, including drawn-tile gap, tilt and selection lift.
+  const handHalf = 6.5 * HAND_STEP + 0.007 + 0.014 * HAND_SCALE;
+  const handCorners = Array.from({ length: 8 }, (_, i) => new THREE.Vector3(
+    i & 1 ? handHalf : -handHalf, TOP + (i & 2 ? 0.13 : 0), HAND_Z + (i & 4 ? 0.055 : -0.065)));
 
   function cameraPose(focus = 0) {
-    const aspect = width / Math.max(1, height);
-    const normalDistance = aspect < 1 ? 1.75 / Math.max(0.56, aspect) : 1.85;
-    const distance = THREE.MathUtils.lerp(normalDistance, 0.65 / Math.min(1, Math.max(0.7, aspect)), focus);
-    const angle = THREE.MathUtils.lerp(overview ? 1.30 : pitch, 1.08, focus), heading = yaw * (1 - focus);
-    camera.position.set(Math.sin(heading) * Math.cos(angle) * distance, TOP + Math.sin(angle) * distance,
-      0.025 * (1 - focus) + Math.cos(heading) * Math.cos(angle) * distance);
-    camera.lookAt(0, TOP + 0.022 * focus, 0.025 * (1 - focus));
+    const aspect = Math.max(0.01, camera.aspect);
+    const angle = THREE.MathUtils.lerp(pitch, 1.08, focus), heading = yaw * (1 - focus);
+    aim.set(0, TOP + 0.022 * focus, 0.025 * (1 - focus));
+    outward.set(Math.sin(heading) * Math.cos(angle), Math.sin(angle), Math.cos(heading) * Math.cos(angle));
+    right.set(Math.cos(heading), 0, -Math.sin(heading));
+    up.crossVectors(outward, right);
+    const tanV = Math.tan(camera.fov * Math.PI / 360) * 0.95;
+    let orbitDistance = aspect < 1 ? 1.75 / Math.max(0.56, aspect) : 1.85;
+    for (const corner of handCorners) {
+      fitPoint.copy(corner).sub(aim);
+      // Perspective depth is distance minus the corner's offset toward the camera.
+      orbitDistance = Math.max(orbitDistance, fitPoint.dot(outward) + Math.max(
+        Math.abs(fitPoint.dot(right)) / (tanV * aspect), Math.abs(fitPoint.dot(up)) / tanV));
+    }
+    const distance = THREE.MathUtils.lerp(orbitDistance, 0.65 / Math.min(1, Math.max(0.7, aspect)), focus);
+    camera.position.copy(aim).addScaledVector(outward, distance);
+    // A narrow viewport may place the eye outside the room. Cut foreground
+    // architecture on the camera side while retaining the far walls.
+    foregroundCut.normal.set(-Math.sin(heading), 0, -Math.cos(heading));
+    camera.lookAt(aim);
     camera.updateMatrixWorld();
   }
   function resize() {
@@ -272,11 +502,12 @@ export async function createTable3D(host, callbacks = {}) {
     dirty = true;
     if (active) schedule();
   }
-  const observer = new ResizeObserver(resize);
+  const observer = new viewport.ResizeObserver(resize);
   observer.observe(host);
+  cleanup.push(() => observer.disconnect());
 
   function animate(entry, target, quaternion, duration = 180, arc = 0, landing = false) {
-    const now = performance.now();
+    const now = viewport.performance.now();
     if (reduceMotion || duration === 0) {
       entry.object.position.copy(target); entry.object.quaternion.copy(quaternion); entry.object.scale.setScalar(entry.scale); entry.tween = null;
     } else {
@@ -301,7 +532,7 @@ export async function createTable3D(host, callbacks = {}) {
       entry = { object, type, scale, ...extra, base: position.clone(), q: quaternion.clone(), liftTarget: position.clone() };
       entries.set(key, entry);
       if (!initial && type === 'river') {
-        const hint = discardHint && discardHint.kind === extra.kind && extra.pos === 0 && performance.now() - discardHint.time < 2500;
+        const hint = discardHint && discardHint.kind === extra.kind && extra.pos === 0 && viewport.performance.now() - discardHint.time < 2500;
         object.position.copy(hint ? discardHint.position : turn(extra.pos, 0, 0.35, TOP + 0.055));
         object.quaternion.copy(hint ? discardHint.quaternion : rotation(extra.pos, 1.15));
         object.scale.setScalar(hint ? discardHint.scale : 1.16);
@@ -335,6 +566,7 @@ export async function createTable3D(host, callbacks = {}) {
         batch.setMatrixAt(i, matrix);
       });
       batch.instanceMatrix.needsUpdate = true;
+      batch.boundingSphere = null;
     });
   }
   function paintContacts(poses) {
@@ -388,25 +620,36 @@ export async function createTable3D(host, callbacks = {}) {
   }
   // 指针在「牌桌上方一个虚拟平面」上反投影，得到被拖牌的落点；松手后模型回到原位或由弃牌动画接管。
   const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(TOP + 0.115));
-  const dragRay = new THREE.Raycaster(), dragNdc = new THREE.Vector2(), dragHit = new THREE.Vector3();
+  const dragHit = new THREE.Vector3();
+  const handGapPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(TOP + 0.06));
+  const gapHit = new THREE.Vector3();
   function setTileDrag(id, clientX, clientY) {
     if (id == null) {
       if (dragTile || dragInsert) { dragTile = null; dragInsert = null; host.dataset.tileInsert = ''; host.dataset.tileDrag = ''; updateHover(); }
       return;
     }
+    if (dragTile?.id === id && dragTile.clientX === clientX && dragTile.clientY === clientY) return;
     const rect = renderer.domElement.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    dragNdc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
-    dragRay.setFromCamera(dragNdc, camera);
-    if (!dragRay.ray.intersectPlane(dragPlane, dragHit)) return;
-    dragHit.x = clamp(dragHit.x, -0.42, 0.42);
-    dragHit.z = clamp(dragHit.z, -0.01, 0.40);
-    dragTile = { id, target: dragHit.clone() };
+    if (!setPickRay(clientX, clientY, rect)) { setTileDrag(null); return; }
+    const handHit = nearestHandHit(true, id);
+    if (!pickRay.ray.intersectPlane(dragPlane, dragHit)) { setTileDrag(null); return; }
+    const hit = dragHit.clone();
+    const target = dragHit.clone();
+    target.x = clamp(target.x, -0.42, 0.42);
+    target.z = clamp(target.z, -0.22, 0.40);
+    dragTile = { id, hit, target, clientX, clientY };
     // 靠近自己手牌时找插入槽：左侧第一张比落点靠右的牌就是插入点，找不到就插到最后。
     dragInsert = null;
     const others = [...entries.values()].filter(e => e.type === 'hand' && e.id !== id).sort((a, b) => a.base.x - b.base.x);
-    if (dragHit.z > 0.25 && others.length) {
-      const after = others.find(e => dragHit.x < e.base.x - 0.004);
+    const anchor = handHit && handHit.id !== id ? others.find(e => e.id === handHit.id) : null;
+    if (anchor) {
+      const before = handHit.point.x < anchor.object.position.x;
+      dragInsert = { gapX: anchor.base.x + (before ? 0 : HAND_STEP), targetId: anchor.id, before };
+    } else if (others.length && pickRay.ray.intersectPlane(handGapPlane, gapHit) &&
+        Math.abs(gapHit.z - HAND_Z) < 0.06 && Math.abs(gapHit.x) < handHalf) {
+      // Use the resting tile height in gaps. The higher drag plane can project
+      // a point between two tiles into the river when viewed from behind.
+      const after = others.find(e => gapHit.x < e.base.x - 0.004);
       dragInsert = after
         ? { gapX: after.base.x, targetId: after.id, before: true }
         : { gapX: others[others.length - 1].base.x + HAND_STEP, targetId: others[others.length - 1].id, before: false };
@@ -457,7 +700,7 @@ export async function createTable3D(host, callbacks = {}) {
     const wall = physicalWall(next), draws = next.wallDraws;
     const head = draws ? draws.head : 102 - Math.max(0, next.wallCount || 0);
     const tail = draws ? draws.tail : 0;
-    return wall.slice(head, 102 - tail).concat(next.over ? [] : wall.slice(102));
+    return wall.slice(head - (next.wallReceipt && !next.fromTail ? 1 : 0), 102 - tail + (next.wallReceipt && next.fromTail ? 1 : 0)).concat(next.over ? [] : wall.slice(102));
   }
   function riverPosition(index) {
     // 中间给骰盘留出空位，弃牌仍按先后顺序逐格累积。
@@ -487,7 +730,7 @@ export async function createTable3D(host, callbacks = {}) {
     const initial = round !== next.round;
     if (initial) {
       for (const entry of entries.values()) tiles.remove(entry.object);
-      entries.clear(); projected.clear(); hovered = null; discardHint = null; dragTile = null; round = next.round;
+      entries.clear(); hovered = null; discardHint = null; dragTile = null; dragInsert = null; round = next.round;
     }
     const wanted = new Set(), hidden = [];
     contact.count = 0;
@@ -520,7 +763,19 @@ export async function createTable3D(host, callbacks = {}) {
         }
       });
     }
-    hidden.push(...wallRemainder(next));
+    const wallInstanceStart = hidden.length;
+    const wall = wallRemainder(next);
+    const mainCount = wall.length - (next.over ? 0 : 6);
+    drawInstance = next.wallPick && mainCount > 0 ? wallInstanceStart + (next.fromTail ? mainCount-1 : 0) : -1;
+    if (drawInstance >= 0) {
+      const pose = wall[drawInstance-wallInstanceStart];
+      // Separate the marked tile from its stack, including lower-layer replacements.
+      pose.position.add(new THREE.Vector3(0, .018, .048).applyQuaternion(pose.rotation));
+      takeMarker.position.copy(pose.position);
+      takeMarker.quaternion.copy(pose.rotation);
+    }
+    takeMarker.visible = drawInstance >= 0;
+    hidden.push(...wall);
     paintBacks(hidden);
     next.river.forEach((tile, index) => {
       const key = 'river:' + tile.order, scale = 1.08;
@@ -785,6 +1040,11 @@ export async function createTable3D(host, callbacks = {}) {
   function frame(now) {
     request = 0;
     if (!active || disposed || document.hidden) return;
+    try {
+      renderFrame(now);
+    } catch (error) { failStage(error); }
+  }
+  function renderFrame(now) {
     if (now - lastFrame >= (softwareRendering ? 50 : 30) && (dirty || machineRun || now < animatedUntil || !reduceMotion)) {
       frameMachine(now);
       const holds = [];
@@ -817,8 +1077,17 @@ export async function createTable3D(host, callbacks = {}) {
       host.dataset.gripping = gripState.filter(r=>r.holding&&r.grip>=1).map(r=>r.pos).join(',');
       host.dataset.gripError = String(Math.max(0,...gripState.filter(r=>r.holding&&r.grip>=1).map(r=>r.error)));
       scene.updateMatrixWorld();
+      const cutCeiling = camera.position.y > 1.76;
+      for (const material of roomMaterials) material.clippingPlanes = roomCut;
+      if (cutCeiling) for (const material of ceilingMaterials) material.clippingPlanes = roomAndCeilingCut;
       renderer.render(scene, camera);
       projectHand();
+      wallFocus.hidden = !canPickWall();
+      if (!wallFocus.hidden) {
+        const { x, y } = projectWallTarget(width, height);
+        wallFocus.style.left = x + 'px';
+        wallFocus.style.top = y + 'px';
+      }
       if (glassCup.visible) {
         const box = new THREE.Box3().setFromObject(glassCup);
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -838,75 +1107,111 @@ export async function createTable3D(host, callbacks = {}) {
     }
     if (dirty || machineRun && (machineRun.phase !== 'await-roll' || machineRun.rolled) || now < animatedUntil || !reduceMotion) schedule();
   }
-  function schedule() { if (active && !disposed && !document.hidden && !request) request = requestAnimationFrame(frame); }
+  function schedule() { if (active && !disposed && !document.hidden && !request) request = viewport.requestAnimationFrame(frame); }
   function setActive(value) {
     active = !!value;
-    if (!active && request) { cancelAnimationFrame(request); request = 0; }
+    if (!active && request) { viewport.cancelAnimationFrame(request); request = 0; }
     if (active) { resize(); dirty = true; schedule(); }
   }
   function setView(value) {
-    overview = value === 'overhead'; yaw = 0; pitch = 1.00;
+    overview = value === 'overhead'; yaw = 0; pitch = overview ? 1.30 : 1.00;
+    companions.setView(overview);
     host.dataset.view = overview ? 'overhead' : 'seated';
     cameraPose();
     if (snapshot) update(snapshot);
     dirty = true; schedule();
   }
-  // 牌墙拾取：牌墙牌背是 InstancedMesh，raycast 原生返回 instanceId（= paintBacks 数组下标，不是槽位号）。
-  // paintBacks 收到的数组 = [主段 0..(102-tail-head-1)] + [尾部鸟牌区 6 张]，故：
-  //   mainCount = 102 - tail - head；instanceId < mainCount 属主段，墙下标 = head + instanceId；否则属鸟牌区。
-  // 五条边界：①只有 head（杠补时 101-tail）可抽；②鸟牌区一律无效；③无效不给“最近槽”提示；
-  //          ④位移 <8px 才算点击（否则拖视角）；⑤ machineBusy 必须为 '0'（演出中 instanceId 与墙下标会错位）。
+  // 背面实例按“对手手牌、剩余牌墙、鸟牌”的顺序绘制；仅开放当前取牌槽。
   const pickRay = new THREE.Raycaster(), pickNdc = new THREE.Vector2();
-  function pickWallSlot(clientX, clientY) {
-    if (!active || disposed || overview) return null;
-    // 演出期间一律不可拾取（instanceId 与墙下标会错位）。
-    // 待抽态（A 方案：引擎不 drawFor，玩家点牌墙才抽）属于"可拾取"，它没有演出，machineBusy 恒为 '0'，天然放行。
-    if (host.dataset.machineBusy !== '0') return null;
-    const rect = renderer.domElement.getBoundingClientRect();
-    if (!rect.width || !rect.height) return null;
+  const wallPoint = new THREE.Vector3();
+  function canPickWall() { return active && !disposed && !machineRun && drawInstance >= 0; }
+  function projectWallTarget(w, h) {
+    wallPoint.copy(lastBacks[drawInstance].position);
+    wallPoint.y += .012;
+    wallPoint.project(camera);
+    return { x: (1 + wallPoint.x) * w / 2, y: (1 - wallPoint.y) * h / 2 };
+  }
+  function setPickRay(clientX, clientY, rect) {
+    if (!rect.width || !rect.height || clientX < rect.left || clientX > rect.right ||
+        clientY < rect.top || clientY > rect.bottom) return false;
     pickNdc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     pickRay.setFromCamera(pickNdc, camera);
-    let best = null;
-    for (const { batch } of backParts) {
-      if (!batch.count) continue;
-      const hits = pickRay.intersectObject(batch, false);
-      if (hits.length && (!best || hits[0].distance < best.distance)) best = hits[0];
+    return true;
+  }
+  function nearestHandHit(allowOccluded = false, excludedId = null) {
+    const hits = [];
+    for (const entry of entries.values()) {
+      if (entry.type !== 'hand' || !entry.object.visible) continue;
+      const hit = pickRay.intersectObject(entry.object, true)[0];
+      if (hit) hits.push({ id: entry.id, distance: hit.distance, point: hit.point });
     }
-    if (!best || best.instanceId == null) return null;
-    const instanceId = best.instanceId;
-    const draws = snapshot?.wallDraws, opening = snapshot?.opening;
-    if (!draws || !snapshot) return null;
-    const head = draws.head, tail = draws.tail || 0;
-    const mainCount = Math.max(0, 102 - tail - head);
-    const segment = instanceId < mainCount ? 'main' : 'birds';
-    const wallIndex = segment === 'main' ? head + instanceId : null;
-    // 按摸牌方向收紧（Chief 定）：杠补(fromTail) 只许墙尾 101-tail；否则只许墙头 head(instanceId===0)。
-    // 不能两边都放开，否则杠补时能从墙头抽，方向就错了。
-    const fromTail = !!snapshot.gangDraw;
-    const legal = segment === 'main' && (fromTail
-      ? (tail > 0 && wallIndex === 101 - tail)
-      : instanceId === 0);
-    const info = wallIndex == null ? null : wallSlotInfo(wallIndex, opening);
-    return { instanceId, segment, wallIndex, legal, slot: info };
+    hits.sort((a, b) => a.distance - b.distance);
+    const firstHand = hits[0];
+    if (!firstHand) return null;
+    if (!allowOccluded) {
+      const worldHit = nearestWorldHit();
+      if (worldHit && worldHit.distance < firstHand.distance - 0.001) return null;
+      return firstHand;
+    }
+    return hits.find(hit => hit.id !== excludedId && hit.distance <= firstHand.distance + 0.15) || firstHand;
+  }
+  function nearestWorldHit() {
+    const interactive = [...entries.values()].filter(e => e.type !== 'prop' && e.object.visible).map(e => e.object);
+    interactive.push(...backParts.map(part => part.batch).filter(batch => batch.count));
+    interactive.push(...companionModels.filter(model => model.visible));
+    let best = pickRay.intersectObjects(interactive, true)[0];
+    if (best) best.interactive = true;
+    for (const mesh of roomMeshes) {
+      const hit = pickRay.intersectObject(mesh, false).find(candidate => {
+        const material = Array.isArray(mesh.material) ? mesh.material[candidate.face?.materialIndex] : mesh.material;
+        return !material?.clippingPlanes?.some(plane => plane.distanceToPoint(candidate.point) < 0);
+      });
+      if (hit && (!best || hit.distance < best.distance)) best = hit;
+    }
+    return best || null;
+  }
+  function pickHandTile(clientX, clientY) {
+    if (!active || disposed || machineRun) return null;
+    if (!setPickRay(clientX, clientY, renderer.domElement.getBoundingClientRect())) return null;
+    return nearestHandHit()?.id ?? null;
+  }
+  function pickWallSlot(clientX, clientY, touch) {
+    if (!canPickWall()) return null;
+    const rect = renderer.domElement.getBoundingClientRect();
+    if (!setPickRay(clientX, clientY, rect)) return null;
+    const surface = nearestWorldHit();
+    if (surface?.instanceId != null) return { instanceId: surface.instanceId, legal: surface.instanceId === drawInstance };
+    // Touch tolerance only fills gaps. A hit on another tile or a companion
+    // must not be redirected to the marked tile.
+    if (surface?.interactive) return null;
+    if (touch) {
+      const p = projectWallTarget(rect.width, rect.height);
+      if (Math.abs(clientX - rect.left - p.x) <= 22 && Math.abs(clientY - rect.top - p.y) <= 22 &&
+          setPickRay(rect.left + p.x, rect.top + p.y, rect) && nearestWorldHit()?.instanceId === drawInstance) {
+        return { instanceId: drawInstance, legal: true };
+      }
+    }
+    return null;
   }
   function pointerDown(event) {
-    if (!active || event.target !== renderer.domElement || event.button !== 0) return;
+    if (drag || !active || event.target !== renderer.domElement || event.button !== 0) return;
     drag = { x: event.clientX, y: event.clientY, yaw, pitch, moved: 0, id: event.pointerId };
-    renderer.domElement.setPointerCapture(event.pointerId);
+    if (renderer.domElement.hasPointerCapture(event.pointerId) || event.isTrusted) renderer.domElement.setPointerCapture(event.pointerId);
   }
   function pointerMove(event) {
-    if (!drag) return;
+    if (!drag || event.pointerId !== drag.id) return;
     // 记录累计位移：<8px 判为“点一下”（交给 pointerUp 做牌墙拾取），否则才是拖视角。
     drag.moved = Math.max(drag.moved, Math.hypot(event.clientX - drag.x, event.clientY - drag.y));
-    if (drag.moved < 8 || overview) return;
-    yaw = clamp(drag.yaw - (event.clientX - drag.x) * 0.0025, -0.32, 0.32);
-    pitch = clamp(drag.pitch + (event.clientY - drag.y) * 0.002, 0.80, 1.15);
+    if (drag.moved < 8) return;
+    yaw = drag.yaw - (event.clientX - drag.x) * 2*Math.PI/Math.max(width,500);
+    pitch = clamp(drag.pitch + (event.clientY - drag.y) * 0.0035, 0.48, 1.48);
     cameraPose(); dirty = true; schedule();
   }
   function pointerUp(event) {
     // 位移 <8px 视为点击：尝试拾取牌墙槽位并通知上层（只报槽号，不决定拿哪张）。
-    if (drag && drag.moved < 8 && event && event.clientX != null) {
-      const slot = pickWallSlot(event ? event.clientX : 0, event ? event.clientY : 0);
+    if (!drag || event.pointerId !== drag.id) return;
+    if (drag.moved < 8 && Math.hypot(event.clientX-drag.x,event.clientY-drag.y)<8) {
+      const slot = pickWallSlot(event.clientX, event.clientY, event.pointerType === 'touch');
       if (slot) callbacks.onWallPick?.(slot);
     }
     drag = null;
@@ -914,16 +1219,28 @@ export async function createTable3D(host, callbacks = {}) {
   renderer.domElement.addEventListener('pointerdown', pointerDown);
   renderer.domElement.addEventListener('pointermove', pointerMove);
   renderer.domElement.addEventListener('pointerup', pointerUp);
-  renderer.domElement.addEventListener('pointercancel', pointerUp);
-  renderer.domElement.addEventListener('webglcontextlost', event => {
-    event.preventDefault(); setActive(false); callbacks.onError?.(Error('图形上下文已中断'));
+  renderer.domElement.addEventListener('lostpointercapture', cancelOrbit);
+  renderer.domElement.addEventListener('pointercancel', cancelOrbit);
+  function cancelOrbit(event) { if (drag?.id === event.pointerId) drag=null; }
+  cleanup.push(() => {
+    renderer.domElement.removeEventListener('pointerdown', pointerDown);
+    renderer.domElement.removeEventListener('pointermove', pointerMove);
+    renderer.domElement.removeEventListener('pointerup', pointerUp);
+    renderer.domElement.removeEventListener('pointercancel', cancelOrbit);
+    renderer.domElement.removeEventListener('lostpointercapture', cancelOrbit);
   });
   function visibility() {
     if (machineRun) machineRun.lastTime = null;
     if (!document.hidden) { dirty = true; schedule(); }
   }
   document.addEventListener('visibilitychange', visibility);
+  cleanup.push(() => document.removeEventListener('visibilitychange', visibility));
+  if (controller.signal.aborted) throw controller.signal.reason;
+  if (gl.isContextLost?.()) throw Error('图形上下文已中断');
   resize();
+  host.appendChild(renderer.domElement);
+  host.appendChild(wallFocus);
+  mounted = true;
   host.dataset.phase = 'ready';
   host.dataset.view = 'seated';
   return {
@@ -938,24 +1255,23 @@ export async function createTable3D(host, callbacks = {}) {
     },
     rollDice() { if (machineRun) { machineRun.rolled = true; machineRun.lastTime = null; dirty = true; schedule(); } },
     hover(id) { if (hovered !== id) { hovered = id; updateHover(); } },
-    setTileDrag,
+    setTileDrag, pickHandTile,
     tileDragTarget() { return dragInsert ? { targetId: dragInsert.targetId, before: dragInsert.before } : null; },
+    tileDragInRiver() { return isRiverDragTarget(dragTile, dragInsert); },
     // 只读槽位查询：index 为可视槽下标 0..107，返回 { physical, seat, pos, column, layer, upper }，不含牌种。
     wallSlotAt(index) { return wallSlotInfo(index, snapshot?.opening); },
     wallSlotCount() { return WALL_SLOTS; },
     companionState() { return companions.inspect(); },
     noteDiscard(id) {
       const entry = entries.get('hand:' + id);
-      if (entry) discardHint = { kind: entry.kind, position: entry.object.position.clone(), quaternion: entry.object.quaternion.clone(), scale: entry.object.scale.x, time: performance.now() };
+      if (entry) discardHint = { kind: entry.kind, position: entry.object.position.clone(), quaternion: entry.object.quaternion.clone(), scale: entry.object.scale.x, time: viewport.performance.now() };
     },
     dispose() {
-      disposed = true; setActive(false); observer.disconnect();
-      document.removeEventListener('visibilitychange', visibility);
-      const geometries = new Set(), materials = new Set(), textures = new Set();
-      scene.traverse(obj => { if (obj.geometry) geometries.add(obj.geometry); if (obj.material) (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach(m => materials.add(m)); });
-      materials.forEach(m => { for (const value of Object.values(m)) if (value?.isTexture) textures.add(value); m.dispose(); });
-      geometries.forEach(g => g.dispose()); textures.forEach(t => t.dispose());
-      env.dispose(); renderer.dispose(); renderer.domElement.remove(); entries.clear();
+      if (disposed) return;
+      disposed = true;
+      setActive(false);
+      release();
+      entries.clear();
     }
   };
 }

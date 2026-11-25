@@ -23,8 +23,8 @@ async function until(fn,label){for(var i=0;i<400;i++){if(fn())return;await pause
   d.getElementById('homeOnline').click();await until(function(){return d.getElementById('netName');},'联机面板');
   d.getElementById('netName').value='后台分析验收';d.getElementById('netRoomIn').value='1890';d.getElementById('netEnter').click();
   await until(function(){return d.getElementById('netStart');},'开始按钮');d.getElementById('netStart').click();
-  await until(function(){return d.getElementById('btnDrawTile')||d.querySelector('.handRow .clickable');},'轮到自己摸牌');
-  var initialDraw=d.getElementById('btnDrawTile');if(initialDraw)initialDraw.click();
+  await until(function(){return d.getElementById('wallDrawTile')||d.querySelector('.handRow .clickable');},'轮到自己摸牌');
+  var initialDraw=d.getElementById('wallDrawTile');if(initialDraw)initialDraw.click();
   await until(function(){return jobs.length&&results.length&&/组采样/.test(d.getElementById('situation').textContent);},'后台分析');
   check(mainCalls===0,'联机风险采样完全在真实 Worker 中执行');
   var job=jobs[0],res=results[0],reference=original(job.hand,job.seat,job.options);
@@ -37,7 +37,7 @@ async function until(fn,label){for(var i=0;i<400;i++){if(fn())return;await pause
     var H=w.ZMJ.practiceHand(id);H.wall=realHand.wall;H.turn=0;H.turnCount=turn;
     g.hand=H;g.awaiting={type:'turn',seat:g.humanSeat(),options:{canZimo:false,anGang:[],buGang:[]}};
     w.dispatchEvent(new w.Event('resize'));
-    var db2=d.getElementById('btnDrawTile');if(db2)db2.click();
+    var db2=d.getElementById('wallDrawTile');if(db2)db2.click();
   }
   hold=true;fixture('shape-1',41);
   await until(function(){return delayed.length;},'暂停一个真实任务结果');
@@ -55,7 +55,7 @@ async function until(fn,label){for(var i=0;i<400;i++){if(fn())return;await pause
   hold=true;fixture('pairs-2',44);await until(function(){return delayed.length;},'正在计算的任务');
   worker.onerror({preventDefault:function(){}});
   check(!!d.getElementById('retryRiskWorker')&&/可继续使用基础牌效/.test(d.getElementById('situation').textContent),'Worker 失败明确降级，不显示旧百分比或假安全值');
-  var drawBtn=d.getElementById('btnDrawTile');if(drawBtn)drawBtn.click();
+  var drawBtn=d.getElementById('wallDrawTile');if(drawBtn)drawBtn.click();
   check(!!d.querySelector('.handRow .clickable')&&/牌效推荐/.test(d.getElementById('hint').textContent),'后台失败不影响出牌与基础牌效');
   hold=false;d.getElementById('retryRiskWorker').click();
   await until(function(){return !d.getElementById('retryRiskWorker')&&/组采样/.test(d.getElementById('situation').textContent);},'重试成功');

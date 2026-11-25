@@ -10,13 +10,12 @@ async function paint(){await new Promise(r=>requestAnimationFrame(()=>requestAni
   localStorage.setItem('zmj_noRotate','1');
   var f=document.getElementById('game');await new Promise(function(r){f.onload=r;f.src='/index.html?view=2d';});
   var w=f.contentWindow,d=w.document;d.getElementById('homeSolo').click();
-  for(var i=0;i<60&&!d.getElementById('btnDrawTile');i++)await pause(50);
-  var draw=d.getElementById('btnDrawTile');
-  check(!!draw,'二维轮到自己时出现摸牌按钮');
+  for(var i=0;i<60&&!d.getElementById('wallDrawTile');i++)await pause(50);
+  var draw=d.getElementById('wallDrawTile');
+  check(!!draw,'二维轮到自己时出现可摸牌背');
   await paint();
   var row=d.getElementById('wallInfo');
-  check(row.classList.contains('drawable'),'摸牌前牌墙药丸进入可摸状态');
-
+  check(draw.parentNode.id==='drawWall2D'&&draw.tagName==='SPAN','可摸牌位于二维牌墙内');
   function tall(el,min){var b=el.getBoundingClientRect();return b.height>=min-0.5;}
   function shortList(list,min){return Array.from(list).filter(el=>el.getBoundingClientRect().width>0&&!tall(el,min));}
 
@@ -24,19 +23,11 @@ async function paint(){await new Promise(r=>requestAnimationFrame(()=>requestAni
   var topBtns=d.querySelectorAll('#topbar .tools>.mini,#topbar .toolsMenu summary');
   check(topBtns.length>=4,'顶栏主操作按钮数量 '+topBtns.length);
   check(shortList(topBtns,44).length===0,'390 顶栏主操作按钮高度都 ≥44px（'+Array.from(topBtns).map(el=>Math.round(el.getBoundingClientRect().height)).join('/')+'）');
-  check(tall(draw,44),'摸牌按钮高度 ≥44px（'+Math.round(draw.getBoundingClientRect().height)+'）');
+  check(tall(draw,44),'可摸牌背高度 ≥44px（'+Math.round(draw.getBoundingClientRect().height)+'）');
 
-  // 2. 牌墙药丸：视觉 32px、有效命中区扩到 44px
-  var rb=row.getBoundingClientRect();
-  check(rb.height>=31,'牌墙药丸视觉高度 ≥31px（实际 '+Math.round(rb.height)+'）');
-  function hitExtent(){
-    var b=row.getBoundingClientRect(),x=b.left+b.width/2,cy=b.top+b.height/2,up=0,down=0,i;
-    for(i=1;i<=30;i++){var el=d.elementFromPoint(x,cy-i);if(!(el&&el.closest&&el.closest('#wallInfo')===row))break;up=i;}
-    for(i=1;i<=30;i++){var el2=d.elementFromPoint(x,cy+i);if(!(el2&&el2.closest&&el2.closest('#wallInfo')===row))break;down=i;}
-    return up+down;
-  }
-  var extent=hitExtent();
-  check(extent+1>=44,'药丸有效命中高度 ≥44px（实际 '+(extent+1)+'）');
+  var wrong=draw.parentNode.querySelector('[aria-hidden=true]');
+  wrong.click();row.click();
+  check(d.getElementById('wallDrawTile')===draw,'邻牌和牌墙张数不会触发摸牌');
 
   // 3. 更多菜单抽屉里的按钮同样 ≥44px
   var more=d.getElementById('moreTools');
@@ -58,26 +49,25 @@ async function paint(){await new Promise(r=>requestAnimationFrame(()=>requestAni
   f.style.width='360px';w.dispatchEvent(new w.Event('resize'));await paint();await pause(150);
   var topBtns360=d.querySelectorAll('#topbar .tools>.mini,#topbar .toolsMenu summary');
   check(shortList(topBtns360,44).length===0,'360 顶栏主操作按钮高度都 ≥44px');
-  var rb360=row.getBoundingClientRect();
-  var extent360=hitExtent();
-  check(extent360+1>=44,'360 药丸有效命中高度 ≥44px（实际 '+(extent360+1)+'）');
+  var hit=draw.getBoundingClientRect();
+  check(tall(draw,44)&&d.elementFromPoint(hit.left+hit.width/2,hit.top+hit.height/2)===draw,'360 牌背有 44px 高且能被点中');
   check(d.documentElement.scrollWidth<=360,'360 无横向溢出（实际 '+d.documentElement.scrollWidth+'）');
 
   // 6. 横屏 844×390：矮视口也把按钮抬到 44px，牌墙有效命中 ≥44px，不溢出
   f.style.width='844px';f.style.height='390px';w.dispatchEvent(new w.Event('resize'));await paint();await pause(150);
   var topBtnsLand=d.querySelectorAll('#topbar .tools>.mini,#topbar .toolsMenu summary');
   check(shortList(topBtnsLand,44).length===0,'844×390 顶栏主操作按钮高度都 ≥44px（'+Array.from(topBtnsLand).map(el=>Math.round(el.getBoundingClientRect().height)).join('/')+'）');
-  var drawL=d.getElementById('btnDrawTile');
-  check(!!drawL&&tall(drawL,44),'844×390 摸牌按钮高度 ≥44px（'+(drawL?Math.round(drawL.getBoundingClientRect().height):'缺失')+'）');
+  var drawL=d.getElementById('wallDrawTile');
+  check(!!drawL&&tall(drawL,44),'844×390 可摸牌背高度 ≥44px（'+(drawL?Math.round(drawL.getBoundingClientRect().height):'缺失')+'）');
   var pillLand=row.getBoundingClientRect();
-  check(pillLand.width===0||pillLand.height===0,'844×390 矮横屏下牌墙药丸隐藏，摸牌走 44px 按钮');
+  check(pillLand.width===0||pillLand.height===0,'844×390 矮横屏下牌墙药丸隐藏，牌墙取牌处仍可用');
   check(d.documentElement.scrollWidth<=844,'844×390 无横向溢出（实际 '+d.documentElement.scrollWidth+'）');
   check(d.getElementById('actionbar').getBoundingClientRect().bottom<=391,'844×390 操作栏在视口内');
 
   // 7. 回到 390×844，直接点药丸完成摸牌（有效命中区真的可用）
   f.style.width='390px';f.style.height='844px';w.dispatchEvent(new w.Event('resize'));await paint();await pause(120);
-  row.click();await paint();
-  check(!d.getElementById('btnDrawTile'),'点牌墙药丸即可完成摸牌');
+  draw.click();await paint();
+  check(!d.getElementById('wallDrawTile'),'点标记的牌背完成摸牌');
   check(d.querySelectorAll('#seat0 .handRow [data-tile-id]').length===14,'摸牌后 14 张手牌');
   var tiles=Array.from(d.querySelectorAll('#seat0 .handRow [data-tile-id]'));
   check(tiles.every(function(t){var b=t.getBoundingClientRect();return b.left>=-1&&b.right<=391;}),'390 下 14 张手牌都在屏幕内');

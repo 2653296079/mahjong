@@ -62,7 +62,7 @@ async function waitTurn(s,ms){
   check(!!(s.g.awaiting&&s.g.awaiting.type==='turn'),'轮到自己出牌');
 }
 async function discard(s){
-  var draw=s.d.getElementById('btnDrawTile');
+  var draw=s.d.getElementById('wallDrawTile');
   if(draw&&!draw.classList.contains('hidden')){draw.click();await sleep(150);}
   var t=s.d.querySelector('.handRow .tile[role="button"]');
   check(!!t,'手牌可点击');

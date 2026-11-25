@@ -55,6 +55,20 @@ test('failed HTTP responses are not cached; room links share one offline page', 
   await good.request();
   assert.deepEqual(good.written, ['./index.html']);
 });
+test('a temporary HTML response cannot poison the offline JavaScript cache', async () => {
+  const dependency = base + 'assets/table3d/companions.js?build=v64';
+  const broken = new Response('<html>Temporarily unavailable</html>', { headers: { 'Content-Type': 'text/html' } });
+  const javascript = () => new Response('export {}', { headers: { 'Content-Type': 'text/javascript; charset=utf-8' } });
+  let response = broken;
+  const w = worker(async () => response, { 'zmj-v62': { [dependency]: broken } });
+  assert.match(await (await w.request(dependency, 'cors')).clone().text(), /Temporarily unavailable/);
+  assert.deepEqual(w.written, []);
+  response = javascript();
+  assert.equal(await (await w.request(dependency, 'cors')).clone().text(), 'export {}');
+  response = broken;
+  assert.equal(await (await w.request(dependency, 'cors')).text(), 'export {}');
+});
+
 test('offline navigation finds the canonical page; unrelated requests are not intercepted', async () => {
   const w = worker(async () => { throw Error('offline'); });
   assert.equal(await w.request(), w.cached);
@@ -83,8 +97,8 @@ test('the current worker recovers versioned v64 requests warmed before activatio
   const companion = base + 'assets/mahjong-3d/glb/companions/cat.glb?build=v64';
   const module = base + 'assets/table3d/table3d.js?build=v64';
   const upgraded = worker(async () => { throw Error('offline'); }, {
-    'zmj-v62': { [room]: new Response('warmed v64 room'), [companion]: new Response('warmed v64 cat'), [module]: new Response('previous response') },
-    'zmj-v64': { [module]: new Response('current response') },
+    'zmj-v62': { [room]: new Response('warmed v64 room'), [companion]: new Response('warmed v64 cat'), [module]: new Response('previous response', { headers: { 'Content-Type': 'text/javascript' } }) },
+    'zmj-v64': { [module]: new Response('current response', { headers: { 'Content-Type': 'text/javascript' } }) },
     'another-project-v1': { [room]: new Response('unrelated response') }
   });
   let activated;
@@ -110,12 +124,12 @@ test('older model entries cannot satisfy requests with a new build query', async
 });
 test('visited Blender room, companions and portraits remain available offline', async () => {
   let online = true;
-  const w = worker(async () => { if(!online) throw Error('offline'); return {ok:true,clone:()=>({ok:true,fromCache:true})}; });
+  const w = worker(async () => { if(!online) throw Error('offline'); return new Response('asset', { headers: { 'Content-Type': 'text/javascript' } }); });
   const paths = ['assets/table3d/companions.js','assets/mahjong-3d/glb/room/afternoon-room.glb',
     'assets/mahjong-3d/glb/room/machine-console.glb','assets/mahjong-3d/glb/companions/cat.glb',
     'assets/mahjong-3d/glb/companions/portraits/rabbit.png'];
   for(const path of paths) assert.equal((await w.request('https://example.com/mahjong/'+path,'cors')).ok,true);
   online = false;
-  for(const path of paths) assert.equal((await w.request('https://example.com/mahjong/'+path,'cors')).fromCache,true);
+  for(const path of paths) assert.equal(await (await w.request('https://example.com/mahjong/'+path,'cors')).text(),'asset');
   assert.equal(await w.request('https://example.com/mahjong/assets/mahjong-3d/glb/room/afternoon-room.blend','cors'),undefined);
 });

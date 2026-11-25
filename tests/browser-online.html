@@ -42,7 +42,7 @@ function clickFirstAction(w) {
   return false;
 }
 function clickTile(w) {
-  var draw = w.document.getElementById('btnDrawTile');
+  var draw = w.document.getElementById('wallDrawTile');
   if (draw) draw.click();
   var t = w.document.querySelector('.handRow .clickable');
   if (t) { t.click(); return 'tile'; }
@@ -106,7 +106,7 @@ function clickTile(w) {
     say('两位真人同桌、各自手牌可见、对手牌背隐藏、访客名称由服务器确认');
     if (A.__zmjGame.hand.revealed || B.__zmjGame.hand.revealed) throw new Error('局中出现了终局暗牌快照');
     // 同一旧画面连续点击会发出多个请求，但服务器只接受其中一次。
-    var drawA = doc(A).getElementById('btnDrawTile'); if (drawA) drawA.click();
+    var drawA = doc(A).getElementById('wallDrawTile'); if (drawA) drawA.click();
     var rapidTile = doc(A).querySelector('.handRow .clickable');
     if (!rapidTile) throw new Error('甲开局没有可打牌');
     rapidTile.click(); rapidTile.click(); rapidTile.click(); rapidTile.click();

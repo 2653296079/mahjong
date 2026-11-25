@@ -40,7 +40,7 @@ async function paint(){await new Promise(r=>requestAnimationFrame(()=>requestAni
  // 用真实训练局面做独立数值对照，鼠标悬停、焦点、触屏都走实际 UI 事件。
  var H=w.ZMJ.practiceHand('wide-1');g.hand.players=H.players;g.hand.lastDraw=H.lastDraw;g.hand.turn=0;g.awaiting={type:'turn',seat:0,options:{canZimo:false,anGang:[],buGang:[]}};
  f.style.width='1366px';f.style.height='900px';w.dispatchEvent(new w.Event('resize'));await paint();
- var drawBtn=d.getElementById('btnDrawTile');if(drawBtn)drawBtn.click();await paint();
+ var drawBtn=d.getElementById('wallDrawTile');if(drawBtn)drawBtn.click();await paint();
  var tiles=Array.from(d.querySelectorAll('.handRow [role=button]')),tile=tiles[0],kind=+tile.dataset.tileId.split(':')[0],id=tile.dataset.tileId,guide=w.ZMJ.trainingGuide(g.hand,0,kind,true),riskCalls=0;
  w.ZMJ.analyzeSituation=function(){riskCalls++;throw Error('不应由悬停启动采样');};
  tile.dispatchEvent(new w.PointerEvent('pointerenter',{pointerType:'mouse'}));await until(()=>!d.getElementById('tileAnalysis').classList.contains('hidden'),'悬停面板');await pause(250);

@@ -139,7 +139,7 @@ function setMusic(s,v){
   var mg2=musicGainOf(s);
   var maxBefore=0;
   rampsOn(s,mg2).forEach(function(r){if(r.target>maxBefore)maxBefore=r.target;});
-  var drawBtn=s.d.getElementById('btnDrawTile');if(drawBtn)drawBtn.click();
+  var drawBtn=s.d.getElementById('wallDrawTile');if(drawBtn)drawBtn.click();
   var tile=s.d.querySelector('.handRow .tile[role="button"]');
   check(!!tile,'轮到自己出牌，可触发报牌');
   tile.click();

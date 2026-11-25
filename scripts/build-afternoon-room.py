@@ -1,11 +1,17 @@
-"""Build the editable complete afternoon mahjong room and game-ready exports.
-Blender 4.5: --background --factory-startup --python scripts/build-afternoon-room.py
+"""Rebuild the legacy v61/v62 room, not the game's current assets.
+Blender 4.5: --background --factory-startup --python-exit-code 1 --python scripts/build-afternoon-room.py
+Outputs only to out/legacy-room; run build-companions.py first.
 """
 import bpy, math, os, random
 from mathutils import Vector
 ROOT=os.path.abspath(os.path.join(os.path.dirname(__file__),'..'))
 ASSETS=os.path.join(ROOT,'assets/mahjong-3d/glb')
-OUT=os.path.join(ASSETS,'room');os.makedirs(OUT,exist_ok=True)
+LEGACY_OUT=os.path.join(ROOT,'out/legacy-room')
+OUT=os.path.join(LEGACY_OUT,'room');os.makedirs(OUT,exist_ok=True)
+cast=['cat','fox','panda','rabbit']
+missing=[animal for animal in cast if not os.path.isfile(os.path.join(LEGACY_OUT,'companions',animal+'.glb'))]
+if missing:
+    raise RuntimeError('Run scripts/build-companions.py first; missing legacy companions: '+', '.join(missing))
 bpy.ops.object.select_all(action='SELECT');bpy.ops.object.delete(use_global=False)
 def xyz(p):return (p[0],-p[2],p[1])
 def mat(name,c,rough=.8,metal=0):
@@ -124,12 +130,12 @@ for o in console:o.location.z-=.759
 select_export(os.path.join(OUT,'machine-console.glb'),console)
 for o in console:o.location.z+=.759
 # Complete assembled cast for the editable master and render.
-cast=['cat','fox','panda','rabbit'];fur_colors=[(.60,.32,.12),(.52,.19,.075),(.05,.05,.04),(.88,.81,.68)]
+fur_colors=[(.60,.32,.12),(.52,.19,.075),(.05,.05,.04),(.88,.81,.68)]
 cloth_colors=[(.10,.22,.17),(.29,.18,.10),(.12,.20,.14),(.48,.36,.22)]
 def world(pos,x,y,z):
     a=pos*math.pi/2;return (x*math.cos(a)+z*math.sin(a),y,z*math.cos(a)-x*math.sin(a))
 for pos,animal in enumerate(cast):
-    g=group('Companion '+animal,import_glb(os.path.join(ASSETS,'companions',animal+'.glb')))
+    g=group('Companion '+animal,import_glb(os.path.join(LEGACY_OUT,'companions',animal+'.glb')))
     g.location=xyz(world(pos,0,0,.68));g.rotation_euler.z=pos*math.pi/2
     f=mat(animal+' paw',fur_colors[pos]);c=mat(animal+' sleeve',cloth_colors[pos])
     for side in [-1,1]:
@@ -167,7 +173,7 @@ def area(name,p,power,size,color):
 area('Afternoon window',(-1.3,2.1,-1.3),170,2,(1,.82,.59));area('Soft room fill',(1,2,1),80,2,(.82,.89,1))
 scene=bpy.context.scene;scene.render.engine='CYCLES';scene.cycles.samples=24;scene.cycles.use_denoising=True
 scene.world.color=(.18,.18,.18);scene.render.resolution_x=1440;scene.render.resolution_y=960;scene.render.resolution_percentage=100
-scene.render.image_settings.file_format='PNG';scene.render.filepath=os.path.join(ROOT,'reports','afternoon-room-blender-v62.png')
+scene.render.image_settings.file_format='PNG';scene.render.filepath=os.path.join(LEGACY_OUT,'afternoon-room-blender-v62.png')
 bpy.context.preferences.filepaths.save_version=0
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT,'afternoon-room.blend'))
 bpy.ops.render.render(write_still=True)

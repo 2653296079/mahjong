@@ -39,25 +39,27 @@ function fingerprintProblems() {
   }
   return problems;
 }
-function manifestProblems() {
-  const problems = [];
-  const self = fs.readFileSync(__filename, 'utf8');
-  if (self.indexOf("tests/draw-nth.test.js") < 0) problems.push('清单缺少 tests/draw-nth.test.js');
-  if (self.indexOf("tests/wall-slot-map.test.js") < 0) problems.push('清单缺少 tests/wall-slot-map.test.js');
-  return problems;
+function manifestProblems(jobs) {
+  const nodeTests = new Set(jobs.filter(([command]) => command === '--test').flatMap((job) => job.slice(1)));
+  return [
+    'tests/draw-nth.test.js',
+    'tests/wall-slot-map.test.js',
+    'tests/companions-v64.test.js',
+    'tests/startup-v64.test.js',
+    'tests/v64-interaction.test.js',
+  ].filter((file) => !nodeTests.has(file)).map((file) => '清单缺少 ' + file);
 }
+
 function envProblems() {
   const problems = [];
+  if (process.argv.includes('--room-pack') && (!process.env.BLENDER_BIN || !process.env.ROOM_PACK_FIXTURE)) {
+    problems.push('--room-pack 需要设置 BLENDER_BIN 和 ROOM_PACK_FIXTURE；集成测试不会以跳过结果冒充通过');
+  }
   try {
     const freeGB = (() => {
-      if (process.platform === 'win32') {
-        const out = execSync(
-          'powershell -NoProfile -Command "[math]::Round((Get-PSDrive C).Free/1GB,2)"',
-          { encoding: 'utf8', timeout: 20000 }).trim();
-        return Number(out);
-      }
-      const stat = fs.statfsSync ? fs.statfsSync(root) : null;
-      return stat ? (stat.bavail * stat.bsize) / Math.pow(1024, 3) : Infinity;
+      const disk = process.platform === 'win32' ? 'C:/' : root;
+      const stat = fs.statfsSync(disk);
+      return (stat.bavail * stat.bsize) / (1024 ** 3);
     })();
     if (Number.isFinite(freeGB) && freeGB < MIN_FREE_GB) {
       problems.push('C 盘剩余 ' + freeGB + 'GB，低于 ' + MIN_FREE_GB + 'GB 下限');
@@ -105,26 +107,15 @@ function browserTestsRunning() {
     return false;
   }
 }
-const problems = envProblems().concat(fingerprintProblems(), manifestProblems());
-if (problems.length) {
-  process.stderr.write('环境检查未通过，拒绝运行（拒跑不等于通过，请先清理后再跑）：\n');
-  for (const p of problems) process.stderr.write('  - ' + p + '\n');
-  if (browserTestsRunning()) {
-    process.stderr.write('结论：有其他测试正在运行，等它结束后再跑本门禁；不要删除别人正在用的目录。\n');
-  } else {
-    process.stderr.write('结论：可安全删除 %TEMP%\\zmj-* 残留目录后重试。\n');
-  }
-  process.exit(1);
-}
-process.stdout.write('环境检查通过（C 盘可用、%TEMP%\\zmj-* 无残留）\n');
-
 const jobs = [
-  ['--test', 'tests/online-service.test.js', 'tests/accounts.test.js', 'tests/river.test.js', 'tests/core.test.js', 'tests/multi.test.js', 'tests/training.test.js', 'tests/decision.test.js', 'tests/progress.test.js', 'tests/lessons.test.js', 'tests/settlement.test.js', 'tests/server-limits.test.js', 'tests/evaluation.test.js', 'tests/connection-check.test.js', 'tests/offline.test.js', 'tests/personas.test.js', 'tests/audio.test.js', 'tests/atmosphere.test.js', 'tests/wall-slot-map.test.js', 'tests/draw-nth.test.js', 'tests/companions-v64.test.js'],
+  ['--test', 'tests/online-service.test.js', 'tests/accounts.test.js', 'tests/river.test.js', 'tests/core.test.js', 'tests/multi.test.js', 'tests/training.test.js', 'tests/decision.test.js', 'tests/progress.test.js', 'tests/lessons.test.js', 'tests/settlement.test.js', 'tests/server-limits.test.js', 'tests/evaluation.test.js', 'tests/connection-check.test.js', 'tests/offline.test.js', 'tests/personas.test.js', 'tests/audio.test.js', 'tests/atmosphere.test.js', 'tests/wall-slot-map.test.js', 'tests/draw-nth.test.js', 'tests/companions-v64.test.js', 'tests/startup-v64.test.js', 'tests/v64-interaction.test.js'],
   ['server/test-ws.js'], ['server/test-rooms.js'], ['server/test-online.js'],
   ['tests/no-build-check.js'], ['tests/smoke-server.js']
 ];
+if (process.argv.includes('--room-pack')) jobs.push(['--test', 'tests/room-pack.test.js']);
 if (process.argv.includes('--browser')) jobs.push(
   ['tests/pages-compat.js', 'table-3d-ui'], ['tests/pages-compat.js', 'table-3d-drag'],
+  ['tests/pages-compat.js', 'retry-3d'], ['tests/pages-compat.js', 'retry-3d', '--dependency'],
   ['tests/pages-compat.js', 'persona-ui'],
   ['tests/pages-compat.js', 'audio-ui'],
   ['tests/pages-compat.js', 'account-ui', '--accounts'],
@@ -145,10 +136,23 @@ if (process.argv.includes('--browser')) jobs.push(
   ['tests/pages-compat.js', 'music-ui'],
   ['tests/pages-compat.js'], ['tests/browser-online.js']
 );
+
+const problems = envProblems().concat(fingerprintProblems(), manifestProblems(jobs));
+if (problems.length) {
+  process.stderr.write('发布检查前置条件未通过：\n');
+  for (const problem of problems) process.stderr.write('  - ' + problem + '\n');
+  process.exit(1);
+}
+process.stdout.write('环境检查通过（C 盘可用、%TEMP%\\zmj-* 无残留）\n');
+if (!process.argv.includes('--room-pack')) {
+  process.stdout.write('Blender room-pack 集成未运行（使用 --room-pack 显式启用）\n');
+}
+
 for (const args of jobs) {
   process.stdout.write('\n运行 node ' + args.join(' ') + '\n');
   const started = Date.now();
-  const result = spawnSync(process.execPath, args, { cwd: root, stdio: 'inherit', timeout: 300000 });
+  const roomPack = args.includes('tests/room-pack.test.js');
+  const result = spawnSync(process.execPath, args, { cwd: root, stdio: 'inherit', timeout: roomPack ? 900000 : 300000 });
   if (result.error || result.status !== 0) {
     if (result.error) process.stderr.write(result.error.message + '\n');
     process.exit(result.status || 1);

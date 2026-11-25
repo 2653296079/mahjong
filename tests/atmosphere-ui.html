@@ -72,7 +72,7 @@ async function discardWorst(s){
     if(opts[i].shanten>best.shanten||opts[i].ukeire<best.ukeire){pick=opts[i];break;}
   }
   if(!pick)pick=opts[opts.length-1];
-  var drawBtn=s.d.getElementById('btnDrawTile');if(drawBtn)drawBtn.click();
+  var drawBtn=s.d.getElementById('wallDrawTile');if(drawBtn)drawBtn.click();
   var t=s.d.querySelector('.handRow .tile[role="button"][data-tile-id^="'+pick.kind+'"]');
   if(!t)return false;
   t.click();await sleep(350);
@@ -109,7 +109,7 @@ async function discardWorst(s){
   // ---------- P2 1440×900：四座可见、无溢出、手牌在屏、头像不压名字 ----------
   await frameSize(s,1440,900);
   check(await waitTurn(s,8000),'1440 下等到自己出牌');
-  var drawBtn=s.d.getElementById('btnDrawTile');if(drawBtn)drawBtn.click();await paint();
+  var drawBtn=s.d.getElementById('wallDrawTile');if(drawBtn)drawBtn.click();await paint();
   s.w.dispatchEvent(new s.w.Event('resize'));await paint();
   check(visibleAvatars(s.d).length===4,'1440 四座头像全部可见，实际 '+visibleAvatars(s.d).length);
   check(s.d.documentElement.scrollWidth<=1441,'1440 宽无横向溢出（实际 '+s.d.documentElement.scrollWidth+'）');

@@ -1,10 +1,11 @@
-"""Original companion models for 午后牌室. Run with Blender --background --python.
-No APK models, textures or animation data are used.
+"""Build legacy procedural companion models under out/legacy-room.
+Blender 4.5: --background --factory-startup --python-exit-code 1 --python scripts/build-companions.py
+These models are not compatible with the game's animated companion rig.
 """
 import bpy, math, os
 from mathutils import Vector
 
-OUT = os.path.abspath(os.path.join(os.path.dirname(__file__), '../assets/mahjong-3d/glb/companions'))
+OUT = os.path.abspath(os.path.join(os.path.dirname(__file__), '../out/legacy-room/companions'))
 os.makedirs(OUT, exist_ok=True)
 os.makedirs(os.path.join(OUT,'portraits'),exist_ok=True)
 def mat(name, rgb, rough=.8):

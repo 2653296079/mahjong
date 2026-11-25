@@ -67,8 +67,8 @@ function paint(){return new Promise(r=>requestAnimationFrame(()=>requestAnimatio
  d.getElementById('btnCancel').click();await paint();
  check(stage.dataset.handCount==='14'&&Number(stage.dataset.drawCalls)>0,'原牌局的 14 张手牌与三维画面一致');
  check(stage.dataset.hiddenCount==='39','其余三家只显示暗牌张数，不传入暗牌牌种');
- check(!!d.getElementById('btnReceiveTile'),'摸牌后需要自己接牌');
- d.getElementById('btnReceiveTile').click();await paint();
+ check(!!d.querySelector('.handRow .drawn')&&!d.getElementById('btnReceiveTile'),'直接点起手牌接入');
+ d.querySelector('.handRow .drawn').click();await paint();
  check(!d.getElementById('btnReceiveTile')&&d.querySelectorAll('.handRow .drawn').length===0,'接牌后可整理和出牌');
  var cards=Array.from(d.querySelectorAll('.handRow [data-tile-id]')),first=cards.find((t,i)=>cards.some((s,j)=>i!==j&&s.dataset.tileId.split(':')[0]===t.dataset.tileId.split(':')[0]));
  check(new Set(cards.map(t=>t.getAttribute('data-three-world-z'))).size===1,'真实手牌模型沿同一直线摆放，不再带弧度');
@@ -124,6 +124,12 @@ function paint(){return new Promise(r=>requestAnimationFrame(()=>requestAnimatio
  for(var dims of [[390,844],[844,390],[1366,768]]){
   f.style.width=dims[0]+'px';f.style.height=dims[1]+'px';w.dispatchEvent(new w.Event('resize'));await wait(450);
   await until(()=>{var r=stage.getBoundingClientRect();return stage.dataset.viewport===Math.round(r.width)+'x'+Math.round(r.height)&&d.querySelectorAll('[data-three-projected]').length===expectedCount;},10000);
+  if(dims[0]===390){
+   var canvas=stage.querySelector('canvas'),r=canvas.getBoundingClientRect();
+   var orbit=(type,y)=>canvas.dispatchEvent(new w.PointerEvent(type,{clientX:r.left+10,clientY:y,button:0,pointerId:11}));
+   orbit('pointerdown',r.top+240);orbit('pointermove',r.top+20);orbit('pointerup',r.top+20);
+   await wait(400);
+  }
   var board=stage.getBoundingClientRect(),hits=Array.from(d.querySelectorAll('[data-three-projected]')).map(t=>t.getBoundingClientRect());
   out.responsive={dims,expectedCount,count:hits.length,board:{x:board.x,y:board.y,width:board.width,height:board.height},bad:hits.filter(r=>r.width<=2||r.height<=2||r.left<board.left-2||r.right>board.right+2||r.top<board.top-2||r.bottom>board.bottom+2).map(r=>({x:r.x,y:r.y,width:r.width,height:r.height}))};
   check(hits.length===expectedCount&&hits.every(r=>r.width>2&&r.height>2&&r.left>=board.left-2&&r.right<=board.right+2&&r.top>=board.top-2&&r.bottom<=board.bottom+2),dims.join('×')+' 真实模型点击区位于画面内，无错位或溢出');

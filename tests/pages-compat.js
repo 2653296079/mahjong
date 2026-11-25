@@ -53,11 +53,21 @@ if (!EDGE) { console.log('没找到 Edge/Chrome，跳过'); process.exit(0); }
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
                '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 let result = null;
+const failingModule = ARGS.includes('--dependency') ? 'companions.js' : 'table3d.js';
+let moduleAttempts = 0;
 
 // 注意：这里刻意不接联机服务，只有静态文件 + 测试回传通道
 const server = http.createServer(async (req, res) => {
   if (accountAPI && req.url.startsWith('/api/')) { await accountAPI(req,res); return; }
   const url = req.url.split('?')[0];
+  if (PAGE === 'retry-3d' && url === '/__module-attempts') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ count: moduleAttempts, module: failingModule })); return;
+  }
+  if (PAGE === 'retry-3d' && url === '/assets/table3d/' + failingModule) {
+    moduleAttempts++;
+    if (moduleAttempts === 1) { res.writeHead(503); res.end('temporary failure'); return; }
+  }
   if (url === '/__result') {
     result = decodeURIComponent((req.url.split('?d=')[1] || ''));
     res.writeHead(200); res.end('ok'); return;
@@ -87,7 +97,7 @@ server.listen(PORT, '127.0.0.1', () => {
     console.log('已造废弃房 9999（开局后无人）');
   }
   const child = execFile(EDGE, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
-    ...(PAGE==='table-3d-ui'?['--enable-unsafe-swiftshader','--use-angle=swiftshader']:[]),
+    ...(PAGE==='table-3d-ui'||PAGE==='retry-3d'?['--enable-unsafe-swiftshader','--use-angle=swiftshader']:[]),
     ...(['selection-ui','river-hover-ui','tile-legibility-ui','mobile-ui'].includes(PAGE) ? ['--touch-events=enabled'] : []),
     '--user-data-dir=' + PROFILE,
     base + '/tests/' + PAGE + '.html'], { timeout: 220000 }, () => {});
